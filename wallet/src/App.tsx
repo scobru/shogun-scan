@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from "react";
 import Button from "./components/Button";
-import Link from "./components/Link";
 import Sidebar from "./components/Sidebar";
+import LoginWithShogunReact from "./components/LoginWithShogunReact";
+// import { LoginWithShogunReact } from "shogun-sdk";
 import { messages, rpcOptions } from "./constants";
 import { WalletInfo } from "./types";
 import "./App.css";
 import { ShogunSDK } from "shogun-sdk";
 import { ethers } from "ethers";
-import * as jose from 'jose';
- 
+import * as jose from "jose";
+
 export const shogunSDK = new ShogunSDK({
   peers: ["http://localhost:8765/gun"],
 });
@@ -17,14 +18,11 @@ export const gun = shogunSDK.gun;
 
 const App: React.FC = () => {
   // Stati per l'autenticazione
-  const [username, setUsername] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [passwordConfirmation, setPasswordConfirmation] = useState<string>("");
   const [signedIn, setSignedIn] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [userpub, setUserpub] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
 
   // Stati per i wallet
   const [derivedWallets, setDerivedWallets] = useState<WalletInfo[]>([]);
@@ -66,130 +64,69 @@ const App: React.FC = () => {
   const [openingStealthAddress, setOpeningStealthAddress] =
     useState<boolean>(false);
 
-  // Funzioni di autenticazione
-  const handleSignUp = async () => {
-    if (password !== passwordConfirmation) {
-      setErrorMessage(messages.mismatched);
-      return;
-    }
+  // Funzione per gestire il successo del login
+  const handleLoginSuccess = async (data: {
+    userPub: string;
+    username: string;
+    password?: string;
+    wallet?: any;
+    authMethod?:
+      | "standard"
+      | "metamask_direct"
+      | "metamask_saved"
+      | "metamask_signup"
+      | "standard_signup"
+      | "webauthn";
+  }) => {
+    console.log("Login effettuato con successo:", data);
+    setUserpub(data.userPub);
+    setUsername(data.username);
+    setSignedIn(true);
 
-    if (!password || !username || !passwordConfirmation) {
-      setErrorMessage(messages.empty);
-      return;
-    }
 
-    setLoading(true);
-    setErrorMessage("");
+    // Salva l'username per future sessioni
+    localStorage.setItem("shogun_username", data.username);
 
-    try {
-      console.log("Inizio handleSignUp con username:", username);
-
-      // Aggiunge log dettagliati per capire dove si blocca
-      const result = await new Promise<any>(async (resolve, reject) => {
-        try {
-          // Imposta un timeout di sicurezza
-          const timeoutId = setTimeout(() => {
-            console.error("Timeout durante la registrazione");
-            reject(new Error("Timeout durante la registrazione"));
-          }, 10000);
-
-          // Esegue la registrazione
-          const signupResult = await shogunSDK.handleSignUp(
-            username,
-            password,
-            passwordConfirmation,
-            {
-              setErrorMessage: (msg: string) => {
-                console.log("Messaggio di errore durante signup:", msg);
-                setErrorMessage(msg);
-              },
-              setUserpub,
-              setSignedIn,
-              messages,
-            }
-          );
-
-          // Cancella il timeout se la registrazione completa
-          clearTimeout(timeoutId);
-          resolve(signupResult);
-        } catch (err) {
-          console.error("Errore catturato in promise handleSignUp:", err);
-          reject(err);
-        }
-      });
-
-      console.log("Risultato handleSignUp:", result);
-
-      if (result.success) {
-        console.log("Registrazione completata, caricamento wallet...");
-        await loadWallets();
-      } else {
-        console.error("Errore nella registrazione:", result.error);
-        setErrorMessage(result.error);
-      }
-    } catch (error: any) {
-      console.error("Errore dettagliato durante la registrazione:", error);
-      setErrorMessage(error.message || "Errore durante la registrazione");
-    } finally {
-      setLoading(false);
-    }
+    // Carica i wallet
+    await loadWallets();
   };
 
-  // Modifica la funzione handleLogin per utilizzare direttamente l'SDK di Shogun per l'autenticazione
-  const handleLogin = async () => {
-    if (!username || !password) {
-      setErrorMessage("Inserisci username e password");
-      return;
-    }
+  // Funzione per gestire il successo della registrazione
+  const handleSignupSuccess = async (data: {
+    userPub: string;
+    username: string;
+    password?: string;
+    wallet?: any;
+    authMethod?:
+      | "standard"
+      | "metamask_direct"
+      | "metamask_saved"
+      | "metamask_signup"
+      | "standard_signup"
+      | "webauthn";
+  }) => {
+    console.log("Registrazione completata con successo:", data);
+    setUserpub(data.userPub);
+    setUsername(data.username);
+    setSignedIn(true);
 
-    setLoading(true);
-    setErrorMessage("");
+    // Salva l'username per future sessioni
+    localStorage.setItem("shogun_username", data.username);
 
-    try {
-      const result = await shogunSDK.handleLogin(username, password, {
-        setUserpub: (pub: string) => setUserpub(pub),
-        setSignedIn: (value: boolean) => setSignedIn(value),
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || "Errore durante il login");
-      }
-
-      console.log("Result:", result);
-
-      // Genera un token JWT con la chiave pubblica dell'utente
-      const secret = new TextEncoder().encode('your-secret-key');
-      const token = await new jose.SignJWT({ pub: userpub })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime('15m')
-        .sign(secret);
-      
-      // Salva il token in Gun per condividerlo
-      gun.get('cross_auth').get(userpub).put({
-        token: token,
-        timestamp: Date.now()
-      });
-
-      console.log("Token:", token);
-
-      // Opzionale: apri l'altra applicazione con il token come parametro
-      window.open(`http://localhost:3001/auth?token=${token}`, '_blank');
-
-      console.log("Login effettuato con successo");
-      localStorage.setItem("shogun_username", username);
-    } catch (error: any) {
-      console.error("Errore durante il login:", error);
-      setErrorMessage(error.message || "Errore durante il login");
-    } finally {
-      setLoading(false);
-    }
+    // Carica i wallet
+    await loadWallets();
   };
 
+  // Funzione per gestire gli errori di autenticazione
+  const handleAuthError = (error: string) => {
+    console.error("Errore di autenticazione:", error);
+    setErrorMessage(error);
+  };
+
+  // Funzione di logout
   const logout = () => {
     const resetState = () => {
       setUsername("");
-      setPassword("");
-      setPasswordConfirmation("");
       setDerivedWallets([]);
       setSelectedAddress(null);
       setMessageToSign("");
@@ -199,7 +136,10 @@ const App: React.FC = () => {
       setSignedIn(false);
     };
 
-    shogunSDK.performLogout(userpub, resetState);
+    // Utilizziamo direttamente gun.user().leave() per il logout
+    shogunSDK.gun.user().leave();
+    shogunSDK.gundb.logout();
+    resetState();
   };
 
   // Funzioni per i wallet
@@ -729,19 +669,10 @@ const App: React.FC = () => {
 
       // Fallback al login manuale usando shogunSDK
       const savedUsername = localStorage.getItem("shogun_username");
-      if (savedUsername && password) {
+      if (savedUsername) {
         try {
-          const result = await shogunSDK.handleLogin(savedUsername, password, {
-            setUserpub: (pub: string) => setUserpub(pub),
-            setSignedIn: (value: boolean) => setSignedIn(value),
-          });
-
-          if (result.success) {
-            console.log("Riautenticazione completata con successo");
-            return true;
-          } else {
-            throw new Error(result.error || "Login fallito");
-          }
+          console.log("Tentativo di riautenticazione automatica fallito");
+          return false;
         } catch (error) {
           console.error("Fallimento nella riautenticazione:", error);
           return false;
@@ -1130,118 +1061,14 @@ const App: React.FC = () => {
         </div>
       ) : (
         <div className="min-h-screen w-full flex justify-center items-center p-4 bg-gradient-radial from-[#1a1a1a] to-background">
-          <div className="bg-card p-8 rounded-xl w-full max-w-[380px] shadow-2xl border border-white/5">
-            <h1 className="text-2xl font-semibold text-center mb-6">
-              Shogun Wallet
-            </h1>
-
-            {activeTab === 0 ? (
-              <div className="flex flex-col gap-3">
-                <input
-                  className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-                  placeholder="Username"
-                  onChange={(e) => setUsername(e.target.value)}
-                  value={username}
-                />
-                <input
-                  className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-                  placeholder="Password"
-                  onChange={(e) => setPassword(e.target.value)}
-                  type="password"
-                />
-                <Button
-                  onClick={handleLogin}
-                  fullWidth
-                  loading={loading}
-                  text="Accedi"
-                />
-
-                <Link
-                  onClick={() => setActiveTab(1)}
-                  text="Non hai un account? Registrati"
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <input
-                  className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-                  placeholder="Username"
-                  onChange={(e) => setUsername(e.target.value)}
-                  value={username}
-                />
-                <input
-                  className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-                  placeholder="Password"
-                  onChange={(e) => setPassword(e.target.value)}
-                  type="password"
-                />
-                <input
-                  className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-                  placeholder="Conferma Password"
-                  onChange={(e) => setPasswordConfirmation(e.target.value)}
-                  type="password"
-                />
-                <Button
-                  onClick={handleSignUp}
-                  fullWidth
-                  loading={loading}
-                  text="Registrati"
-                />
-
-                <Link
-                  onClick={() => setActiveTab(0)}
-                  text="Hai già un account? Accedi"
-                />
-
-                {/* Pulsanti MetaMask */}
-                <Button
-                  onClick={handleMetaMaskConnect}
-                  fullWidth
-                  text={
-                    isMetaMaskConnected
-                      ? "MetaMask Connesso"
-                      : "Connetti MetaMask"
-                  }
-                />
-                {isMetaMaskConnected && (
-                  <div className="bg-white/5 p-3 rounded-lg">
-                    <p className="text-sm text-gray-400 mb-2 break-all">
-                      Account: {metamaskAddress}
-                    </p>
-                    <Button
-                      onClick={handleMetaMaskLogin}
-                      fullWidth
-                      text="Accedi con MetaMask"
-                    />
-                  </div>
-                )}
-
-                {/* Pulsanti WebAuthn */}
-                {isWebAuthnSupported && (
-                  <>
-                    <Button
-                      onClick={handleWebAuthnLogin}
-                      fullWidth
-                      text="Accedi con WebAuthn"
-                    />
-                    {activeTab === 1 && (
-                      <Button
-                        onClick={handleWebAuthnSignUp}
-                        fullWidth
-                        text="Registrati con WebAuthn"
-                      />
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {errorMessage && (
-              <div className="mt-3 bg-error/10 border border-error/20 text-error text-sm rounded-lg p-3 text-center">
-                {errorMessage}
-              </div>
-            )}
-          </div>
+          <LoginWithShogunReact
+            sdk={shogunSDK}
+            onLoginSuccess={handleLoginSuccess}
+            onSignupSuccess={handleSignupSuccess}
+            onError={handleAuthError}
+            showMetamask={true}
+            showWebauthn={true}
+          />
         </div>
       )}
     </div>

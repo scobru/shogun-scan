@@ -22,13 +22,7 @@ const server = app.listen(port, () => {
 // Inizializza Gun
 const gun = Gun({
   web: server,
-  file: "relay-data", // Salva i dati in una cartella chiamata 'data'
   radisk: true, // Abilita il salvataggio su disco
-});
-
-// Gestisci gli errori
-gun.on("error", (err) => {
-  console.error("Errore GUN:", err);
 });
 
 // Endpoint di base per verificare che il server sia in funzione
