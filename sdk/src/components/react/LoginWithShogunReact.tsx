@@ -1,100 +1,7 @@
+/** @jsxImportSource react */
 import React, { useState, useEffect } from 'react';
-import ShogunSDK from '../index';
-
-// Stili CSS inline per il componente
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    maxWidth: '380px',
-    margin: '0 auto',
-    padding: '20px',
-    borderRadius: '12px',
-    backgroundColor: '#1a1a1a',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
-    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-    color: 'white',
-    fontFamily: 'sans-serif'
-  },
-  header: {
-    textAlign: 'center',
-    marginBottom: '20px',
-    fontSize: '24px',
-    fontWeight: '600'
-  },
-  input: {
-    width: '100%',
-    padding: '12px',
-    marginBottom: '12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '8px',
-    color: 'white',
-    outline: 'none',
-    fontSize: '16px',
-    boxSizing: 'border-box'
-  },
-  button: {
-    width: '100%',
-    padding: '12px',
-    backgroundColor: '#6366f1',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: '500',
-    marginBottom: '12px'
-  },
-  buttonDisabled: {
-    opacity: '0.7',
-    cursor: 'not-allowed'
-  },
-  link: {
-    color: '#6366f1',
-    textAlign: 'center',
-    display: 'block',
-    marginTop: '12px',
-    cursor: 'pointer',
-    textDecoration: 'none',
-    fontSize: '14px'
-  },
-  error: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.2)',
-    color: '#ef4444',
-    padding: '10px',
-    borderRadius: '8px',
-    fontSize: '14px',
-    textAlign: 'center',
-    marginTop: '12px'
-  },
-  tabs: {
-    display: 'flex',
-    marginBottom: '20px'
-  },
-  tab: {
-    flex: 1,
-    padding: '10px',
-    textAlign: 'center',
-    cursor: 'pointer',
-    borderBottom: '2px solid transparent'
-  },
-  activeTab: {
-    borderBottom: '2px solid #6366f1',
-    fontWeight: '600'
-  },
-  metamaskContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    padding: '12px',
-    borderRadius: '8px',
-    marginTop: '12px'
-  },
-  metamaskAddress: {
-    fontSize: '14px',
-    color: '#9ca3af',
-    marginBottom: '8px',
-    wordBreak: 'break-all'
-  }
-};
+import type { FC, ReactElement, ChangeEvent } from 'react';
+import ShogunSDK from '../../index';
 
 interface CustomMessages {
   loginHeader?: string;
@@ -108,6 +15,7 @@ interface CustomMessages {
   switchToLogin?: string;
   metamaskConnect?: string;
   metamaskLogin?: string;
+  metamaskSignup?: string;
   webauthnLogin?: string;
   webauthnSignup?: string;
   mismatched?: string;
@@ -119,7 +27,7 @@ interface LoginWithShogunProps {
   sdk: ShogunSDK;
   onLoginSuccess?: (data: { 
     userPub: string; 
-    username: string; 
+    username: string;
     password?: string;
     wallet?: any;
     authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn';
@@ -138,7 +46,7 @@ interface LoginWithShogunProps {
   showWebauthn?: boolean;
 }
 
-const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
+const LoginWithShogunReact: FC<LoginWithShogunProps> = ({
   sdk,
   onLoginSuccess,
   onSignupSuccess,
@@ -147,7 +55,7 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
   darkMode = true,
   showMetamask = true,
   showWebauthn = true
-}) => {
+}): ReactElement => {
   const [activeTab, setActiveTab] = useState<number>(0);
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -171,6 +79,7 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
     switchToLogin: customMessages?.switchToLogin || 'Hai già un account? Accedi',
     metamaskConnect: customMessages?.metamaskConnect || 'Connetti MetaMask',
     metamaskLogin: customMessages?.metamaskLogin || 'Accedi con MetaMask',
+    metamaskSignup: customMessages?.metamaskSignup || 'Registrati con MetaMask',
     webauthnLogin: customMessages?.webauthnLogin || 'Accedi con WebAuthn',
     webauthnSignup: customMessages?.webauthnSignup || 'Registrati con WebAuthn',
     mismatched: customMessages?.mismatched || 'Le password non corrispondono',
@@ -492,66 +401,75 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
     }
   };
 
+  const handleUsernameChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setUsername(e.target.value);
+  };
+
+  const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  };
+
+  const handlePasswordConfirmationChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setPasswordConfirmation(e.target.value);
+  };
+
   return (
-    <div style={styles.container}>
-      <div style={styles.tabs}>
+    <div className="flex flex-col w-auto h-auto p-4 bg-white dark:bg-gray-800 rounded-md shadow-sm space-y-5 max-w-sm">
+      <div className="flex w-full mb-4">
         <div 
-          style={{...styles.tab, ...(activeTab === 0 ? styles.activeTab : {})}}
+          className={`flex-1 p-2 text-center cursor-pointer ${activeTab === 0 ? 'border-b-2 border-blue-600 font-semibold' : ''}`}
           onClick={() => setActiveTab(0)}
         >
           Login
         </div>
         <div 
-          style={{...styles.tab, ...(activeTab === 1 ? styles.activeTab : {})}}
+          className={`flex-1 p-2 text-center cursor-pointer ${activeTab === 1 ? 'border-b-2 border-blue-600 font-semibold' : ''}`}
           onClick={() => setActiveTab(1)}
         >
           Registrazione
         </div>
       </div>
       
-      <h2 style={styles.header}>
+      <h2 className="text-center text-lg text-gray-900 dark:text-white">
         {activeTab === 0 ? messages.loginHeader : messages.signupHeader}
       </h2>
       
       {activeTab === 0 ? (
-        // Login Form
-        <div>
+        <div className="space-y-4">
           <input
-            style={styles.input}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="text"
             placeholder={messages.usernameLabel}
             value={username}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+            onChange={handleUsernameChange}
           />
           <input
-            style={styles.input}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             placeholder={messages.passwordLabel}
             value={password}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
           />
           <button
-            style={{
-              ...styles.button,
-              ...(loading ? styles.buttonDisabled : {})
-            }}
+            className={`w-full px-4 py-2 bg-blue-600 text-white rounded-md ${loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'}`}
             onClick={handleLogin}
             disabled={loading}
           >
             {loading ? 'Caricamento...' : messages.loginButton}
           </button>
           
-          <a style={styles.link} onClick={() => setActiveTab(1)}>
-            {messages.switchToSignup}
-          </a>
+          <div className="text-center">
+            <button
+              className="text-blue-600 hover:underline"
+              onClick={() => setActiveTab(1)}
+            >
+              {messages.switchToSignup}
+            </button>
+          </div>
           
           {showWebauthn && isWebAuthnSupported && (
             <button
-              style={{
-                ...styles.button,
-                ...(loading ? styles.buttonDisabled : {}),
-                backgroundColor: '#4f46e5'
-              }}
+              className={`w-full px-4 py-2 bg-purple-600 text-white rounded-md ${loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-purple-700'}`}
               onClick={handleWebAuthnLogin}
               disabled={loading}
             >
@@ -560,13 +478,9 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
           )}
           
           {showMetamask && (
-            <div>
+            <div className="space-y-2">
               <button
-                style={{
-                  ...styles.button,
-                  ...(loading ? styles.buttonDisabled : {}),
-                  backgroundColor: '#f59e0b'
-                }}
+                className={`w-full px-4 py-2 bg-orange-500 text-white rounded-md ${loading || isMetaMaskConnected ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'}`}
                 onClick={handleMetaMaskConnect}
                 disabled={loading || isMetaMaskConnected}
               >
@@ -574,16 +488,12 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
               </button>
               
               {isMetaMaskConnected && (
-                <div style={styles.metamaskContainer}>
-                  <p style={styles.metamaskAddress}>
+                <div className="p-3 bg-gray-700 rounded-md">
+                  <p className="text-sm text-gray-300 mb-2 break-all">
                     Account: {metamaskAddress}
                   </p>
                   <button
-                    style={{
-                      ...styles.button,
-                      ...(loading ? styles.buttonDisabled : {}),
-                      backgroundColor: '#f59e0b'
-                    }}
+                    className={`w-full px-4 py-2 bg-orange-500 text-white rounded-md ${loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'}`}
                     onClick={handleMetaMaskLogin}
                     disabled={loading}
                   >
@@ -595,51 +505,48 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
           )}
         </div>
       ) : (
-        // Signup Form
-        <div>
+        <div className="space-y-4">
           <input
-            style={styles.input}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="text"
             placeholder={messages.usernameLabel}
             value={username}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+            onChange={handleUsernameChange}
           />
           <input
-            style={styles.input}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             placeholder={messages.passwordLabel}
             value={password}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
           />
           <input
-            style={styles.input}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             placeholder={messages.confirmPasswordLabel}
             value={passwordConfirmation}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPasswordConfirmation(e.target.value)}
+            onChange={handlePasswordConfirmationChange}
           />
           <button
-            style={{
-              ...styles.button,
-              ...(loading ? styles.buttonDisabled : {})
-            }}
+            className={`w-full px-4 py-2 bg-blue-600 text-white rounded-md ${loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'}`}
             onClick={handleSignUp}
             disabled={loading}
           >
             {loading ? 'Caricamento...' : messages.signupButton}
           </button>
           
-          <a style={styles.link} onClick={() => setActiveTab(0)}>
-            {messages.switchToLogin}
-          </a>
+          <div className="text-center">
+            <button
+              className="text-blue-600 hover:underline"
+              onClick={() => setActiveTab(0)}
+            >
+              {messages.switchToLogin}
+            </button>
+          </div>
           
           {showWebauthn && isWebAuthnSupported && (
             <button
-              style={{
-                ...styles.button,
-                ...(loading ? styles.buttonDisabled : {}),
-                backgroundColor: '#4f46e5'
-              }}
+              className={`w-full px-4 py-2 bg-purple-600 text-white rounded-md ${loading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-purple-700'}`}
               onClick={handleWebAuthnSignUp}
               disabled={loading}
             >
@@ -648,31 +555,29 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
           )}
           
           {showMetamask && (
-            <button
-              style={{
-                ...styles.button,
-                ...(loading ? styles.buttonDisabled : {}),
-                backgroundColor: '#f59e0b'
-              }}
-              onClick={handleMetaMaskSignUp}
-              disabled={loading || isMetaMaskConnected}
-            >
-              {isMetaMaskConnected ? 'MetaMask Connesso' : messages.metamaskConnect}
-            </button>
-          )}
-          
-          {showMetamask && isMetaMaskConnected && (
-            <div style={styles.metamaskContainer}>
-              <p style={styles.metamaskAddress}>
-                Account: {metamaskAddress}
-              </p>
+            <div className="space-y-2">
+              <button
+                className={`w-full px-4 py-2 bg-orange-500 text-white rounded-md ${loading || isMetaMaskConnected ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'}`}
+                onClick={handleMetaMaskSignUp}
+                disabled={loading || isMetaMaskConnected}
+              >
+                {isMetaMaskConnected ? 'MetaMask Connesso' : messages.metamaskConnect}
+              </button>
+              
+              {isMetaMaskConnected && (
+                <div className="p-3 bg-gray-700 rounded-md">
+                  <p className="text-sm text-gray-300 mb-2 break-all">
+                    Account: {metamaskAddress}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
       
       {errorMessage && (
-        <div style={styles.error}>
+        <div className="text-center text-red-500">
           {errorMessage}
         </div>
       )}
@@ -680,4 +585,4 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
   );
 };
 
-export default LoginWithShogun; 
+export default LoginWithShogunReact; 

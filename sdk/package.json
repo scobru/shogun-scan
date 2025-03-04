@@ -6,7 +6,10 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
-    "postbuild": "cp -r src/hedgehog dist/hedgehog"
+    "postbuild": "cp -r src/hedgehog dist/hedgehog",
+    "test": "jest",
+    "build:react": "tsc -p tsconfig.react.json",
+    "build:solid": "tsc -p tsconfig.json"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -35,19 +38,21 @@
     "@audius/hedgehog": "latest",
     "browserify-cipher": "1.0.1",
     "ethereumjs-wallet": "^1.0.2",
-    "ethers": "^6.13.5",
-    "gun": "^0.2020.1240",
-    "react": "^19.0.0",
+    "ethers": "^6.11.1",
+    "gun": "^0.2020.1239",
+    "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "solid-js": "^1.9.5",
-    "typescript": "^5.8.2"
+    "solid-js": "^1.8.15",
+    "typescript": "^5.3.3"
   },
   "peerDependencies": {
     "react": ">=16.8.0",
     "react-dom": ">=16.8.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0"
+    "@types/node": "^20.11.24",
+    "@types/react": "^18.2.61",
+    "@types/react-dom": "^18.2.19",
+    "typescript": "^5.3.3"
   }
 }

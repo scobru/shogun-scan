@@ -8,9 +8,11 @@
     "declarationDir": "./dist/types",
     "outDir": "./dist",
     "strict": true,
-    "jsx": "react",
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["solid-js"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

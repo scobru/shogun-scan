@@ -7,7 +7,8 @@ import { MetaMask } from "./connector/MetaMask";
 import { Webauthn } from "./webauthn/Webauthn";
 import { Stealth } from "./stealth/Stealth";
 import Wallet from "ethereumjs-wallet";
-import LoginWithShogun from './components/LoginWithShogunReact';
+import LoginWithShogunReact from "./components/react/LoginWithShogunReact";
+
 
 import "./hedgehog/browser";
 //
@@ -176,9 +177,7 @@ export class ShogunSDK {
         }
         return { success: false, error: "User already created" };
       } catch (hedgehogError) {
-        log(
-          "Utente non esistente su Hedgehog, procedo con la registrazione"
-        );
+        log("Utente non esistente su Hedgehog, procedo con la registrazione");
       }
 
       // Poi proviamo a creare l'utente GUN
@@ -264,9 +263,7 @@ export class ShogunSDK {
                     );
                     reject(new Error(ack.err));
                   } else {
-                    log(
-                      "Struttura wallet paths inizializzata con successo"
-                    );
+                    log("Struttura wallet paths inizializzata con successo");
                     resolve(ack);
                   }
                 }
@@ -678,9 +675,7 @@ export class ShogunSDK {
       // Verifica se l'utente è autenticato
       const user = this.gun.user() as IGunUserInstance;
       if (!user.is) {
-        log(
-          "Utente GUN non autenticato, tentativo di recall sessione..."
-        );
+        log("Utente GUN non autenticato, tentativo di recall sessione...");
         await new Promise<void>((resolve) => {
           user.recall({ sessionStorage: true }, () => {
             resolve();
@@ -848,36 +843,44 @@ export class ShogunSDK {
   async loginWithMetaMask(address: string): Promise<AuthResult> {
     try {
       if (!this.metamask) {
-        return this.createAuthResult(false, { error: "MetaMask non è inizializzato" });
+        return this.createAuthResult(false, {
+          error: "MetaMask non è inizializzato",
+        });
       }
 
       const result = await this.metamask.login(address);
-      
+
       if (!result.success || !result.username || !result.password) {
-        return this.createAuthResult(false, { 
-          error: result.error || "Errore durante il login con MetaMask" 
+        return this.createAuthResult(false, {
+          error: result.error || "Errore durante il login con MetaMask",
         });
       }
 
       try {
-        const hedgehogResult = await this.authenticateWithHedgehog(result.username, result.password);
-        const userPub = await this.authenticateWithGun(result.username, result.password);
-        
+        const hedgehogResult = await this.authenticateWithHedgehog(
+          result.username,
+          result.password
+        );
+        const userPub = await this.authenticateWithGun(
+          result.username,
+          result.password
+        );
+
         return this.createAuthResult(true, {
           userPub: userPub || address,
           password: result.password,
-          wallet: hedgehogResult.wallet
+          wallet: hedgehogResult.wallet,
         });
       } catch (authError) {
         log("Errore autenticazione:", authError);
         // Se l'autenticazione fallisce, ritorniamo un errore invece di success: true
         return this.createAuthResult(false, {
-          error: "Errore nell'autenticazione: " + (authError as Error).message
+          error: "Errore nell'autenticazione: " + (authError as Error).message,
         });
       }
     } catch (error: any) {
       return this.createAuthResult(false, {
-        error: error.message || "Errore nel login con MetaMask"
+        error: error.message || "Errore nel login con MetaMask",
       });
     }
   }
@@ -885,55 +888,70 @@ export class ShogunSDK {
   async signUpWithMetaMask(address: string): Promise<AuthResult> {
     try {
       if (!this.metamask) {
-        return this.createAuthResult(false, { error: "MetaMask non è inizializzato" });
+        return this.createAuthResult(false, {
+          error: "MetaMask non è inizializzato",
+        });
       }
 
       const result = await this.metamask.signUp(address);
-      
+
       if (!result.success || !result.username || !result.password) {
         return this.createAuthResult(false, {
-          error: result.error || "Errore durante la registrazione con MetaMask"
+          error: result.error || "Errore durante la registrazione con MetaMask",
         });
       }
 
       try {
         // Verifica se l'utente esiste già
         try {
-          const hedgehogResult = await this.authenticateWithHedgehog(result.username, result.password);
+          const hedgehogResult = await this.authenticateWithHedgehog(
+            result.username,
+            result.password
+          );
           return this.createAuthResult(true, {
             userPub: address,
             password: result.password,
-            wallet: hedgehogResult.wallet
+            wallet: hedgehogResult.wallet,
           });
         } catch (hedgehogError) {
           log("Utente non esistente, procedo con la registrazione");
         }
 
-        const hedgehogWallet = await this.hedgehog.signUp(result.username, result.password);
+        const hedgehogWallet = await this.hedgehog.signUp(
+          result.username,
+          result.password
+        );
         await this.gundb.createGunUser(result.username, result.password);
-        const userPub = await this.authenticateWithGun(result.username, result.password);
-        await this.initializeUserData(result.username, result.password, userPub);
-        
+        const userPub = await this.authenticateWithGun(
+          result.username,
+          result.password
+        );
+        await this.initializeUserData(
+          result.username,
+          result.password,
+          userPub
+        );
+
         return this.createAuthResult(true, {
           userPub: userPub || address,
           password: result.password,
-          wallet: hedgehogWallet
+          wallet: hedgehogWallet,
         });
       } catch (createError: any) {
         if (createError.message?.includes("User already created")) {
           return this.createAuthResult(true, {
             userPub: address,
-            password: result.password
+            password: result.password,
           });
         }
-        
+
         return this.createAuthResult(false, {
-          error: createError.message || "Errore durante la creazione utente"
+          error: createError.message || "Errore durante la creazione utente",
         });
       }
     } catch (error: any) {
       return this.createAuthResult(false, {
-        error: error.message || "Errore nella registrazione con MetaMask"
+        error: error.message || "Errore nella registrazione con MetaMask",
       });
     }
   }
@@ -1119,7 +1137,7 @@ export class ShogunSDK {
     try {
       // Verifica esistenza utente
       log("Verifica esistenza utente", username);
-      
+
       try {
         log("Tentativo login Hedgehog per verifica esistenza...");
         const loginResult = await this.hedgehog.login(username, password);
@@ -1139,13 +1157,15 @@ export class ShogunSDK {
         log("Utente GUN creato con successo");
       } catch (gunError: any) {
         log("Errore creazione utente GUN:", gunError);
-        throw new Error(gunError.message || "Errore nella creazione utente GUN");
+        throw new Error(
+          gunError.message || "Errore nella creazione utente GUN"
+        );
       }
 
       // Autentica utente GUN
       log("Autenticazione utente GUN");
       await this.gundb.authenticateGunUser(username, password);
-      
+
       // Recupera chiave pubblica
       const userPub = this.gundb.gun?.user()?.is?.pub;
       if (setUserpub && userPub) setUserpub(userPub);
@@ -1159,10 +1179,9 @@ export class ShogunSDK {
       await this.initializeWalletPaths(userPub || "");
 
       if (setSignedIn) setSignedIn(true);
-      
+
       log("Registrazione completata con successo");
       return { success: true, userPub };
-
     } catch (e: any) {
       console.error("Errore durante la registrazione:", e);
       return { success: false, error: e.message };
@@ -1216,9 +1235,7 @@ export class ShogunSDK {
       // Approccio alternativo: utilizziamo set invece di put
       // che è più affidabile per strutture di dati semplici
       return await new Promise<void>((resolve, reject) => {
-        log(
-          "Scrittura wallet paths in GunDB con metodo alternativo..."
-        );
+        log("Scrittura wallet paths in GunDB con metodo alternativo...");
 
         // Usiamo setTimeout invece di Promise.race per gestire meglio il timeout
         const timeoutId = setTimeout(() => {
@@ -1247,9 +1264,7 @@ export class ShogunSDK {
             // Utilizziamo un doppio set invece di put per avere maggiori probabilità di successo
             pathNode.get("paths").set({}, (ack1) => {
               pathNode.get("initialized").put(true, (ack2) => {
-                log(
-                  "Wallet paths inizializzati con metodo alternativo"
-                );
+                log("Wallet paths inizializzati con metodo alternativo");
                 clearTimeout(timeoutId);
                 resolve();
               });
@@ -1264,7 +1279,10 @@ export class ShogunSDK {
   }
 
   // Metodi privati di utilità
-  private async authenticateWithHedgehog(username: string, password: string): Promise<any> {
+  private async authenticateWithHedgehog(
+    username: string,
+    password: string
+  ): Promise<any> {
     log("Autenticazione con Hedgehog...");
     try {
       const wallet = await this.hedgehog.login(username, password);
@@ -1276,7 +1294,10 @@ export class ShogunSDK {
     }
   }
 
-  private async authenticateWithGun(username: string, password: string): Promise<string> {
+  private async authenticateWithGun(
+    username: string,
+    password: string
+  ): Promise<string> {
     log("Autenticazione con GUN...");
     try {
       await this.gundb.authenticateGunUser(username, password);
@@ -1291,7 +1312,11 @@ export class ShogunSDK {
     }
   }
 
-  private async initializeUserData(username: string, password: string, userPub: string): Promise<void> {
+  private async initializeUserData(
+    username: string,
+    password: string,
+    userPub: string
+  ): Promise<void> {
     log("Inizializzazione dati utente...");
     try {
       await new Promise((resolve, reject) => {
@@ -1318,7 +1343,10 @@ export class ShogunSDK {
     }
   }
 
-  private createAuthResult(success: boolean, data?: { userPub?: string; password?: string; wallet?: any; error?: string }): AuthResult {
+  private createAuthResult(
+    success: boolean,
+    data?: { userPub?: string; password?: string; wallet?: any; error?: string }
+  ): AuthResult {
     return {
       success,
       ...(data || {}),
@@ -1339,5 +1367,5 @@ if (typeof window !== "undefined") {
   (global as any).Stealth = Stealth;
 }
 
-export { LoginWithShogun };
+export { LoginWithShogunReact  };
 export default ShogunSDK;
