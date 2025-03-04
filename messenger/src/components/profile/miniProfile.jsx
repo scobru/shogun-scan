@@ -1,13 +1,15 @@
 import { gunAvatar } from 'gun-avatar';
-import { gun } from 'lonewolf-protocol';
-import { useLocation, useNavigate } from 'solid-app-router';
+import { user , gun } from 'lonewolf-protocol';
+import { useLocation } from '@solidjs/router';
+import { useNavigation } from '../../contexts/navigationContext';
 import { onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import moment from 'moment';
 import useUserInfo from '../../hooks/userInfo';
 
 let MiniProfile = () => {
-  let navigate = useNavigate();
   let location = useLocation();
+  let { navigate } = useNavigation();
 
   let [state, setState] = createStore(
     { alias: '', pub: '' },

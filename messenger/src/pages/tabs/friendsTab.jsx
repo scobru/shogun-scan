@@ -1,6 +1,6 @@
 import { gunAvatar } from 'gun-avatar';
 import { friends, messaging } from 'lonewolf-protocol';
-import { useNavigate } from 'solid-app-router';
+import { useNavigation } from '../../contexts/navigationContext';
 import AddFriendButton from '../../components/buttons/addFriend';
 import CrossButton from '../../components/buttons/cross';
 import FloatingButtonBottomRight from '../../components/buttons/floatingBottomRight';
@@ -8,9 +8,10 @@ import TickButton from '../../components/buttons/tick';
 import useFriendRequests from '../../hooks/friendRequests';
 import useFriendsList from '../../hooks/friendsList';
 import useModals from '../../hooks/models';
+import moment from 'moment';
 
 let FriendsTabPage = () => {
-  let navigate = useNavigate();
+  let { navigate } = useNavigation();
 
   let [modals, editModals] = useModals();
   let friendRequests = useFriendRequests();

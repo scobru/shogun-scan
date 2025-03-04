@@ -1,10 +1,11 @@
-import { useNavigate } from 'solid-app-router';
+import { useNavigation } from '../../contexts/navigationContext';
 import { onMount } from 'solid-js';
 import Header from '../../components/header/header';
+import BackButton from '../../components/buttons/back';
 import useUserSettings from '../../hooks/userSettings';
 
 let AppearanceSettingsPage = ({ backEnabled = false }) => {
-  let navigate = useNavigate();
+  let { navigate } = useNavigation();
 
   let [settings, setSettings] = useUserSettings();
 

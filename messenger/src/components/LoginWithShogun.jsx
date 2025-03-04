@@ -58,6 +58,10 @@ const LoginWithShogun = (props) => {
     setLoading(true);
     setErrorMessage('');
 
+    console.log("username:", username());
+    console.log("password:", password());
+
+
     try {
       const result = await props.sdk.handleLogin(username(), password(), {});
       console.log("Risultato login standard:", result);
@@ -150,10 +154,6 @@ const LoginWithShogun = (props) => {
   };
 
   const handleMetaMaskLogin = async () => {
-    console.log("handleMetaMaskLogin chiamato");
-    console.log("isMetaMaskConnected:", isMetaMaskConnected());
-    console.log("metamaskAddress:", metamaskAddress());
-    
     if (!isMetaMaskConnected() || !metamaskAddress()) {
       setErrorMessage("MetaMask non connesso");
       return;
@@ -163,7 +163,11 @@ const LoginWithShogun = (props) => {
     setErrorMessage('');
     
     try {
-      const username = `metamask_${metamaskAddress().slice(2, 8)}`;
+      // Importante: l'username deve essere generato nello stesso modo in cui viene fatto nel backend
+      // Dai log vediamo che il formato è metamask_0x8aa5f726
+      const username = `metamask_${metamaskAddress().slice(0, 10)}`;
+      
+      console.log("Tentativo di login con username:", username);
       
       // Prima controlla se abbiamo una password salvata
       const savedPassword = localStorage.getItem(`lonewolf_${username}`);
@@ -190,27 +194,36 @@ const LoginWithShogun = (props) => {
       // Se non abbiamo una password salvata o il login diretto fallisce, procedi con MetaMask
       console.log("Tentativo di login con MetaMask...");
       const result = await props.sdk.loginWithMetaMask(metamaskAddress());
-
-      console.log("Risultato login con MetaMask:", result);
       
       if (result.success) {
-        // Salva la password generata in localStorage per uso futuro
+        console.log("Login con MetaMask riuscito");
+        
+        // Salva la password generata in localStorage
         if (result.password) {
           localStorage.setItem(`lonewolf_${username}`, result.password);
         }
         
         if (props.onLoginSuccess) {
-          const authResult = {
+          props.onLoginSuccess({ 
             userPub: result.userPub || metamaskAddress(), 
-            username: username,
+            username: result.username || username,
             password: result.password,
             wallet: result.wallet,
             authMethod: 'metamask_direct'
-          };
-          
-          props.onLoginSuccess(authResult);
+          });
         }
       } else {
+        // Se il login fallisce, proviamo a registrare l'utente
+        if (result.error && (
+            result.error.includes("Account not registered") || 
+            result.error.includes("Account not found") ||
+            result.error.includes("missing data")
+          )) {
+          console.log("Account non registrato o dati mancanti, tentativo di registrazione...");
+          await handleMetaMaskSignUp();
+          return;
+        }
+        
         throw new Error(result.error || "Errore durante il login con MetaMask");
       }
     } catch (error) {
@@ -232,7 +245,11 @@ const LoginWithShogun = (props) => {
     setErrorMessage('');
     
     try {
-      const username = `metamask_${metamaskAddress().slice(2, 8)}`;
+      // Importante: l'username deve essere generato nello stesso modo in cui viene fatto nel backend
+      // Dai log vediamo che il formato è metamask_0x8aa5f726
+      const username = `metamask_${metamaskAddress().slice(0, 10)}`;
+      
+      console.log("Tentativo di registrazione con username:", username);
       
       // Tenta la registrazione con MetaMask
       console.log("Tentativo di registrazione con MetaMask...");
@@ -304,13 +321,16 @@ const LoginWithShogun = (props) => {
     setErrorMessage('');
     
     try {
+      console.log("Tentativo di login con WebAuthn...");
       const result = await props.sdk.authenticateWithWebAuthn(username());
+      console.log("Risultato login WebAuthn:", result);
+      
       if (result.success) {
         if (props.onLoginSuccess) {
           props.onLoginSuccess({ 
-            userPub: result.credentialId || 'webauthn-user-pub', 
+            userPub: result.userPub || result.credentialId || 'webauthn-user-pub', 
             username: username(),
-            password: `WebAuthn_${username()}_${Date.now()}`,
+            password: result.password || `WebAuthn_${username()}_${Date.now()}`,
             authMethod: 'webauthn'
           });
         }
@@ -338,17 +358,16 @@ const LoginWithShogun = (props) => {
     setErrorMessage('');
     
     try {
-      const securePassword = `WebAuthn_${username()}_${Date.now()}`;
-      
+      console.log("Tentativo di registrazione con WebAuthn...");
       const result = await props.sdk.registerWithWebAuthn(username());
       console.log("Risultato registrazione WebAuthn:", result);
       
       if (result.success) {
         if (props.onSignupSuccess) {
           props.onSignupSuccess({ 
-            userPub: result.credentialId || 'webauthn-user-pub', 
+            userPub: result.userPub || result.credentialId || 'webauthn-user-pub', 
             username: username(),
-            password: securePassword,
+            password: result.password || `WebAuthn_${username()}_${Date.now()}`,
             authMethod: 'webauthn'
           });
         }

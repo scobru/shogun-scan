@@ -1,7 +1,10 @@
+import { useNavigation } from '../../contexts/navigationContext';
 import { createSignal, onCleanup, onMount } from 'solid-js';
 import Header from '../../components/header/header';
+import BackButton from '../../components/buttons/back';
 
 let SystemsStatusSettingsPage = ({ backEnabled = false }) => {
+  let { navigate } = useNavigation();
   let [ipfsOnline, setIpfsOnline] = createSignal(window.ipfs.isOnline());
   let [swarmConnectivity, setSwarmConnectivity] = createSignal(
     window.swarmConnectivity

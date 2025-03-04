@@ -1,16 +1,16 @@
-import { useNavigate } from 'solid-app-router';
+import { useNavigation } from '../../contexts/navigationContext';
 
 let SettingsButton = () => {
-  let navigate = useNavigate();
+  let { navigate } = useNavigation();
 
   return (
     <div
-      class="flex justify-center items-center cursor-pointer hover:text-gray-400"
+      class="flex justify-center items-center p-3 bg-gray-300 dark:bg-gray-800 hover:bg-gray-400 dark:hover:bg-gray-700 rounded-md cursor-pointer"
       onClick={() => navigate('/settings')}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        class="h-4 w-4"
+        class="h-5 w-5 text-gray-900 dark:text-white"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"

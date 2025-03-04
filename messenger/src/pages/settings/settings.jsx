@@ -1,8 +1,8 @@
-import { Outlet, useNavigate } from '@solidjs/router';
+import { useNavigate } from '@solidjs/router';
 import { createSignal } from 'solid-js';
 import SettingsHeader from '../../components/settings/settingsHeader';
 
-let SettingsPage = () => {
+let SettingsPage = (props) => {
   let navigate = useNavigate();
 
   let [menuActive, setMenuActive] = createSignal(true);
@@ -57,7 +57,6 @@ let SettingsPage = () => {
               class="flex justify-start items-center p-3 bg-gray-300 dark:bg-gray-800 hover:bg-gray-400 dark:hover:bg-gray-700 rounded-md overflow-x-hidden cursor-pointer"
               onClick={() => {
                 navigate('/settings/profile');
-                // setMenuActive(false);
               }}
             >
               <div></div>
@@ -68,7 +67,6 @@ let SettingsPage = () => {
               class="flex justify-start items-center p-3 bg-gray-300 dark:bg-gray-800 hover:bg-gray-400 dark:hover:bg-gray-700 rounded-md overflow-x-hidden cursor-pointer"
               onClick={() => {
                 navigate('/settings/appearance');
-                // setMenuActive(false);
               }}
             >
               <div></div>
@@ -79,7 +77,6 @@ let SettingsPage = () => {
               class="flex justify-start items-center p-3 bg-gray-300 dark:bg-gray-800 hover:bg-gray-400 dark:hover:bg-gray-700 rounded-md overflow-x-hidden cursor-pointer"
               onClick={() => {
                 navigate('/settings/systems-status');
-                // setMenuActive(false);
               }}
             >
               <div></div>
@@ -103,7 +100,7 @@ let SettingsPage = () => {
             menuActive() ? 'rounded-tl-lg' : 'rounded-t-lg'
           } lg:rounded-tr-none lg:rounded-tl-lg overflow-x-hidden`}
         >
-          <Outlet />
+          {props.children}
         </div>
       </div>
     </div>

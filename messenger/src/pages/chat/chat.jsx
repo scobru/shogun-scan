@@ -1,7 +1,8 @@
 import { gunAvatar } from 'gun-avatar';
 import { gun, messaging, user } from 'lonewolf-protocol';
 import moment from 'moment';
-import { useNavigate, useParams } from 'solid-app-router';
+import { useParams } from '@solidjs/router';
+import { useNavigation } from '../../contexts/navigationContext';
 import { createSignal, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import BackButton from '../../components/buttons/back';
@@ -12,8 +13,8 @@ import useOtherUserInfo from '../../hooks/otherUserInfo';
 import createAudioRecording from '../../utils/createAudioRecording';
 
 let ChatPage = () => {
-  let navigate = useNavigate();
   let params = useParams();
+  let { navigate } = useNavigation();
 
   let [state, setState] = createStore(
     { alias: '', pub: '' },

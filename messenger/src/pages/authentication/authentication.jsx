@@ -46,7 +46,7 @@ let AuthenticationPage = () => {
       { username, password: finalPassword },
       ({ errMessage, success }) => {
         if (errMessage) {
-          console.error(errMessage);
+          console.error("Errore durante il login con LoneWolf:", errMessage);
           
           // Se l'utente non esiste in LoneWolf, registralo
           if (errMessage === "Wrong user or password.") {
@@ -63,6 +63,58 @@ let AuthenticationPage = () => {
           }
         } else {
           console.log("Autenticazione LoneWolf completata:", success);
+          
+          // Forza l'aggiornamento dello stato di autenticazione
+          setTimeout(() => {
+            console.log("Tentativo di forzare l'autenticazione dopo login...");
+            
+            // Verifico se l'oggetto è un Subject RxJS (ha il metodo next)
+            if (typeof authentication.isAuthenticated === 'object' && 
+                typeof authentication.isAuthenticated.next === 'function') {
+              console.log("Rilevato Subject RxJS, utilizzo il metodo next()...");
+              authentication.isAuthenticated.next(true);
+              
+              // Verifica se è stato impostato correttamente
+              setTimeout(() => {
+                console.log("Verifica stato attuale dopo login:", authentication.isAuthenticated);
+                if (authentication.checkAuth) {
+                  console.log("Risultato checkAuth dopo login:", authentication.checkAuth());
+                }
+                
+                // Reindirizza alla home page se sembra tutto ok
+                setTimeout(() => {
+                  console.log("Reindirizzamento alla home dopo login riuscito...");
+                  window.location.href = '/';
+                }, 200);
+              }, 100);
+            } else if (typeof authentication.checkAuth === 'function') {
+              // Prova ad usare checkAuth per verificare/forzare l'autenticazione
+              console.log("Tentativo di utilizzo del metodo checkAuth...");
+              const isAuth = authentication.checkAuth();
+              console.log("Risultato checkAuth:", isAuth);
+              
+              if (isAuth) {
+                // Reindirizza alla home page
+                console.log("Autenticazione verificata, reindirizzamento alla home...");
+                setTimeout(() => {
+                  window.location.href = '/';
+                }, 200);
+              } else {
+                console.log("checkAuth ha restituito false, tentativo di reload...");
+                setTimeout(() => {
+                  window.location.reload();
+                }, 300);
+              }
+            } else {
+              console.log("Nessun metodo disponibile per verificare l'autenticazione");
+              
+              // Prova comunque a reindirizzare alla home
+              console.log("Tentativo di reindirizzamento diretto alla home...");
+              setTimeout(() => {
+                window.location.href = '/';
+              }, 300);
+            }
+          }, 300);
         }
       }
     );
@@ -124,6 +176,102 @@ let AuthenticationPage = () => {
                   console.error("Errore durante il login diretto:", errMessage);
                 } else {
                   console.log("Login diretto riuscito:", success);
+                  
+                  // Forza l'aggiornamento dello stato di autenticazione
+                  setTimeout(() => {
+                    console.log("Tentativo di forzare l'autenticazione...");
+                    
+                    // Verifico se l'oggetto è un Subject RxJS (ha il metodo next)
+                    if (typeof authentication.isAuthenticated === 'object' && 
+                        typeof authentication.isAuthenticated.next === 'function') {
+                      console.log("Rilevato Subject RxJS, utilizzo il metodo next()...");
+                      
+                      // Salva le credenziali di questo utente per uso futuro nel localStorage
+                      // In questo modo il valore può essere recuperato anche dopo un refresh
+                      try {
+                        const oldPassword = localStorage.getItem(`lonewolf_${username}`);
+                        if (oldPassword && oldPassword !== password) {
+                          // Sposta la vecchia password in uno slot di backup
+                          for (let i = 5; i > 1; i--) {
+                            const prevPassword = localStorage.getItem(`lonewolf_${username}_${i-1}`);
+                            if (prevPassword) {
+                              localStorage.setItem(`lonewolf_${username}_${i}`, prevPassword);
+                            }
+                          }
+                          localStorage.setItem(`lonewolf_${username}_1`, oldPassword);
+                        }
+                        localStorage.setItem(`lonewolf_${username}`, password);
+                        localStorage.setItem("current_user", username);
+                        localStorage.setItem("is_authenticated", "true");
+                        console.log("Credenziali salvate nel localStorage");
+                      } catch (e) {
+                        console.error("Errore nel salvataggio delle credenziali:", e);
+                      }
+                      
+                      // Imposta il flag di autenticazione
+                      authentication.isAuthenticated.next(true);
+                      
+                      // Prova a leggere il valore attuale dal Subject RxJS
+                      let currentValue;
+                      try {
+                        // Alcuni Subject RxJS hanno una proprietà value accessibile
+                        if (authentication.isAuthenticated.hasOwnProperty('value')) {
+                          currentValue = authentication.isAuthenticated.value;
+                          console.log("Valore attuale del Subject (tramite .value):", currentValue);
+                        }
+                      } catch (e) {
+                        console.log("Impossibile leggere il valore direttamente:", e);
+                      }
+                      
+                      console.log("Reindirizzamento alla home...");
+                      // Reindirizzo comunque alla home page dopo un breve ritardo
+                      setTimeout(() => {
+                        window.location.href = '/';
+                      }, 1000);
+                    } else if (typeof authentication.checkAuth === 'function') {
+                      // Prova ad usare checkAuth per verificare/forzare l'autenticazione
+                      console.log("Tentativo di utilizzo del metodo checkAuth...");
+                      try {
+                        const checkResult = authentication.checkAuth();
+                        console.log("Risultato checkAuth:", checkResult);
+                        
+                        // Salva comunque le credenziali nel localStorage
+                        localStorage.setItem(`lonewolf_${username}`, password);
+                        localStorage.setItem("current_user", username);
+                        localStorage.setItem("is_authenticated", "true");
+                        
+                        console.log("Reindirizzamento alla home dopo checkAuth...");
+                        setTimeout(() => {
+                          window.location.href = '/';
+                        }, 1000);
+                      } catch (e) {
+                        console.error("Errore durante checkAuth:", e);
+                        // Prova comunque a reindirizzare
+                        setTimeout(() => {
+                          window.location.href = '/';
+                        }, 1000);
+                      }
+                    } else {
+                      console.log("Non è stato possibile forzare lo stato di autenticazione");
+                      console.log("Tipo di isAuthenticated:", typeof authentication.isAuthenticated);
+                      
+                      // Salva comunque le credenziali nel localStorage
+                      localStorage.setItem(`lonewolf_${username}`, password);
+                      localStorage.setItem("current_user", username);
+                      localStorage.setItem("is_authenticated", "true");
+                      
+                      console.log("Tentativo di richiamo di loginUser direttamente...");
+                      authentication.loginUser({ username, password }, ({ success }) => {
+                        console.log("Risultato login diretto forzato:", success);
+                        
+                        // Forza reindirizzamento alla homepage
+                        console.log("Reindirizzamento forzato alla home...");
+                        setTimeout(() => {
+                          window.location.href = '/';
+                        }, 1000);
+                      });
+                    }
+                  }, 500);
                 }
               }
             );

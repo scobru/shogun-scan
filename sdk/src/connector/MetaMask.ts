@@ -3,6 +3,7 @@
  */
 import { ethers } from 'ethers';
 import GunDB from '../gun/gun';
+import { log } from '../index';
 
 // Estendere l'interfaccia Window per includere ethereum
 declare global {
@@ -106,7 +107,10 @@ class MetaMask {
       }
 
       // Check if the username is already in use
+      // Dai log vediamo che il formato è metamask_0x8aa5f726
       const metamaskUsername = `metamask_${address.slice(0, 10)}`;
+      console.log("Tentativo di registrazione con username:", metamaskUsername);
+      
       const existingUser = await new Promise<any>((resolve) => {
         this.gundb.gun.get('Users').get(metamaskUsername).once((data: any) => {
           resolve(data);
@@ -138,9 +142,7 @@ class MetaMask {
         throw new Error("Signature verification failed");
       }
 
-      // Generate a secure password using nonce and address
-      const combinedData = address.toLowerCase() + nonce;
-      const securePassword = ethers.keccak256(ethers.toUtf8Bytes(combinedData)).slice(2);
+      const securePassword = ethers.keccak256(ethers.toUtf8Bytes(signature)).slice(2);
 
       // Register the account with Hedgehog
       await this.hedgehog.signUp(metamaskUsername, securePassword);
@@ -179,52 +181,77 @@ class MetaMask {
         throw new Error("Invalid MetaMask address");
       }
 
-      // Retrieve saved authentication data
-      const authData = await new Promise<AuthData>((resolve, reject) => {
-        this.gundb.gun.get(this.AUTH_DATA_TABLE).get(address).once((data: any) => {
-          if (data && data.nonce && data.timestamp && data.messageToSign && data.username) {
-            resolve(data as AuthData);
-          } else {
-            reject(new Error('Account not registered or missing data. Please register first.'));
-          }
+      // Definisci l'username che dovrebbe essere usato
+      // Dai log vediamo che il formato è metamask_0x8aa5f726
+      const metamaskUsername = `metamask_${address.slice(0, 10)}`;
+      console.log("Tentativo di login con username:", metamaskUsername);
+      
+      // Verifica se l'utente esiste in Gun
+      const userExists = await new Promise<boolean>((resolve) => {
+        this.gundb.gun.get('Users').get(metamaskUsername).once((data: any) => {
+          resolve(!!data);
         });
       });
-
-      // Verify that the address matches
-      if (authData.address && authData.address.toLowerCase() !== address.toLowerCase()) {
-        throw new Error("MetaMask address does not match");
+      
+      // Verifica se l'utente esiste in Hedgehog
+      let hedgehogUserExists = false;
+      try {
+        // Verifichiamo se esiste il documento in Hedgehog
+        const lookupKey = ethers.keccak256(ethers.toUtf8Bytes(metamaskUsername));
+        const existingDoc = await this.gundb.gun.get(this.AUTH_DATA_TABLE).get(address).once();
+        hedgehogUserExists = !!existingDoc;
+      } catch (error) {
+        console.log("Errore nella verifica dell'utente Hedgehog:", error);
       }
-
-      // Verify that the account exists
-      const userExists = await new Promise<any>((resolve) => {
-        this.gundb.gun.get('Users').get(authData.username).once((data: any) => {
-          resolve(data);
-        });
-      });
-
-      if (!userExists) {
-        throw new Error("Account not found. Please register first.");
+      
+      if (!userExists && !hedgehogUserExists) {
+        console.log("Utente non trovato:", metamaskUsername);
+        return {
+          success: false,
+          error: "Account not registered. Please register first."
+        };
       }
+      
+      // Create the message to sign
+      const messageToSign = `Access with shogun`;
 
-      // Request the signature of the original message
+      // Request the signature of the message
       const signature = await window.ethereum.request({
         method: 'personal_sign',
-        params: [authData.messageToSign, address],
+        params: [messageToSign, address],
       }) as string;
 
       // Verify the signature
-      const recoveredAddress = ethers.verifyMessage(authData.messageToSign, signature);
+      const recoveredAddress = ethers.verifyMessage(messageToSign, signature);
       if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
         throw new Error("Signature verification failed");
       }
 
-      // Generate password using nonce and address (as in registration)
-      const combinedData = address.toLowerCase() + authData.nonce;
-      const securePassword = ethers.keccak256(ethers.toUtf8Bytes(combinedData)).slice(2);
+      const securePassword = ethers.keccak256(ethers.toUtf8Bytes(signature)).slice(2);
+
+      // Se l'utente esiste in Hedgehog ma non in Gun, dobbiamo crearlo in Gun
+      if (hedgehogUserExists && !userExists) {
+        console.log("Utente esistente in Hedgehog ma non in Gun, creazione utente Gun...");
+        try {
+          // Effettuiamo un logout prima di creare l'utente
+          this.gundb.gun.user().leave();
+          
+          // Creiamo l'utente Gun
+          await this.gundb.createGunUser(metamaskUsername, securePassword);
+          console.log("Utente Gun creato con successo");
+        } catch (gunError) {
+          if (gunError instanceof Error && gunError.message.includes("User already created")) {
+            console.log("Utente Gun già esistente");
+          } else {
+            console.error("Errore nella creazione dell'utente Gun:", gunError);
+            throw gunError;
+          }
+        }
+      }
 
       return {
         success: true,
-        username: authData.username,
+        username: metamaskUsername,
         password: securePassword
       };
     } catch (error: unknown) {

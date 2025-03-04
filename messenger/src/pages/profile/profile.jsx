@@ -1,6 +1,6 @@
 import { gunAvatar } from 'gun-avatar';
 import { gun } from 'lonewolf-protocol';
-import { useNavigate } from 'solid-app-router';
+import { useNavigation } from '../../contexts/navigationContext';
 import { createSignal, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import BackButton from '../../components/buttons/back';
@@ -8,9 +8,10 @@ import EditButton from '../../components/buttons/edit';
 import TickButton from '../../components/buttons/tick';
 import Header from '../../components/header/header';
 import useUserInfo from '../../hooks/userInfo';
+import moment from 'moment';
 
 let ProfilePage = ({ backEnabled = false }) => {
-  let navigate = useNavigate();
+  let { navigate } = useNavigation();
 
   let [state, setState] = createStore(
     { alias: '', pub: '' },

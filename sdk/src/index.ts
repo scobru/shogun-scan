@@ -22,7 +22,7 @@ if (typeof window !== "undefined") {
   (global as any).Gun = Gun;
 }
 
-function log(message: string, ...args: any[]) {
+export function log(message: string, ...args: any[]) {
   console.log(CONFIG.PREFIX + message, ...args);
 }
 
@@ -185,13 +185,13 @@ export class ShogunSDK {
       // Prima verifichiamo se l'utente esiste già su Hedgehog
       log("Verifica esistenza utente Hedgehog...");
 
-      log(this.hedgehog);
-
       try {
         const result = await this.hedgehog.login(username, password);
         if (result) {
-          // Prima del return finale, emettiamo l'evento di registrazione
+          // Se l'utente esiste già e il login ha successo, emmettiamo l'evento e restituiamo un successo
           const userPub = result.pub || "";
+          
+          log("Utente già esistente, login completato");
 
           this.eventEmitter.emit("auth:signup", {
             userPub,
@@ -201,7 +201,6 @@ export class ShogunSDK {
 
           return { success: true, wallet: result, pub: userPub };
         }
-        return { success: false, error: "User already created" };
       } catch (hedgehogError) {
         log("Utente non esistente su Hedgehog, procedo con la registrazione");
       }
@@ -209,11 +208,11 @@ export class ShogunSDK {
       // Poi proviamo a creare l'utente GUN
       log("Creazione utente GUN...");
       let gunUser;
+      let gunErrorCaught = false;
       try {
         const result = await this.gundb.createGunUser(username, password);
         log("Utente GUN creato con successo:", result);
 
-        // Salva la chiave pubblica dell'utente
         // Salva la chiave pubblica dell'utente
         await this.gundb.authenticateGunUser(username, password);
 
@@ -244,6 +243,7 @@ export class ShogunSDK {
 
         log("Dati utente salvati in GUN con chiave pubblica");
       } catch (gunError) {
+        gunErrorCaught = true;
         if (
           gunError instanceof Error &&
           gunError.message.includes("User already created")
@@ -253,6 +253,7 @@ export class ShogunSDK {
           // Recupera la chiave pubblica
           const user = this.gun.user() as IGunUserInstance;
           const pub = user?.is?.epub;
+          log("Autenticazione GUN con utente esistente completata");
         } else {
           throw gunError;
         }
@@ -309,10 +310,22 @@ export class ShogunSDK {
         throw e;
       }
 
-      // Registrazione utente con Hedgehog
+      // Registrazione o login con Hedgehog
       log("Registrazione utente Hedgehog...");
-      const wallet = await this.hedgehog.signUp(username, password);
-      log("Utente Hedgehog registrato con successo");
+      let wallet;
+      try {
+        wallet = await this.hedgehog.signUp(username, password);
+        log("Utente Hedgehog registrato con successo");
+      } catch (hedgehogError) {
+        if (hedgehogError instanceof Error && 
+            hedgehogError.message.includes("User already created")) {
+          log("Utente Hedgehog già esistente, tentativo di login...");
+          wallet = await this.hedgehog.login(username, password);
+          log("Login Hedgehog con utente esistente completato");
+        } else {
+          throw hedgehogError;
+        }
+      }
 
       // Verifica finale e setup
       const user = this.gundb.gun.user();
@@ -363,7 +376,50 @@ export class ShogunSDK {
   ): Promise<{ wallet: any; userpub: string }> {
     try {
       return new Promise((resolve, reject) => {
-        // ... existing code ...
+        try {
+          this.authenticateWithHedgehog(username, password)
+            .then((result) => {
+              // Verifica se il risultato contiene un wallet
+              if (!result || !result.wallet) {
+                reject(new Error("Autenticazione fallita: wallet non disponibile"));
+                return;
+              }
+              
+              const wallet = result.wallet;
+              
+              // Tenta di ottenere la chiave pubblica
+              let userpub = this.gun.user().is?.pub;
+              
+              // Se la chiave pubblica non è disponibile, prova ad autenticare con GUN
+              if (!userpub) {
+                console.log("Chiave pubblica non disponibile, tentativo di autenticazione con GUN...");
+                
+                // Tenta di autenticare con GUN
+                this.authenticateWithGun(username, password)
+                  .then((gunPub) => {
+                    if (!gunPub) {
+                      reject(new Error("Impossibile ottenere la chiave pubblica dell'utente"));
+                      return;
+                    }
+                    resolve({ wallet, userpub: gunPub });
+                  })
+                  .catch((error) => {
+                    console.error("Errore durante l'autenticazione con GUN:", error);
+                    reject(error);
+                  });
+              } else {
+                // Se la chiave pubblica è disponibile, risolvi la Promise
+                resolve({ wallet, userpub });
+              }
+            })
+            .catch((error) => {
+              console.error("Errore durante l'autenticazione con Hedgehog:", error);
+              reject(error);
+            });
+        } catch (error) {
+          console.error("Errore durante il login:", error);
+          reject(error);
+        }
       });
     } catch (error) {
       this.eventEmitter.emit("error", {
@@ -740,100 +796,77 @@ export class ShogunSDK {
   // Metodo per la registrazione con WebAuthn
   async registerWithWebAuthn(
     username: string
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; userPub?: string; password?: string; credentialId?: string }> {
     try {
       if (!this.isWebAuthnSupported()) {
         throw new Error("WebAuthn non è supportato in questo browser");
       }
 
-      // Crea le opzioni per la creazione delle credenziali
-      const publicKeyCredentialCreationOptions = {
-        challenge: new Uint8Array(32),
-        rp: {
-          name: "Shogun Wallet",
-          id: window.location.hostname,
-        },
-        user: {
-          id: new Uint8Array(16),
-          name: username,
-          displayName: username,
-        },
-        pubKeyCredParams: [
-          { type: "public-key", alg: -7 }, // ES256
-        ],
-        timeout: 60000,
-        attestation: "direct",
-      };
-
-      // Popola gli array con valori casuali
-      window.crypto.getRandomValues(
-        publicKeyCredentialCreationOptions.challenge
-      );
-      window.crypto.getRandomValues(publicKeyCredentialCreationOptions.user.id);
-
-      // Crea le credenziali
-      const credential = await (navigator.credentials as any).create({
-        publicKey: publicKeyCredentialCreationOptions,
-      });
-
-      if (!credential) {
-        throw new Error("Creazione credenziali fallita");
+      if (!this.webauthn) {
+        throw new Error("WebAuthn non è inizializzato");
       }
 
-      return {
-        success: true,
-      };
+      // Utilizziamo la funzione generateCredentials del modulo WebAuthn
+      const result = await this.webauthn.generateCredentials(username);
+      console.log("Risultato generazione credenziali WebAuthn:", result);
+
+      if (!result.success || !result.password) {
+        throw new Error(result.error || "Registrazione WebAuthn fallita");
+      }
+
+      try {
+        // Effettuiamo un logout prima di creare l'utente per evitare conflitti
+        this.gundb.gun.user().leave();
+        
+        // Creiamo l'utente Gun
+        console.log("Tentativo di creazione utente Gun, username:", username);
+        await this.gundb.createGunUser(username, result.password);
+        console.log("Creazione utente Gun riuscita");
+        
+        // Autentichiamo l'utente con Gun
+        console.log("Tentativo di autenticazione con Gun, username:", username);
+        const userPub = await this.authenticateWithGun(username, result.password);
+        console.log("Autenticazione Gun riuscita, userPub:", userPub);
+        
+        return {
+          success: true,
+          userPub,
+          password: result.password,
+          credentialId: result.credentialId
+        };
+      } catch (gunError) {
+        console.error("Errore durante la creazione/autenticazione con Gun:", gunError);
+        
+        if (gunError instanceof Error && gunError.message.includes("User already created")) {
+          console.log("Utente Gun già esistente, tentativo di autenticazione...");
+          
+          try {
+            // Effettuiamo un logout prima di autenticare per evitare problemi
+            this.gundb.gun.user().leave();
+            
+            // Autentichiamo l'utente con Gun
+            const userPub = await this.authenticateWithGun(username, result.password);
+            console.log("Autenticazione Gun riuscita, userPub:", userPub);
+            
+            return {
+              success: true,
+              userPub,
+              password: result.password,
+              credentialId: result.credentialId
+            };
+          } catch (authError) {
+            console.error("Errore durante l'autenticazione con Gun:", authError);
+            throw authError;
+          }
+        }
+        
+        throw gunError;
+      }
     } catch (error: any) {
       console.error("Errore nella registrazione con WebAuthn:", error);
       return {
         success: false,
         error: error.message || "Errore nella registrazione con WebAuthn",
-      };
-    }
-  }
-
-  /**
-   * Autentica con WebAuthn
-   * @param username - Nome utente
-   * @returns - Risultato dell'autenticazione
-   */
-  async authenticateWithWebAuthn(
-    username: string
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (!this.isWebAuthnSupported()) {
-        throw new Error("WebAuthn non è supportato in questo browser");
-      }
-
-      // Crea le opzioni per la richiesta di credenziali
-      const publicKeyCredentialRequestOptions = {
-        challenge: new Uint8Array(32),
-        timeout: 60000,
-        rpId: window.location.hostname,
-      };
-
-      // Popola il challenge con valori casuali
-      window.crypto.getRandomValues(
-        publicKeyCredentialRequestOptions.challenge
-      );
-
-      // Richiedi le credenziali
-      const assertion = await (navigator.credentials as any).get({
-        publicKey: publicKeyCredentialRequestOptions,
-      });
-
-      if (!assertion) {
-        throw new Error("Autenticazione fallita");
-      }
-
-      return {
-        success: true,
-      };
-    } catch (error: any) {
-      console.error("Errore nell'autenticazione con WebAuthn:", error);
-      return {
-        success: false,
-        error: error.message || "Errore nell'autenticazione con WebAuthn",
       };
     }
   }
@@ -863,7 +896,9 @@ export class ShogunSDK {
         });
       }
 
+      console.log("Tentativo di login con MetaMask, indirizzo:", address);
       const result = await this.metamask.login(address);
+      console.log("Risultato login MetaMask:", result);
 
       if (!result.success || !result.username || !result.password) {
         return this.createAuthResult(false, {
@@ -872,28 +907,75 @@ export class ShogunSDK {
       }
 
       try {
-        const hedgehogResult = await this.authenticateWithHedgehog(
-          result.username,
-          result.password
-        );
-        const userPub = await this.authenticateWithGun(
-          result.username,
-          result.password
-        );
+        // Tenta di autenticare con Hedgehog
+        let hedgehogResult;
+        try {
+          console.log("Tentativo di autenticazione con Hedgehog, username:", result.username);
+          hedgehogResult = await this.authenticateWithHedgehog(
+            result.username,
+            result.password
+          );
+          console.log("Autenticazione Hedgehog riuscita:", hedgehogResult);
+        } catch (hedgehogError) {
+          console.error("Errore durante l'autenticazione con Hedgehog:", hedgehogError);
+          
+          // Se l'autenticazione con Hedgehog fallisce, potrebbe essere necessario registrare l'utente
+          try {
+            console.log("Tentativo di registrazione con Hedgehog...");
+            await this.hedgehog.signUp(result.username, result.password);
+            hedgehogResult = await this.authenticateWithHedgehog(
+              result.username,
+              result.password
+            );
+            console.log("Registrazione e autenticazione Hedgehog riuscita:", hedgehogResult);
+          } catch (signupError) {
+            console.error("Errore durante la registrazione con Hedgehog:", signupError);
+            throw signupError;
+          }
+        }
+        
+        // Tenta di autenticare con Gun
+        let userPub;
+        try {
+          console.log("Tentativo di autenticazione con Gun, username:", result.username);
+          userPub = await this.authenticateWithGun(
+            result.username,
+            result.password
+          );
+          console.log("Autenticazione Gun riuscita, userPub:", userPub);
+        } catch (gunError) {
+          console.error("Errore durante l'autenticazione con Gun:", gunError);
+          
+          // Se l'autenticazione con Gun fallisce, potrebbe essere necessario creare l'utente
+          try {
+            console.log("Tentativo di creazione utente Gun...");
+            await this.gundb.createGunUser(result.username, result.password);
+            userPub = await this.authenticateWithGun(
+              result.username,
+              result.password
+            );
+            console.log("Creazione e autenticazione Gun riuscita, userPub:", userPub);
+          } catch (createError) {
+            console.error("Errore durante la creazione utente Gun:", createError);
+            throw createError;
+          }
+        }
 
+        console.log("Login con MetaMask completato con successo, userPub:", userPub);
         return this.createAuthResult(true, {
           userPub: userPub || address,
           password: result.password,
           wallet: hedgehogResult.wallet,
         });
       } catch (authError) {
-        log("Errore autenticazione:", authError);
+        console.error("Errore autenticazione:", authError);
         // Se l'autenticazione fallisce, ritorniamo un errore invece di success: true
         return this.createAuthResult(false, {
           error: "Errore nell'autenticazione: " + (authError as Error).message,
         });
       }
     } catch (error: any) {
+      console.error("Errore nel login con MetaMask:", error);
       return this.createAuthResult(false, {
         error: error.message || "Errore nel login con MetaMask",
       });
@@ -903,68 +985,213 @@ export class ShogunSDK {
   async signUpWithMetaMask(address: string): Promise<AuthResult> {
     try {
       if (!this.metamask) {
+        console.error("MetaMask non è inizializzato");
         return this.createAuthResult(false, {
           error: "MetaMask non è inizializzato",
         });
       }
 
-      const result = await this.metamask.signUp(address);
-
-      if (!result.success || !result.username || !result.password) {
-        return this.createAuthResult(false, {
-          error: result.error || "Errore durante la registrazione con MetaMask",
+      // Prima verifichiamo se l'utente esiste già
+      const metamaskUsername = `metamask_${address.slice(0, 10)}`;
+      console.log("Verifica esistenza utente:", metamaskUsername);
+      const userExists = await new Promise<boolean>((resolve) => {
+        this.gundb.gun.get('Users').get(metamaskUsername).once((data: any) => {
+          resolve(!!data);
         });
+      });
+      
+      // Se l'utente esiste già, proviamo a fare login
+      if (userExists) {
+        console.log("Utente già esistente, tentativo di login...");
+        return await this.loginWithMetaMask(address);
       }
 
+      console.log("Tentativo di registrazione con MetaMask, indirizzo:", address);
+      
       try {
-        // Verifica se l'utente esiste già
+        // Utilizziamo la funzione signUp del modulo MetaMask
+        const result = await this.metamask.signUp(address);
+        console.log("Risultato registrazione MetaMask:", result);
+
+        if (!result.success || !result.username || !result.password) {
+          // Se l'errore è che l'account è già registrato o il documento esiste già, proviamo a fare login
+          if (result.error && (
+              result.error.includes("Account already registered") || 
+              result.error.includes("Document already exists")
+            )) {
+            console.log("Account già registrato o documento esistente, tentativo di login...");
+            const loginResult = await this.loginWithMetaMask(address);
+            
+            // Se il login ha successo, restituiamo il risultato
+            if (loginResult.success) {
+              return loginResult;
+            }
+          }
+          
+          console.error("Errore durante la registrazione con MetaMask:", result.error);
+          return this.createAuthResult(false, {
+            error: result.error || "Errore durante la registrazione con MetaMask",
+          });
+        }
+
         try {
-          const hedgehogResult = await this.authenticateWithHedgehog(
-            result.username,
-            result.password
-          );
-          return this.createAuthResult(true, {
-            userPub: address,
-            password: result.password,
-            wallet: hedgehogResult.wallet,
+          // NOTA: La registrazione con Hedgehog è già stata effettuata nella funzione signUp di MetaMask
+          // Quindi non è necessario registrare nuovamente l'utente con Hedgehog qui
+          console.log("Verifica autenticazione con Hedgehog, username:", result.username);
+          let hedgehogWallet;
+          try {
+            const hedgehogResult = await this.authenticateWithHedgehog(
+              result.username,
+              result.password
+            );
+            console.log("Autenticazione Hedgehog riuscita:", hedgehogResult);
+            hedgehogWallet = hedgehogResult.wallet;
+          } catch (hedgehogError) {
+            console.error("Errore durante l'autenticazione con Hedgehog:", hedgehogError);
+            // Non facciamo nulla qui, perché l'utente dovrebbe già essere stato registrato
+            // nella funzione signUp di MetaMask
+          }
+          
+          // Assicuriamoci che l'utente Gun sia creato correttamente
+          console.log("Tentativo di creazione utente Gun, username:", result.username);
+          try {
+            // Effettuiamo un logout prima di creare l'utente per evitare conflitti
+            this.gundb.gun.user().leave();
+            
+            await this.gundb.createGunUser(result.username, result.password);
+            console.log("Creazione utente Gun riuscita");
+          } catch (gunError) {
+            if (gunError instanceof Error && gunError.message.includes("User already created")) {
+              console.log("Utente Gun già esistente");
+            } else {
+              throw gunError;
+            }
+          }
+          
+          // Effettuiamo un logout prima di autenticare per evitare problemi
+          this.gundb.gun.user().leave();
+          
+          console.log("Tentativo di autenticazione con Gun, username:", result.username);
+          try {
+            const userPub = await this.authenticateWithGun(
+              result.username,
+              result.password
+            );
+            console.log("Autenticazione Gun riuscita, userPub:", userPub);
+            
+            console.log("Inizializzazione dati utente...");
+            await this.initializeUserData(
+              result.username,
+              result.password,
+              userPub
+            );
+            console.log("Inizializzazione dati utente completata");
+
+            console.log("Registrazione con MetaMask completata con successo, userPub:", userPub);
+            return this.createAuthResult(true, {
+              userPub: userPub || address,
+              password: result.password,
+              wallet: hedgehogWallet,
+              username: result.username
+            });
+          } catch (authError) {
+            console.error("Errore durante l'autenticazione con Gun:", authError);
+            
+            // Proviamo a ricreare l'utente Gun con una nuova password
+            console.log("Tentativo di ricreare l'utente Gun con una nuova password...");
+            
+            // Generiamo una nuova password casuale
+            const newPassword = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join('');
+              
+            try {
+              // Effettuiamo un logout prima di creare l'utente
+              this.gundb.gun.user().leave();
+              
+              // Creiamo un nuovo utente con la nuova password
+              await this.gundb.createGunUser(result.username, newPassword);
+              console.log("Utente Gun ricreato con successo");
+              
+              // Autentichiamo l'utente con la nuova password
+              const userPub = await this.authenticateWithGun(
+                result.username,
+                newPassword
+              );
+              console.log("Autenticazione Gun riuscita con la nuova password, userPub:", userPub);
+              
+              // Inizializziamo i dati dell'utente
+              await this.initializeUserData(
+                result.username,
+                newPassword,
+                userPub
+              );
+              
+              console.log("Registrazione con MetaMask completata con successo (con password Gun rigenerata), userPub:", userPub);
+              return this.createAuthResult(true, {
+                userPub: userPub || address,
+                password: newPassword, // Restituiamo la nuova password
+                wallet: hedgehogWallet,
+                username: result.username
+              });
+            } catch (recreateError) {
+              console.error("Errore durante la ricreazione dell'utente Gun:", recreateError);
+              throw recreateError;
+            }
+          }
+        } catch (createError: any) {
+          if (createError.message?.includes("User already created")) {
+            // Se l'utente esiste già, proviamo a fare login
+            try {
+              console.log("Utente già creato, tentativo di autenticazione...");
+              const hedgehogResult = await this.authenticateWithHedgehog(
+                result.username,
+                result.password
+              );
+              console.log("Autenticazione Hedgehog riuscita");
+              
+              // Effettuiamo un logout prima di autenticare
+              this.gundb.gun.user().leave();
+              
+              const userPub = await this.authenticateWithGun(
+                result.username,
+                result.password
+              );
+              console.log("Autenticazione Gun riuscita, userPub:", userPub);
+              
+              return this.createAuthResult(true, {
+                userPub: userPub || address,
+                password: result.password,
+                wallet: hedgehogResult.wallet,
+                username: result.username
+              });
+            } catch (loginError) {
+              console.error("Errore durante il login dopo 'User already created':", loginError);
+              return this.createAuthResult(false, {
+                error: "Errore durante il login: " + (loginError as Error).message,
+              });
+            }
+          }
+
+          console.error("Errore durante la creazione utente:", createError);
+          return this.createAuthResult(false, {
+            error: createError.message || "Errore durante la creazione utente",
           });
-        } catch (hedgehogError) {
-          log("Utente non esistente, procedo con la registrazione");
         }
-
-        const hedgehogWallet = await this.hedgehog.signUp(
-          result.username,
-          result.password
-        );
-        await this.gundb.createGunUser(result.username, result.password);
-        const userPub = await this.authenticateWithGun(
-          result.username,
-          result.password
-        );
-        await this.initializeUserData(
-          result.username,
-          result.password,
-          userPub
-        );
-
-        return this.createAuthResult(true, {
-          userPub: userPub || address,
-          password: result.password,
-          wallet: hedgehogWallet,
-        });
-      } catch (createError: any) {
-        if (createError.message?.includes("User already created")) {
-          return this.createAuthResult(true, {
-            userPub: address,
-            password: result.password,
-          });
+      } catch (metamaskError: any) {
+        // Se l'errore è che il documento esiste già, proviamo a fare login
+        if (metamaskError.message && metamaskError.message.includes("Document already exists")) {
+          console.log("Documento già esistente in Hedgehog, tentativo di login...");
+          return await this.loginWithMetaMask(address);
         }
-
+        
+        console.error("Errore durante la registrazione con MetaMask:", metamaskError);
         return this.createAuthResult(false, {
-          error: createError.message || "Errore durante la creazione utente",
+          error: metamaskError.message || "Errore durante la registrazione con MetaMask",
         });
       }
     } catch (error: any) {
+      console.error("Errore nella registrazione con MetaMask:", error);
       return this.createAuthResult(false, {
         error: error.message || "Errore nella registrazione con MetaMask",
       });
@@ -1266,6 +1493,113 @@ export class ShogunSDK {
     listener: ShogunEvents[K]
   ): void {
     this.eventEmitter.off(event, listener);
+  }
+
+  /**
+   * Autentica con WebAuthn
+   * @param {string} username - Nome utente
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async authenticateWithWebAuthn(
+    username: string
+  ): Promise<{ success: boolean; error?: string; userPub?: string; password?: string; credentialId?: string }> {
+    try {
+      if (!this.isWebAuthnSupported()) {
+        throw new Error("WebAuthn non è supportato in questo browser");
+      }
+
+      if (!this.webauthn) {
+        throw new Error("WebAuthn non è inizializzato");
+      }
+
+      // Utilizziamo la funzione authenticateUser del modulo WebAuthn
+      const result = await this.webauthn.authenticateUser(username);
+      console.log("Risultato autenticazione WebAuthn:", result);
+
+      if (!result.success || !result.password) {
+        throw new Error(result.error || "Autenticazione WebAuthn fallita");
+      }
+
+      try {
+        // Effettuiamo un logout prima di autenticare per evitare problemi
+        this.gundb.gun.user().leave();
+        
+        // Autentichiamo l'utente con Gun
+        console.log("Tentativo di autenticazione con Gun, username:", username);
+        const userPub = await this.authenticateWithGun(username, result.password);
+        console.log("Autenticazione Gun riuscita, userPub:", userPub);
+
+        return {
+          success: true,
+          userPub,
+          password: result.password,
+          credentialId: result.credentialId
+        };
+      } catch (gunError) {
+        console.error("Errore durante l'autenticazione con Gun:", gunError);
+        
+        // Se l'autenticazione con Gun fallisce, proviamo a creare l'utente Gun
+        try {
+          console.log("Tentativo di creazione utente Gun, username:", username);
+          // Effettuiamo un logout prima di creare l'utente
+          this.gundb.gun.user().leave();
+          
+          await this.gundb.createGunUser(username, result.password);
+          console.log("Creazione utente Gun riuscita");
+          
+          // Autentichiamo l'utente con Gun
+          const userPub = await this.authenticateWithGun(username, result.password);
+          console.log("Autenticazione Gun riuscita dopo creazione, userPub:", userPub);
+          
+          return {
+            success: true,
+            userPub,
+            password: result.password,
+            credentialId: result.credentialId
+          };
+        } catch (createError) {
+          if (createError instanceof Error && createError.message.includes("User already created")) {
+            console.log("Utente Gun già esistente, tentativo di autenticazione con una nuova password...");
+            
+            // Generiamo una nuova password casuale
+            const newPassword = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join('');
+              
+            try {
+              // Effettuiamo un logout prima di creare l'utente
+              this.gundb.gun.user().leave();
+              
+              // Creiamo un nuovo utente con la nuova password
+              await this.gundb.createGunUser(username, newPassword);
+              console.log("Utente Gun ricreato con successo");
+              
+              // Autentichiamo l'utente con la nuova password
+              const userPub = await this.authenticateWithGun(username, newPassword);
+              console.log("Autenticazione Gun riuscita con la nuova password, userPub:", userPub);
+              
+              return {
+                success: true,
+                userPub,
+                password: newPassword,
+                credentialId: result.credentialId
+              };
+            } catch (recreateError) {
+              console.error("Errore durante la ricreazione dell'utente Gun:", recreateError);
+              throw recreateError;
+            }
+          }
+          
+          throw createError;
+        }
+      }
+    } catch (error: any) {
+      console.error("Errore nell'autenticazione con WebAuthn:", error);
+      return {
+        success: false,
+        error: error.message || "Errore nell'autenticazione con WebAuthn",
+      };
+    }
   }
 }
 

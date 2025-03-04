@@ -1,6 +1,6 @@
 import { gunAvatar } from 'gun-avatar';
 import moment from 'moment';
-import { useNavigate } from 'solid-app-router';
+import { useNavigation } from '../../contexts/navigationContext';
 import AddChatButton from '../../components/buttons/addChat';
 import ChatButton from '../../components/buttons/chat';
 import FloatingPopUpBottomRight from '../../components/buttons/floatingPopUpBottomRight';
@@ -8,7 +8,7 @@ import GroupChatButton from '../../components/buttons/groupChat';
 import useChatsList from '../../hooks/chatsList';
 
 let ChatsTabPage = () => {
-  let navigate = useNavigate();
+  let { navigate } = useNavigation();
 
   let chatsList = useChatsList();
 
