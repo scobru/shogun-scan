@@ -3,7 +3,7 @@
  */
 import { ethers } from 'ethers';
 import { IGunInstance, IGunUserInstance } from 'gun/types';
-import { GunDB } from '../gun/Gun';
+import { GunDB } from '../gun/gun';
 
 // Estendere l'interfaccia Window per includere StealthChain
 declare global {

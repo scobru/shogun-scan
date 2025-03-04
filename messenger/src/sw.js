@@ -2,13 +2,18 @@ var CACHE_NAME = 'pwa-lonewolf-messenger';
 
 import { precacheAndRoute } from 'workbox-precaching';
 
-console.log('Your custom service worker code');
+console.log('Service Worker Initialization');
 
-if (typeof is_vite_preview === 'undefined') {
-  precacheAndRoute(self.__WB_MANIFEST);
-  console.log('precache!');
-} else {
-  console.log('skipping precache in dev');
+// Gestione del precaching
+try {
+  if (self.__WB_MANIFEST) {
+    precacheAndRoute(self.__WB_MANIFEST);
+    console.log('Precaching completato con successo');
+  } else {
+    console.log('Nessun manifest di precaching trovato');
+  }
+} catch (error) {
+  console.error('Errore durante il precaching:', error);
 }
 
 var urlsToCache = ['/'];
@@ -18,7 +23,7 @@ self.addEventListener('install', (event) => {
   // Perform install steps
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      console.log('Opened cache');
+      console.log('Cache aperta');
       return cache.addAll(urlsToCache);
     })
   );

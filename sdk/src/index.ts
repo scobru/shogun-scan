@@ -1,17 +1,16 @@
 // Import delle dipendenze
 import Gun, { IGunInstance, IGunUserInstance } from "gun";
 import { ethers, HDNodeWallet } from "ethers";
-import { localStorage } from "./utils/storage-mock";
-import { GunDB } from "./gun/Gun";
-import { MetaMask } from "./connector/MetaMask";
-import { Webauthn } from "./webauthn/Webauthn";
-import { Stealth } from "./stealth/Stealth";
+import { localStorage } from "./utils/storageMock";
+import { GunDB } from "./gun/gun";
+import { MetaMask } from "./connector/metamask";
+import { Webauthn } from "./webauthn/webauthn";
+import { Stealth } from "./stealth/stealth";
 import Wallet from "ethereumjs-wallet";
-import LoginWithShogunReact from "./components/react/LoginWithShogunReact";
-
-
 import "./hedgehog/browser";
-//
+import { CONFIG } from "./config";
+import { ShogunEventEmitter, ShogunEvents } from "./events";
+import LoginWithShogunReact from "./components/react/LoginWithShogunReact";
 
 // Istanza Gun globale
 export let gun: IGunInstance<any>;
@@ -23,11 +22,8 @@ if (typeof window !== "undefined") {
   (global as any).Gun = Gun;
 }
 
-// prefix "ShogunSDK:"
-const prefix = "⚔️ ShogunSDK:";
-
 function log(message: string, ...args: any[]) {
-  console.log(prefix + message, ...args);
+  console.log(CONFIG.PREFIX + message, ...args);
 }
 
 interface ShogunSDKConfig {
@@ -54,8 +50,15 @@ interface AuthResult {
   userPub?: string;
   password?: string;
   error?: string;
-  wallet?: Wallet;
+  wallet?: any;
   username?: string;
+}
+
+interface SignUpResult {
+  success: boolean;
+  wallet?: any;
+  pub?: string;
+  error?: string;
 }
 
 /**
@@ -70,6 +73,7 @@ export class ShogunSDK {
   public webauthn: Webauthn | undefined;
   public metamask: MetaMask | undefined;
   public stealth: Stealth | undefined;
+  private eventEmitter: ShogunEventEmitter;
 
   /**
    * Inizializza l'SDK di SHOGUN
@@ -122,6 +126,19 @@ export class ShogunSDK {
 
     // Inizializza la sessione GUN
     this.initGunSession();
+
+    this.eventEmitter = new ShogunEventEmitter();
+
+    // Aggiungiamo un handler di debug per gli eventi in development
+    if (process.env.NODE_ENV === "development") {
+      this.eventEmitter.on("error", (data) => {
+        console.error("ShogunSDK Error:", data);
+      });
+
+      this.eventEmitter.on("auth:signup", (data) => {
+        console.log("ShogunSDK Signup:", data);
+      });
+    }
   }
 
   /**
@@ -173,7 +190,16 @@ export class ShogunSDK {
       try {
         const result = await this.hedgehog.login(username, password);
         if (result) {
-          return { success: true, wallet: result, pub: result.pub };
+          // Prima del return finale, emettiamo l'evento di registrazione
+          const userPub = result.pub || "";
+
+          this.eventEmitter.emit("auth:signup", {
+            userPub,
+            username,
+            method: "password",
+          });
+
+          return { success: true, wallet: result, pub: userPub };
         }
         return { success: false, error: "User already created" };
       } catch (hedgehogError) {
@@ -300,6 +326,12 @@ export class ShogunSDK {
 
       log("Aggiornamento chiave pubblica...");
 
+      this.eventEmitter.emit("auth:signup", {
+        userPub,
+        username,
+        method: "password",
+      });
+
       return { success: true, wallet: wallet, pub: userPub };
     } catch (e: any) {
       console.error("Errore durante la registrazione:", e);
@@ -310,6 +342,11 @@ export class ShogunSDK {
       } catch (cleanupError) {
         console.error("Errore durante il cleanup:", cleanupError);
       }
+      this.eventEmitter.emit("error", {
+        code: "AUTH_SIGNUP_ERROR",
+        message: e.message || "Errore durante la registrazione",
+        details: e,
+      });
       return { success: false, error: e.message };
     }
   }
@@ -324,43 +361,19 @@ export class ShogunSDK {
     username: string,
     password: string
   ): Promise<{ wallet: any; userpub: string }> {
-    return new Promise((resolve, reject) => {
-      try {
-        log("Inizio processo di login...");
-
-        // Autentica l'utente GUN
-        this.gun.user().auth(username, password, async (ack) => {
-          log("Risposta autenticazione:", ack);
-
-          if ("err" in ack) {
-            reject(new Error(ack.err));
-            return;
-          }
-
-          try {
-            // Login con Hedgehog
-            const hedgehogWallet = await this.hedgehog.login(
-              username,
-              password
-            );
-            log("Login Hedgehog completato:", hedgehogWallet);
-
-            // Ottieni la chiave pubblica dell'utente
-            const user = this.gun.user() as IGunUserInstance;
-            const userpub = user?.is?.pub || "";
-
-            resolve({
-              wallet: hedgehogWallet,
-              userpub: userpub,
-            });
-          } catch (error) {
-            reject(error);
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    try {
+      return new Promise((resolve, reject) => {
+        // ... existing code ...
+      });
+    } catch (error) {
+      this.eventEmitter.emit("error", {
+        code: "AUTH_LOGIN_ERROR",
+        message:
+          error instanceof Error ? error.message : "Errore durante il login",
+        details: error,
+      });
+      throw error;
+    }
   }
 
   /**
@@ -368,6 +381,8 @@ export class ShogunSDK {
    */
   logout() {
     this.hedgehog.logout();
+    this.gundb.logout();
+    this.eventEmitter.emit("auth:logout");
   }
 
   /**
@@ -962,75 +977,25 @@ export class ShogunSDK {
    */
   async createWallet(): Promise<WalletInfo> {
     try {
-      // Recupera la chiave pubblica dell'utente
-      const userpub = this.gun.user()?.is?.pub;
+      // Usa this.hedgehog invece di super
+      const wallet = await this.hedgehog.createWallet();
 
-      if (!userpub) {
-        throw new Error("Chiave pubblica non disponibile");
-      }
-
-      // Recupera l'entropy dal localStorage
-      const entropy = window.localStorage.getItem("hedgehog-entropy-key");
-      if (!entropy) {
-        throw new Error("Entropy non trovata");
-      }
-
-      // Converti l'entropy in bytes
-      const entropyBytes = new Uint8Array(
-        entropy.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
-      );
-
-      // Crea il master HD node usando ethers v6
-      const masterHDNode = ethers.HDNodeWallet.fromSeed(entropyBytes);
-
-      // Recupera i wallet esistenti
-      const existingWallets = await this.loadWallets();
-      const nextIndex = existingWallets.length;
-
-      // Crea il nuovo path di derivazione
-      const derivationPath = `m/44'/60'/0'/0/${nextIndex}`;
-
-      // Deriva il nuovo wallet
-      const derivedWallet = masterHDNode.derivePath(derivationPath);
-
-      // Crea l'oggetto wallet
-      const walletInfo: WalletInfo = {
-        wallet: derivedWallet,
-        path: derivationPath,
-        getAddressString: () => derivedWallet.address,
-        address: derivedWallet.address,
-      };
-
-      // Salva il nuovo path in GunDB
-      await new Promise<void>((resolve, reject) => {
-        // Recupera prima i paths esistenti
-        this.gun
-          .get("WalletPaths")
-          .get(userpub)
-          .once((data: any) => {
-            const paths = data && data.paths ? { ...data.paths } : {};
-
-            // Aggiungi il nuovo path
-            paths[`path_${nextIndex}`] = derivationPath;
-
-            // Salva i paths aggiornati
-            this.gun
-              .get("WalletPaths")
-              .get(userpub)
-              .put({ paths }, (ack: any) => {
-                if (ack.err) {
-                  reject(new Error(ack.err));
-                } else {
-                  resolve();
-                }
-              });
-          });
+      this.eventEmitter.emit("wallet:created", {
+        address: wallet.address,
+        path: wallet.path,
       });
 
-      return walletInfo;
-    } catch (error: any) {
-      console.error("Errore nella creazione del wallet:", error);
-      throw new Error(error.message || "Errore nella creazione del wallet");
+      return wallet;
+    } catch (error) {
+      this.eventEmitter.emit("error", {
+        code: "WALLET_CREATE_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Errore durante la creazione del wallet",
+        details: error,
+      });
+      throw error;
     }
   }
 
@@ -1048,63 +1013,23 @@ export class ShogunSDK {
       setUserpub,
       setSignedIn,
     }: { setUserpub?: Function; setSignedIn?: Function }
-  ): Promise<{ success: boolean; userPub?: string; error?: string }> {
+  ): Promise<AuthResult> {
     try {
-      log("Inizio processo di login...");
+      const { wallet, userpub } = await this.login(username, password);
 
-      // Prima verifichiamo se l'utente esiste su Hedgehog
-      log("Verifica credenziali Hedgehog...");
-      try {
-        await this.hedgehog.login(username, password);
-        log("Login Hedgehog completato con successo");
-      } catch (hedgehogError) {
-        console.error("Errore login Hedgehog:", hedgehogError);
-        throw new Error("Username o password non validi");
-      }
-
-      // Poi autentichiamo l'utente su GUN
-      log("Autenticazione GUN...");
-      try {
-        await this.gundb.authenticateGunUser(username, password);
-        log("Autenticazione GUN completata con successo");
-      } catch (gunError: unknown) {
-        console.error("Errore autenticazione GUN:", gunError);
-        if (
-          gunError instanceof Error &&
-          gunError.message.includes("Wrong user or password")
-        ) {
-          log("Tentativo di creazione utente GUN...");
-          await this.gundb.createGunUser(username, password);
-        } else {
-          throw gunError;
-        }
-      }
-
-      const user = this.gundb.gun.user();
-
-      const pair = (user as any)._?.sea;
-      if (!user.is) {
-        throw new Error("Autenticazione GUN fallita: utente non autenticato");
-      }
-
-      if (user.is) {
-        sessionStorage.setItem("gun-current-pair", JSON.stringify(pair));
-        if (setUserpub) setUserpub(user.is.pub);
-      } else {
-        throw new Error("Chiavi GUN mancanti dopo l'autenticazione");
-      }
-
+      if (setUserpub) setUserpub(userpub);
       if (setSignedIn) setSignedIn(true);
-      return { success: true, userPub: user.is.pub };
-    } catch (e: any) {
-      console.error("Errore durante il login:", e);
-      try {
-        this.gundb.logout();
-        sessionStorage.removeItem("gun-current-pair");
-      } catch (cleanupError) {
-        console.error("Errore durante il cleanup:", cleanupError);
-      }
-      return { success: false, error: e.message || "Errore durante il login" };
+
+      return this.createAuthResult(true, {
+        userPub: userpub,
+        password,
+        wallet,
+      });
+    } catch (error) {
+      return this.createAuthResult(false, {
+        error:
+          error instanceof Error ? error.message : "Errore durante il login",
+      });
     }
   }
 
@@ -1131,83 +1056,58 @@ export class ShogunSDK {
       setSignedIn?: Function;
       messages?: { [key: string]: string };
     }
-  ): Promise<{ success: boolean; userPub?: string; error?: string }> {
-    log("Start handleSignUp");
-
+  ): Promise<AuthResult> {
     try {
-      // Verifica esistenza utente
-      log("Verifica esistenza utente", username);
+      // Validazione password
+      if (password !== passwordConfirmation) {
+        const error = messages.passwordMismatch || "Le password non coincidono";
+        if (setErrorMessage) setErrorMessage(error);
 
-      try {
-        log("Tentativo login Hedgehog per verifica esistenza...");
-        const loginResult = await this.hedgehog.login(username, password);
-        log("Risultato login Hedgehog:", loginResult);
-        return {
-          success: false,
-          error: messages.exists || "Utente già esistente",
-        };
-      } catch (hedgehogError) {
-        log("Utente non esistente in Hedgehog, procedo con la registrazione");
+        this.eventEmitter.emit("error", {
+          code: "PASSWORD_MISMATCH",
+          message: error,
+        });
+
+        return this.createAuthResult(false, { error });
       }
 
-      // Crea utente GUN
-      log("Creazione utente GUN");
-      try {
-        await this.gundb.createGunUser(username, password);
-        log("Utente GUN creato con successo");
-      } catch (gunError: any) {
-        log("Errore creazione utente GUN:", gunError);
-        throw new Error(
-          gunError.message || "Errore nella creazione utente GUN"
-        );
+      const result = (await this.signUp(username, password)) as SignUpResult;
+
+      if (!result.success || result.error) {
+        if (setErrorMessage) setErrorMessage(result.error);
+        return this.createAuthResult(false, { error: result.error });
       }
 
-      // Autentica utente GUN
-      log("Autenticazione utente GUN");
-      await this.gundb.authenticateGunUser(username, password);
-
-      // Recupera chiave pubblica
-      const userPub = this.gundb.gun?.user()?.is?.pub;
-      if (setUserpub && userPub) setUserpub(userPub);
-
-      // Registra su Hedgehog
-      log("Registrazione su Hedgehog");
-      await this.hedgehog.signUp(username, password);
-
-      // Inizializza wallet paths
-      log("Inizializzazione wallet paths");
-      await this.initializeWalletPaths(userPub || "");
-
+      if (setUserpub && result.pub) setUserpub(result.pub);
       if (setSignedIn) setSignedIn(true);
 
-      log("Registrazione completata con successo");
-      return { success: true, userPub };
-    } catch (e: any) {
-      console.error("Errore durante la registrazione:", e);
-      return { success: false, error: e.message };
-    }
-  }
+      // Emettiamo l'evento di successo
+      this.eventEmitter.emit("auth:signup", {
+        userPub: result.pub || "",
+        username,
+        method: "password",
+      });
 
-  /**
-   * Gestisce il logout
-   * @param {string} userpub - Chiave pubblica dell'utente
-   * @param {Function} resetState - Funzione per resettare lo stato
-   */
-  performLogout(userpub: string, resetState?: Function): void {
-    try {
-      this.hedgehog.logout();
-      this.gundb.logout();
-
-      if (userpub) {
-        sessionStorage.removeItem("gun-current-pair");
-        localStorage.removeItem(`gun-keys-${userpub}`);
-      }
-
-      if (typeof resetState === "function") {
-        resetState();
-      }
+      return this.createAuthResult(true, {
+        userPub: result.pub,
+        password,
+        wallet: result.wallet,
+        username,
+      });
     } catch (error) {
-      console.error("Errore durante il logout:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Errore durante la registrazione";
+      if (setErrorMessage) setErrorMessage(errorMessage);
+
+      this.eventEmitter.emit("error", {
+        code: "SIGNUP_ERROR",
+        message: errorMessage,
+        details: error,
+      });
+
+      return this.createAuthResult(false, { error: errorMessage });
     }
   }
 
@@ -1345,12 +1245,27 @@ export class ShogunSDK {
 
   private createAuthResult(
     success: boolean,
-    data?: { userPub?: string; password?: string; wallet?: any; error?: string }
+    data?: { userPub?: string; password?: string; wallet?: any; error?: string; username?: string }
   ): AuthResult {
     return {
       success,
       ...(data || {}),
     };
+  }
+
+  // Metodi per la gestione degli eventi
+  public on<K extends keyof ShogunEvents>(
+    event: K,
+    listener: ShogunEvents[K]
+  ): void {
+    this.eventEmitter.on(event, listener);
+  }
+
+  public off<K extends keyof ShogunEvents>(
+    event: K,
+    listener: ShogunEvents[K]
+  ): void {
+    this.eventEmitter.off(event, listener);
   }
 }
 
@@ -1367,5 +1282,8 @@ if (typeof window !== "undefined") {
   (global as any).Stealth = Stealth;
 }
 
-export { LoginWithShogunReact  };
+// export components
+export { LoginWithShogunReact };
+
+// export sdk
 export default ShogunSDK;

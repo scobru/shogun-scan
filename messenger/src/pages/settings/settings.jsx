@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'solid-app-router';
+import { Outlet, useNavigate } from '@solidjs/router';
 import { createSignal } from 'solid-js';
 import SettingsHeader from '../../components/settings/settingsHeader';
 
@@ -99,13 +99,11 @@ let SettingsPage = () => {
           </div> */}
         </div>
         <div
-          class={`flex flex-col w-full h-full bg-gray-100 dark:bg-gray-800 ${
+          class={`flex-grow h-full overflow-y-auto ${
             menuActive() ? 'rounded-tl-lg' : 'rounded-t-lg'
           } lg:rounded-tr-none lg:rounded-tl-lg overflow-x-hidden`}
         >
-          <div class="w-screen md:w-full h-full overflow-y-auto">
-            <Outlet />
-          </div>
+          <Outlet />
         </div>
       </div>
     </div>

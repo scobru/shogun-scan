@@ -8,12 +8,12 @@
     "declarationDir": "./dist/types",
     "outDir": "./dist",
     "strict": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+    "jsx": "react-jsx",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["solid-js"]
+    "types": ["@types/react"],
+    "allowJs": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/hedgehog/*"]
 } 

@@ -17,6 +17,7 @@
     "vite-plugin-solid": "^2.11.6"
   },
   "dependencies": {
+    "@solidjs/router": "^0.15.3",
     "axios": "^0.24.0",
     "buffer": "^6.0.3",
     "gun": "^0.2020.1235",
@@ -24,12 +25,12 @@
     "ipfs-core": "^0.13.0",
     "it-to-buffer": "^2.0.2",
     "jquery": "^3.6.0",
-    "lonewolf-protocol": "link:../../protocol",
+    "lonewolf-protocol": "link:../protocol",
     "moment": "^2.29.1",
     "orbit-db": "^0.28.0",
     "rollup-plugin-polyfill-node": "^0.8.0",
     "rxjs": "^7.4.0",
-    "shogun-sdk": "link:../../sdk",
+    "shogun-sdk": "link:../sdk",
     "solid-app-router": "^0.1.14",
     "solid-js": "^1.2.6",
     "uuid": "^8.3.2",

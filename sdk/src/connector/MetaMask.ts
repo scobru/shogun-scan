@@ -2,7 +2,7 @@
  * The MetaMaskAuth class provides functionality for connecting, signing up, and logging in using MetaMask.
  */
 import { ethers } from 'ethers';
-import GunDB from '../gun/Gun';
+import GunDB from '../gun/gun';
 
 // Estendere l'interfaccia Window per includere ethereum
 declare global {

@@ -1,4 +1,3 @@
-/** @jsxImportSource react */
 import React, { useState, useEffect } from 'react';
 import type { FC, ReactElement, ChangeEvent } from 'react';
 import ShogunSDK from '../../index';

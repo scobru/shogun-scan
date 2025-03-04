@@ -1,60 +1,16 @@
-/** @jsxImportSource solid-js */
-import { createSignal, createEffect, Component } from 'solid-js';
-import ShogunSDK from '../../index';
+import { createSignal, Show } from 'solid-js';
+import LoneWolfLogo from '../assets/LoneWolfLogo';
 
-interface CustomMessages {
-  loginHeader?: string;
-  signupHeader?: string;
-  loginButton?: string;
-  signupButton?: string;
-  usernameLabel?: string;
-  passwordLabel?: string;
-  confirmPasswordLabel?: string;
-  switchToSignup?: string;
-  switchToLogin?: string;
-  metamaskConnect?: string;
-  metamaskLogin?: string;
-  metamaskSignup?: string;
-  webauthnLogin?: string;
-  webauthnSignup?: string;
-  mismatched?: string;
-  empty?: string;
-  exists?: string;
-}
-
-interface LoginWithShogunProps {
-  sdk: ShogunSDK;
-  onLoginSuccess?: (data: { 
-    userPub: string; 
-    username: string;
-    password?: string;
-    wallet?: any;
-    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn';
-  }) => void;
-  onSignupSuccess?: (data: { 
-    userPub: string; 
-    username: string;
-    password?: string;
-    wallet?: any;
-    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn';
-  }) => void;
-  onError?: (error: string) => void;
-  customMessages?: CustomMessages;
-  darkMode?: boolean;
-  showMetamask?: boolean;
-  showWebauthn?: boolean;
-}
-
-const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
-  const [activeTab, setActiveTab] = createSignal<number>(0);
-  const [username, setUsername] = createSignal<string>('');
-  const [password, setPassword] = createSignal<string>('');
-  const [passwordConfirmation, setPasswordConfirmation] = createSignal<string>('');
-  const [loading, setLoading] = createSignal<boolean>(false);
-  const [errorMessage, setErrorMessage] = createSignal<string>('');
-  const [isMetaMaskConnected, setIsMetaMaskConnected] = createSignal<boolean>(false);
-  const [metamaskAddress, setMetamaskAddress] = createSignal<string>('');
-  const [isWebAuthnSupported, setIsWebAuthnSupported] = createSignal<boolean>(false);
+const LoginWithShogun = (props) => {
+  const [activeTab, setActiveTab] = createSignal(0);
+  const [username, setUsername] = createSignal('');
+  const [password, setPassword] = createSignal('');
+  const [passwordConfirmation, setPasswordConfirmation] = createSignal('');
+  const [loading, setLoading] = createSignal(false);
+  const [errorMessage, setErrorMessage] = createSignal('');
+  const [isMetaMaskConnected, setIsMetaMaskConnected] = createSignal(false);
+  const [metamaskAddress, setMetamaskAddress] = createSignal('');
+  const [isWebAuthnSupported, setIsWebAuthnSupported] = createSignal(false);
 
   // Messaggi predefiniti
   const messages = {
@@ -77,17 +33,18 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
     exists: props.customMessages?.exists || 'Utente già esistente'
   };
 
-  // Logging iniziale per debug
-  console.log("Props ricevute:", { sdk: props.sdk, showMetamask: props.showMetamask, showWebauthn: props.showWebauthn });
+  // All'inizio del componente
+  console.log("Props ricevute:", props);
   console.log("SDK disponibile:", !!props.sdk);
+  console.log("showMetamask:", props.showMetamask);
+  console.log("showWebauthn:", props.showWebauthn);
 
-  createEffect(() => {
-    if (props.showWebauthn) {
-      const supported = props.sdk.isWebAuthnSupported();
-      console.log("WebAuthn supportato:", supported);
-      setIsWebAuthnSupported(supported);
-    }
-  });
+  // Verifica se WebAuthn è supportato
+  if (props.showWebauthn) {
+    const supported = props.sdk.isWebAuthnSupported();
+    console.log("WebAuthn supportato:", supported);
+    setIsWebAuthnSupported(supported);
+  }
 
   const handleLogin = async () => {
     console.log("handleLogin chiamato");
@@ -117,7 +74,7 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
       } else {
         throw new Error(result.error || 'Errore durante il login');
       }
-    } catch (error: any) {
+    } catch (error) {
       const errorMsg = error.message || 'Errore durante il login';
       console.error("Errore completo:", error);
       setErrorMessage(errorMsg);
@@ -163,7 +120,7 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
       } else {
         throw new Error(result.error || 'Errore durante la registrazione');
       }
-    } catch (error: any) {
+    } catch (error) {
       const errorMsg = error.message || 'Errore durante la registrazione';
       console.error("Errore completo:", error);
       setErrorMessage(errorMsg);
@@ -174,22 +131,17 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
   };
 
   const handleMetaMaskConnect = async () => {
-    if (!props.showMetamask) return;
-    
     setLoading(true);
-    setErrorMessage('');
-
     try {
-      const result = await props.sdk.metamask?.connectMetaMask();
-      if (result?.success) {
-        setMetamaskAddress(result.address || '');
+      const result = await props.sdk.metamask.connectMetaMask();
+      if (result.success) {
         setIsMetaMaskConnected(true);
-        setUsername(result.username || '');
+        setMetamaskAddress(result.address);
       } else {
-        throw new Error(result?.error || 'Errore nella connessione a MetaMask');
+        throw new Error(result.error || "Errore durante la connessione a MetaMask");
       }
-    } catch (error: any) {
-      const errorMsg = error.message || 'Errore nella connessione a MetaMask';
+    } catch (error) {
+      const errorMsg = error.message || "Errore durante la connessione a MetaMask";
       setErrorMessage(errorMsg);
       if (props.onError) props.onError(errorMsg);
     } finally {
@@ -203,29 +155,30 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
     console.log("metamaskAddress:", metamaskAddress());
     
     if (!isMetaMaskConnected() || !metamaskAddress()) {
-      setErrorMessage('Connetti prima MetaMask');
-      if (props.onError) props.onError('Connetti prima MetaMask');
+      setErrorMessage("MetaMask non connesso");
       return;
     }
-
+    
     setLoading(true);
     setErrorMessage('');
-
+    
     try {
       const username = `metamask_${metamaskAddress().slice(2, 8)}`;
       
-      // Verifica se esiste una password salvata
+      // Prima controlla se abbiamo una password salvata
       const savedPassword = localStorage.getItem(`lonewolf_${username}`);
       
+      // Se abbiamo una password salvata, prova a usarla direttamente con LoneWolf
       if (savedPassword) {
         console.log("Password salvata trovata, tentativo di login diretto con LoneWolf...");
         
+        // Notifica il componente di autenticazione che vogliamo usare la password salvata
         if (props.onLoginSuccess) {
           const authResult = {
-            userPub: metamaskAddress(),
+            userPub: metamaskAddress(), 
             username: username,
             password: savedPassword,
-            authMethod: 'metamask_saved' as const
+            authMethod: 'metamask_saved'
           };
           
           props.onLoginSuccess(authResult);
@@ -233,31 +186,35 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
           return;
         }
       }
-
+      
+      // Se non abbiamo una password salvata o il login diretto fallisce, procedi con MetaMask
       console.log("Tentativo di login con MetaMask...");
       const result = await props.sdk.loginWithMetaMask(metamaskAddress());
-      console.log("Risultato login con MetaMask:", result);
 
+      console.log("Risultato login con MetaMask:", result);
+      
       if (result.success) {
+        // Salva la password generata in localStorage per uso futuro
         if (result.password) {
           localStorage.setItem(`lonewolf_${username}`, result.password);
         }
-
+        
         if (props.onLoginSuccess) {
-          props.onLoginSuccess({ 
-            userPub: result.userPub || metamaskAddress(),
+          const authResult = {
+            userPub: result.userPub || metamaskAddress(), 
             username: username,
             password: result.password,
             wallet: result.wallet,
             authMethod: 'metamask_direct'
-          });
+          };
+          
+          props.onLoginSuccess(authResult);
         }
       } else {
-        throw new Error(result.error || 'Errore durante il login con MetaMask');
+        throw new Error(result.error || "Errore durante il login con MetaMask");
       }
-    } catch (error: any) {
-      const errorMsg = error.message || 'Errore nel login con MetaMask';
-      console.error("Errore completo:", error);
+    } catch (error) {
+      const errorMsg = error.message || "Errore durante il login con MetaMask";
       setErrorMessage(errorMsg);
       if (props.onError) props.onError(errorMsg);
     } finally {
@@ -266,34 +223,32 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
   };
 
   const handleMetaMaskSignUp = async () => {
-    console.log("handleMetaMaskSignUp chiamato");
-    
     if (!isMetaMaskConnected() || !metamaskAddress()) {
-      setErrorMessage('Connetti prima MetaMask');
-      if (props.onError) props.onError('Connetti prima MetaMask');
+      setErrorMessage("MetaMask non connesso");
       return;
     }
-
+    
     setLoading(true);
     setErrorMessage('');
-
+    
     try {
       const username = `metamask_${metamaskAddress().slice(2, 8)}`;
-      console.log("Tentativo di registrazione con MetaMask...");
       
+      // Tenta la registrazione con MetaMask
+      console.log("Tentativo di registrazione con MetaMask...");
       const result = await props.sdk.signUpWithMetaMask(metamaskAddress());
-      console.log("Risultato registrazione con MetaMask:", result);
-
+      
       if (result.success) {
         console.log("Registrazione con MetaMask riuscita");
         
+        // Salva la password generata in localStorage
         if (result.password) {
           localStorage.setItem(`lonewolf_${username}`, result.password);
         }
-
+        
         if (props.onSignupSuccess) {
           props.onSignupSuccess({ 
-            userPub: result.userPub || metamaskAddress(),
+            userPub: result.userPub || metamaskAddress(), 
             username: username,
             password: result.password,
             wallet: result.wallet,
@@ -301,14 +256,35 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
           });
         }
       } else {
-        if (result.error?.includes('User already created')) {
-          console.log('Utente già esistente, tentativo di login...');
-          return handleMetaMaskLogin();
+        // Se la registrazione fallisce con "User already created", prova il login
+        if (result.error && result.error.includes("User already created")) {
+          console.log("Utente già esistente, tentativo di login...");
+          const loginResult = await props.sdk.loginWithMetaMask(metamaskAddress());
+          
+          if (loginResult.success) {
+            console.log("Login con MetaMask riuscito");
+            
+            // Salva la password in localStorage
+            if (loginResult.password) {
+              localStorage.setItem(`lonewolf_${username}`, loginResult.password);
+            }
+            
+            if (props.onLoginSuccess) {
+              props.onLoginSuccess({ 
+                userPub: loginResult.userPub || metamaskAddress(), 
+                username: username,
+                password: loginResult.password,
+                wallet: loginResult.wallet,
+                authMethod: 'metamask_direct'
+              });
+            }
+            return;
+          }
         }
-        throw new Error(result.error || 'Errore durante la registrazione con MetaMask');
+        throw new Error(result.error || "Errore durante la registrazione con MetaMask");
       }
-    } catch (error: any) {
-      const errorMsg = error.message || 'Errore nella registrazione con MetaMask';
+    } catch (error) {
+      const errorMsg = error.message || "Errore durante la registrazione con MetaMask";
       console.error("Errore completo:", error);
       setErrorMessage(errorMsg);
       if (props.onError) props.onError(errorMsg);
@@ -318,8 +294,6 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
   };
 
   const handleWebAuthnLogin = async () => {
-    if (!props.showWebauthn || !isWebAuthnSupported()) return;
-    
     if (!username()) {
       setErrorMessage(messages.empty);
       if (props.onError) props.onError(messages.empty);
@@ -328,23 +302,24 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
 
     setLoading(true);
     setErrorMessage('');
-
+    
     try {
       const result = await props.sdk.authenticateWithWebAuthn(username());
-      
       if (result.success) {
         if (props.onLoginSuccess) {
           props.onLoginSuccess({ 
-            userPub: 'webauthn-user-pub', 
-            username: username(), 
+            userPub: result.credentialId || 'webauthn-user-pub', 
+            username: username(),
+            password: `WebAuthn_${username()}_${Date.now()}`,
             authMethod: 'webauthn'
           });
         }
       } else {
-        throw new Error(result.error || 'Errore nell\'autenticazione con WebAuthn');
+        throw new Error(result.error || "Errore durante l'autenticazione WebAuthn");
       }
-    } catch (error: any) {
-      const errorMsg = error.message || 'Errore nell\'autenticazione con WebAuthn';
+    } catch (error) {
+      const errorMsg = error.message || "Errore durante l'autenticazione WebAuthn";
+      console.error("Errore WebAuthn:", errorMsg);
       setErrorMessage(errorMsg);
       if (props.onError) props.onError(errorMsg);
     } finally {
@@ -353,8 +328,6 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
   };
 
   const handleWebAuthnSignUp = async () => {
-    if (!props.showWebauthn || !isWebAuthnSupported()) return;
-    
     if (!username()) {
       setErrorMessage(messages.empty);
       if (props.onError) props.onError(messages.empty);
@@ -363,23 +336,28 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
 
     setLoading(true);
     setErrorMessage('');
-
+    
     try {
+      const securePassword = `WebAuthn_${username()}_${Date.now()}`;
+      
       const result = await props.sdk.registerWithWebAuthn(username());
+      console.log("Risultato registrazione WebAuthn:", result);
       
       if (result.success) {
         if (props.onSignupSuccess) {
           props.onSignupSuccess({ 
-            userPub: 'webauthn-user-pub', 
-            username: username(), 
+            userPub: result.credentialId || 'webauthn-user-pub', 
+            username: username(),
+            password: securePassword,
             authMethod: 'webauthn'
           });
         }
       } else {
-        throw new Error(result.error || 'Errore nella registrazione con WebAuthn');
+        throw new Error(result.error || "Errore durante la registrazione WebAuthn");
       }
-    } catch (error: any) {
-      const errorMsg = error.message || 'Errore nella registrazione con WebAuthn';
+    } catch (error) {
+      const errorMsg = error.message || "Errore durante la registrazione WebAuthn";
+      console.error("Errore WebAuthn:", errorMsg);
       setErrorMessage(errorMsg);
       if (props.onError) props.onError(errorMsg);
     } finally {
@@ -389,6 +367,10 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
 
   return (
     <div class="flex flex-col w-auto h-auto p-4 bg-white dark:bg-gray-800 rounded-md shadow-sm space-y-5 max-w-sm">
+      <div class="flex justify-center items-center w-full h-auto">
+        <LoneWolfLogo />
+      </div>
+      
       <div class="flex w-full mb-4">
         <div 
           class={`flex-1 p-2 text-center cursor-pointer ${activeTab() === 0 ? 'border-b-2 border-blue-600 font-semibold' : ''}`}
@@ -404,159 +386,172 @@ const LoginWithShogunSolid: Component<LoginWithShogunProps> = (props) => {
         </div>
       </div>
       
-      <h2 class="text-center text-lg text-gray-900 dark:text-white">
+      <div class="flex justify-center w-full h-auto text-gray-900 dark:text-white text-lg">
         {activeTab() === 0 ? messages.loginHeader : messages.signupHeader}
-      </h2>
+      </div>
       
-      {activeTab() === 0 ? (
-        <div class="space-y-4">
+      <Show when={errorMessage()}>
+        <div class="flex justify-center items-center text-center text-red-500">
+          {errorMessage()}
+        </div>
+      </Show>
+      
+      <Show when={activeTab() === 0}>
+        <div class="flex flex-col w-full h-auto space-y-2">
           <input
-            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="text"
             placeholder={messages.usernameLabel}
             value={username()}
-            onInput={(e) => setUsername(e.currentTarget.value)}
+            onInput={(e) => setUsername(e.target.value)}
+            class="w-full h-auto p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white outline-none"
           />
           <input
-            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             placeholder={messages.passwordLabel}
             value={password()}
-            onInput={(e) => setPassword(e.currentTarget.value)}
+            onInput={(e) => setPassword(e.target.value)}
+            class="w-full h-auto p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white outline-none"
           />
-          <button
-            class={`w-full px-4 py-2 bg-blue-600 text-white rounded-md ${loading() ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'}`}
-            onClick={handleLogin}
-            disabled={loading()}
-          >
-            {loading() ? 'Caricamento...' : messages.loginButton}
-          </button>
           
-          <div class="text-center">
+          <div class="flex flex-col justify-center items-center w-full h-auto space-y-2">
             <button
-              class="text-blue-600 hover:underline"
-              onClick={() => setActiveTab(1)}
-            >
-              {messages.switchToSignup}
-            </button>
-          </div>
-          
-          {props.showWebauthn && isWebAuthnSupported() && (
-            <button
-              class={`w-full px-4 py-2 bg-purple-600 text-white rounded-md ${loading() ? 'opacity-70 cursor-not-allowed' : 'hover:bg-purple-700'}`}
-              onClick={handleWebAuthnLogin}
+              class={`flex w-auto h-auto px-4 py-2 bg-blue-600 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
+              onClick={handleLogin}
               disabled={loading()}
             >
-              {messages.webauthnLogin}
+              {loading() ? 'Caricamento...' : messages.loginButton}
             </button>
-          )}
-          
-          {props.showMetamask && (
-            <div class="space-y-2">
+            
+            <div class="flex w-full justify-center text-center text-gray-900 dark:text-white space-x-2">
+              <div>Non hai un account?</div>
+              <div
+                class="cursor-pointer text-blue-600"
+                onClick={() => setActiveTab(1)}
+              >
+                {messages.switchToSignup}
+              </div>
+            </div>
+            
+            <Show when={props.showWebauthn && isWebAuthnSupported()}>
               <button
-                class={`w-full px-4 py-2 bg-orange-500 text-white rounded-md ${loading() || isMetaMaskConnected() ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'}`}
+                class={`flex justify-center w-full h-auto px-4 py-2 bg-purple-600 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
+                onClick={handleWebAuthnLogin}
+                disabled={loading()}
+              >
+                {messages.webauthnLogin}
+              </button>
+            </Show>
+            
+            <Show when={props.showMetamask}>
+              <button
+                class={`flex justify-center w-full h-auto px-4 py-2 bg-orange-500 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
                 onClick={handleMetaMaskConnect}
                 disabled={loading() || isMetaMaskConnected()}
               >
                 {isMetaMaskConnected() ? 'MetaMask Connesso' : messages.metamaskConnect}
               </button>
               
-              {isMetaMaskConnected() && (
-                <div class="p-3 bg-gray-700 rounded-md">
+              <Show when={isMetaMaskConnected()}>
+                <div class="w-full p-3 bg-gray-700 rounded-md mt-2">
                   <p class="text-sm text-gray-300 mb-2 break-all">
                     Account: {metamaskAddress()}
                   </p>
                   <button
-                    class={`w-full px-4 py-2 bg-orange-500 text-white rounded-md ${loading() ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'}`}
+                    class={`flex justify-center w-full h-auto px-4 py-2 bg-orange-500 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
                     onClick={handleMetaMaskLogin}
                     disabled={loading()}
                   >
                     {messages.metamaskLogin}
                   </button>
                 </div>
-              )}
-            </div>
-          )}
+              </Show>
+            </Show>
+          </div>
         </div>
-      ) : (
-        <div class="space-y-4">
+      </Show>
+      
+      <Show when={activeTab() === 1}>
+        <div class="flex flex-col w-full h-auto space-y-2">
           <input
-            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="text"
             placeholder={messages.usernameLabel}
             value={username()}
-            onInput={(e) => setUsername(e.currentTarget.value)}
+            onInput={(e) => setUsername(e.target.value)}
+            class="w-full h-auto p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white outline-none"
           />
           <input
-            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             placeholder={messages.passwordLabel}
             value={password()}
-            onInput={(e) => setPassword(e.currentTarget.value)}
+            onInput={(e) => setPassword(e.target.value)}
+            class="w-full h-auto p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white outline-none"
           />
           <input
-            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             type="password"
             placeholder={messages.confirmPasswordLabel}
             value={passwordConfirmation()}
-            onInput={(e) => setPasswordConfirmation(e.currentTarget.value)}
+            onInput={(e) => setPasswordConfirmation(e.target.value)}
+            class="w-full h-auto p-3 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-900 dark:text-white outline-none"
           />
-          <button
-            class={`w-full px-4 py-2 bg-blue-600 text-white rounded-md ${loading() ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'}`}
-            onClick={handleSignUp}
-            disabled={loading()}
-          >
-            {loading() ? 'Caricamento...' : messages.signupButton}
-          </button>
           
-          <div class="text-center">
+          <div class="flex flex-col justify-center items-center w-full h-auto space-y-2">
             <button
-              class="text-blue-600 hover:underline"
-              onClick={() => setActiveTab(0)}
-            >
-              {messages.switchToLogin}
-            </button>
-          </div>
-          
-          {props.showWebauthn && isWebAuthnSupported() && (
-            <button
-              class={`w-full px-4 py-2 bg-purple-600 text-white rounded-md ${loading() ? 'opacity-70 cursor-not-allowed' : 'hover:bg-purple-700'}`}
-              onClick={handleWebAuthnSignUp}
+              class={`flex w-auto h-auto px-4 py-2 bg-blue-600 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
+              onClick={handleSignUp}
               disabled={loading()}
             >
-              {messages.webauthnSignup}
+              {loading() ? 'Caricamento...' : messages.signupButton}
             </button>
-          )}
-          
-          {props.showMetamask && (
-            <div class="space-y-2">
+            
+            <div class="flex w-full justify-center text-center text-gray-900 dark:text-white space-x-2">
+              <div>Hai già un account?</div>
+              <div
+                class="cursor-pointer text-blue-600"
+                onClick={() => setActiveTab(0)}
+              >
+                {messages.switchToLogin}
+              </div>
+            </div>
+            
+            <Show when={props.showWebauthn && isWebAuthnSupported()}>
               <button
-                class={`w-full px-4 py-2 bg-orange-500 text-white rounded-md ${loading() || isMetaMaskConnected() ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-600'}`}
-                onClick={handleMetaMaskSignUp}
+                class={`flex justify-center w-full h-auto px-4 py-2 bg-purple-600 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
+                onClick={handleWebAuthnSignUp}
+                disabled={loading()}
+              >
+                {messages.webauthnSignup}
+              </button>
+            </Show>
+            
+            <Show when={props.showMetamask}>
+              <button
+                class={`flex justify-center w-full h-auto px-4 py-2 bg-orange-500 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
+                onClick={handleMetaMaskConnect}
                 disabled={loading() || isMetaMaskConnected()}
               >
                 {isMetaMaskConnected() ? 'MetaMask Connesso' : messages.metamaskConnect}
               </button>
               
-              {isMetaMaskConnected() && (
-                <div class="p-3 bg-gray-700 rounded-md">
+              <Show when={isMetaMaskConnected()}>
+                <div class="w-full p-3 bg-gray-700 rounded-md mt-2">
                   <p class="text-sm text-gray-300 mb-2 break-all">
                     Account: {metamaskAddress()}
                   </p>
+                  <button
+                    class={`flex justify-center w-full h-auto px-4 py-2 bg-orange-500 rounded-md cursor-pointer text-white ${loading() ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    onClick={handleMetaMaskSignUp}
+                    disabled={loading()}
+                  >
+                    {messages.metamaskSignup}
+                  </button>
                 </div>
-              )}
-            </div>
-          )}
+              </Show>
+            </Show>
+          </div>
         </div>
-      )}
-      
-      {errorMessage() && (
-        <div class="text-center text-red-500">
-          {errorMessage()}
-        </div>
-      )}
+      </Show>
     </div>
   );
 };
 
-export default LoginWithShogunSolid; 
+export default LoginWithShogun; 

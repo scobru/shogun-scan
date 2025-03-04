@@ -1,5 +1,5 @@
 import { authentication, certificates, user } from 'lonewolf-protocol';
-import { Route, Routes } from 'solid-app-router';
+import { Route, Routes } from '@solidjs/router';
 import { createSignal, onMount } from 'solid-js';
 import LogoutButton from './components/buttons/logout';
 import SettingsButton from './components/buttons/settings';
@@ -128,23 +128,14 @@ function App() {
 
               <Content>
                 <Routes>
-                  <Route path="/" element={<WelcomePage />} />
-                  <Route path="/chat/:chatId/:pub" element={<ChatPage />} />
-                  <Route
-                    path="/profile"
-                    element={<ProfilePage backEnabled={true} />}
-                  />
-                  <Route path="/settings" element={<SettingsPage />}>
-                    <Route path="/" element={<ProfilePage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                    <Route
-                      path="/appearance"
-                      element={<AppearanceSettingsPage />}
-                    />
-                    <Route
-                      path="/systems-status"
-                      element={<SystemsStatusSettingsPage />}
-                    />
+                  <Route path="/" component={WelcomePage} />
+                  <Route path="/chat/:chatId/:pub" component={ChatPage} />
+                  <Route path="/profile" component={() => <ProfilePage backEnabled={true} />} />
+                  <Route path="/settings" component={SettingsPage}>
+                    <Route path="/" component={ProfilePage} />
+                    <Route path="/profile" component={ProfilePage} />
+                    <Route path="/appearance" component={AppearanceSettingsPage} />
+                    <Route path="/systems-status" component={SystemsStatusSettingsPage} />
                   </Route>
                 </Routes>
               </Content>

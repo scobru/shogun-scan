@@ -1,4 +1,4 @@
-import { Router } from 'solid-app-router';
+import { Router } from '@solidjs/router';
 import { render } from 'solid-js/web';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';

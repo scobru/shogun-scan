@@ -15,22 +15,22 @@ export default defineConfig({
       include: [
         '*.js',
         'node_modules/**/*.js',
-        // (1)
         new RegExp('node_modules/.vite/.*js'),
       ],
-      // (2)
       exclude: ['node_modules/polyfill-nodeglobal.js'],
     }),
     solidPlugin(),
     VitePWA({
-      registerType: 'autoUpdate',
+      strategies: 'injectManifest',
       srcDir: 'src',
-      base: '/',
+      filename: 'sw.js',
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
       workbox: {
-        cleanupOutdatedCaches: false,
+        cleanupOutdatedCaches: true,
         sourcemap: true,
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,vue,txt,woff2}']
       },
-      id: '/',
       includeAssets: [
         './src/robots.txt',
         './src/assets/lonewolf-16.png',
@@ -42,7 +42,6 @@ export default defineConfig({
         './src/assets/lonewolf-256.png',
         './src/assets/lonewolf-512.png',
       ],
-      strategies: 'injectManifest',
       manifest: {
         short_name: 'LoneWolf',
         name: 'LoneWolf Messenger',
@@ -96,6 +95,8 @@ export default defineConfig({
             purpose: 'any',
           },
         ],
+        start_url: '/',
+        display: 'standalone',
         theme_color: '#000000',
         background_color: '#ffffff',
       },
