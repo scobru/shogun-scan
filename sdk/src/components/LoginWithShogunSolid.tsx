@@ -1,5 +1,4 @@
 import { createSignal, Show } from 'solid-js';
-import LoneWolfLogo from '../assets/LoneWolfLogo';
 
 const LoginWithShogun = (props) => {
   const [activeTab, setActiveTab] = createSignal(0);
@@ -64,7 +63,8 @@ const LoginWithShogun = (props) => {
           props.onLoginSuccess({ 
             userPub: result.userPub, 
             username: username(),
-            password: password()
+            password: password(),
+            authMethod: 'standard'
           });
         }
       } else {
@@ -105,7 +105,8 @@ const LoginWithShogun = (props) => {
           props.onSignupSuccess({ 
             userPub: result.userPub, 
             username: username(),
-            password: password()
+            password: password(),
+            authMethod: 'standard_signup'
           });
         }
       } else {
@@ -240,7 +241,8 @@ const LoginWithShogun = (props) => {
             userPub: result.userPub || metamaskAddress(), 
             username: username,
             password: result.password,
-            wallet: result.wallet
+            wallet: result.wallet,
+            authMethod: 'metamask_signup'
           });
         }
       } else {
@@ -297,7 +299,8 @@ const LoginWithShogun = (props) => {
           props.onLoginSuccess({ 
             userPub: result.credentialId || 'webauthn-user-pub', 
             username: username(),
-            password: `WebAuthn_${username()}_${Date.now()}`
+            password: `WebAuthn_${username()}_${Date.now()}`,
+            authMethod: 'webauthn'
           });
         }
       } else {
@@ -334,7 +337,8 @@ const LoginWithShogun = (props) => {
           props.onSignupSuccess({ 
             userPub: result.credentialId || 'webauthn-user-pub', 
             username: username(),
-            password: securePassword
+            password: securePassword,
+            authMethod: 'webauthn'
           });
         }
       } else {
@@ -353,7 +357,7 @@ const LoginWithShogun = (props) => {
   return (
     <div class="flex flex-col w-auto h-auto p-4 bg-white dark:bg-gray-800 rounded-md shadow-sm space-y-5 max-w-sm">
       <div class="flex justify-center items-center w-full h-auto">
-        <LoneWolfLogo />
+        "⚔️ SHOGUN SDK ⚔️"
       </div>
       
       <div class="flex w-full mb-4">

@@ -13,8 +13,8 @@
     "autoprefixer": "^10.4.0",
     "postcss": "^8.3.11",
     "tailwindcss": "^3.0.7",
-    "vite": "^2.5.7",
-    "vite-plugin-solid": "^2.1.4"
+    "vite": "^6.2.0",
+    "vite-plugin-solid": "^2.11.6"
   },
   "dependencies": {
     "axios": "^0.24.0",
@@ -24,12 +24,12 @@
     "ipfs-core": "^0.13.0",
     "it-to-buffer": "^2.0.2",
     "jquery": "^3.6.0",
-    "lonewolf-protocol": "link:../../lonewolf-protocol",
-    "shogun-sdk": "link:../../sdk",
+    "lonewolf-protocol": "link:../../protocol",
     "moment": "^2.29.1",
     "orbit-db": "^0.28.0",
     "rollup-plugin-polyfill-node": "^0.8.0",
     "rxjs": "^7.4.0",
+    "shogun-sdk": "link:../../sdk",
     "solid-app-router": "^0.1.14",
     "solid-js": "^1.2.6",
     "uuid": "^8.3.2",

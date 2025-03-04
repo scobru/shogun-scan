@@ -7,7 +7,7 @@ import { MetaMask } from "./connector/MetaMask";
 import { Webauthn } from "./webauthn/Webauthn";
 import { Stealth } from "./stealth/Stealth";
 import Wallet from "ethereumjs-wallet";
-import LoginWithShogun from './components/LoginWithShogun';
+import LoginWithShogun from './components/LoginWithShogunReact';
 
 import "./hedgehog/browser";
 //
@@ -848,117 +848,93 @@ export class ShogunSDK {
   async loginWithMetaMask(address: string): Promise<AuthResult> {
     try {
       if (!this.metamask) {
-        throw new Error("MetaMask non è inizializzato");
+        return this.createAuthResult(false, { error: "MetaMask non è inizializzato" });
       }
 
       const result = await this.metamask.login(address);
       
       if (!result.success || !result.username || !result.password) {
-        throw new Error(result.error || "Errore durante il login con MetaMask");
+        return this.createAuthResult(false, { 
+          error: result.error || "Errore durante il login con MetaMask" 
+        });
       }
 
       try {
-        // Prima proviamo il login con Hedgehog
-        console.log("Tentativo login con Hedgehog...");
-        const hedgehogWallet = await this.hedgehog.login(result.username, result.password) as Wallet;
-        console.log("Login Hedgehog completato");
-
-        // Poi autentichiamo con GUN
-        await this.gundb.authenticateGunUser(result.username, result.password);
-        const user = this.gun.user();
+        const hedgehogResult = await this.authenticateWithHedgehog(result.username, result.password);
+        const userPub = await this.authenticateWithGun(result.username, result.password);
         
-        return {
-          success: true,
-          userPub: user.is?.pub || address,
+        return this.createAuthResult(true, {
+          userPub: userPub || address,
           password: result.password,
-          wallet: hedgehogWallet
-        };
+          wallet: hedgehogResult.wallet
+        });
       } catch (authError) {
-        console.log("Errore autenticazione:", authError);
-        // Se l'autenticazione fallisce, potrebbe essere necessaria una registrazione
-        return {
-          success: true,
-          userPub: address,
-          password: result.password
-        };
+        log("Errore autenticazione:", authError);
+        // Se l'autenticazione fallisce, ritorniamo un errore invece di success: true
+        return this.createAuthResult(false, {
+          error: "Errore nell'autenticazione: " + (authError as Error).message
+        });
       }
     } catch (error: any) {
-      console.error("Errore nel login con MetaMask:", error);
-      return {
-        success: false,
-        error: error.message || "Errore nel login con MetaMask",
-      };
+      return this.createAuthResult(false, {
+        error: error.message || "Errore nel login con MetaMask"
+      });
     }
   }
 
   async signUpWithMetaMask(address: string): Promise<AuthResult> {
     try {
       if (!this.metamask) {
-        throw new Error("MetaMask non è inizializzato");
+        return this.createAuthResult(false, { error: "MetaMask non è inizializzato" });
       }
 
       const result = await this.metamask.signUp(address);
       
       if (!result.success || !result.username || !result.password) {
-        throw new Error(result.error || "Errore durante la registrazione con MetaMask");
+        return this.createAuthResult(false, {
+          error: result.error || "Errore durante la registrazione con MetaMask"
+        });
       }
 
       try {
-        // Prima verifichiamo se l'utente esiste già su Hedgehog
+        // Verifica se l'utente esiste già
         try {
-          console.log("Verifica esistenza utente su Hedgehog...");
-          await this.hedgehog.login(result.username, result.password);
-          // Se arriviamo qui, l'utente esiste già
-          console.log("Utente già esistente su Hedgehog");
-          return {
-            success: true,
+          const hedgehogResult = await this.authenticateWithHedgehog(result.username, result.password);
+          return this.createAuthResult(true, {
             userPub: address,
-            password: result.password
-          };
+            password: result.password,
+            wallet: hedgehogResult.wallet
+          });
         } catch (hedgehogError) {
-          // Se il login fallisce, l'utente non esiste e possiamo procedere con la registrazione
-          console.log("Utente non esistente, procedo con la registrazione");
+          log("Utente non esistente, procedo con la registrazione");
         }
 
-        // Registra l'utente con Hedgehog
-        console.log("Registrazione utente con Hedgehog...");
         const hedgehogWallet = await this.hedgehog.signUp(result.username, result.password);
-        console.log("Registrazione Hedgehog completata");
-
-        // Poi crea l'utente in GUN
         await this.gundb.createGunUser(result.username, result.password);
-        await this.gundb.authenticateGunUser(result.username, result.password);
-        const user = this.gun.user();
+        const userPub = await this.authenticateWithGun(result.username, result.password);
+        await this.initializeUserData(result.username, result.password, userPub);
         
-        // Inizializza la struttura dei wallet paths
-        await this.initializeWalletPaths(user.is?.pub || "");
-        
-        return {
-          success: true,
-          userPub: user.is?.pub || address,
+        return this.createAuthResult(true, {
+          userPub: userPub || address,
           password: result.password,
           wallet: hedgehogWallet
-        };
+        });
       } catch (createError: any) {
-        console.error("Errore durante la creazione utente:", createError);
-        
-        // Se l'errore è dovuto a utente già esistente, proviamo comunque a restituire le credenziali
         if (createError.message?.includes("User already created")) {
-          return {
-            success: true,
+          return this.createAuthResult(true, {
             userPub: address,
             password: result.password
-          };
+          });
         }
         
-        throw createError;
+        return this.createAuthResult(false, {
+          error: createError.message || "Errore durante la creazione utente"
+        });
       }
     } catch (error: any) {
-      console.error("Errore nella registrazione con MetaMask:", error);
-      return {
-        success: false,
-        error: error.message || "Errore nella registrazione con MetaMask",
-      };
+      return this.createAuthResult(false, {
+        error: error.message || "Errore nella registrazione con MetaMask"
+      });
     }
   }
 
@@ -1285,6 +1261,68 @@ export class ShogunSDK {
       // Catturiamo l'errore ma non lo propaghiamo, permettendo all'applicazione di continuare
       return Promise.resolve();
     }
+  }
+
+  // Metodi privati di utilità
+  private async authenticateWithHedgehog(username: string, password: string): Promise<any> {
+    log("Autenticazione con Hedgehog...");
+    try {
+      const wallet = await this.hedgehog.login(username, password);
+      log("Login Hedgehog completato con successo");
+      return { success: true, wallet };
+    } catch (error) {
+      log("Errore login Hedgehog:", error);
+      throw error;
+    }
+  }
+
+  private async authenticateWithGun(username: string, password: string): Promise<string> {
+    log("Autenticazione con GUN...");
+    try {
+      await this.gundb.authenticateGunUser(username, password);
+      const user = this.gun.user();
+      if (!user.is?.pub) {
+        throw new Error("Chiave pubblica GUN non disponibile");
+      }
+      return user.is.pub;
+    } catch (error) {
+      log("Errore autenticazione GUN:", error);
+      throw error;
+    }
+  }
+
+  private async initializeUserData(username: string, password: string, userPub: string): Promise<void> {
+    log("Inizializzazione dati utente...");
+    try {
+      await new Promise((resolve, reject) => {
+        this.gun
+          .get("users")
+          .get(userPub)
+          .put(
+            {
+              username: username,
+              epub: userPub,
+              created: Date.now(),
+            },
+            (ack) => {
+              if ("err" in ack) reject(new Error(ack.err));
+              else resolve(ack);
+            }
+          );
+      });
+
+      await this.initializeWalletPaths(userPub);
+    } catch (error) {
+      log("Errore inizializzazione dati utente:", error);
+      throw error;
+    }
+  }
+
+  private createAuthResult(success: boolean, data?: { userPub?: string; password?: string; wallet?: any; error?: string }): AuthResult {
+    return {
+      success,
+      ...(data || {}),
+    };
   }
 }
 

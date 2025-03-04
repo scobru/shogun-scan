@@ -122,12 +122,14 @@ interface LoginWithShogunProps {
     username: string; 
     password?: string;
     wallet?: any;
+    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn';
   }) => void;
   onSignupSuccess?: (data: { 
     userPub: string; 
     username: string;
     password?: string;
     wallet?: any;
+    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn';
   }) => void;
   onError?: (error: string) => void;
   customMessages?: CustomMessages;
@@ -176,14 +178,21 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
     exists: customMessages?.exists || 'Utente già esistente'
   };
 
+  // Logging iniziale per debug
+  console.log("Props ricevute:", { sdk, showMetamask, showWebauthn });
+  console.log("SDK disponibile:", !!sdk);
+
   useEffect(() => {
-    // Verifica se WebAuthn è supportato
     if (showWebauthn) {
-      setIsWebAuthnSupported(sdk.isWebAuthnSupported());
+      const supported = sdk.isWebAuthnSupported();
+      console.log("WebAuthn supportato:", supported);
+      setIsWebAuthnSupported(supported);
     }
   }, [sdk, showWebauthn]);
 
   const handleLogin = async () => {
+    console.log("handleLogin chiamato");
+    
     if (!username || !password) {
       setErrorMessage(messages.empty);
       if (onError) onError(messages.empty);
@@ -195,16 +204,23 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
 
     try {
       const result = await sdk.handleLogin(username, password, {});
+      console.log("Risultato login standard:", result);
 
       if (result.success && result.userPub) {
         if (onLoginSuccess) {
-          onLoginSuccess({ userPub: result.userPub, username });
+          onLoginSuccess({ 
+            userPub: result.userPub,
+            username: username,
+            password: password,
+            authMethod: 'standard' as const
+          });
         }
       } else {
         throw new Error(result.error || 'Errore durante il login');
       }
     } catch (error: any) {
       const errorMsg = error.message || 'Errore durante il login';
+      console.error("Errore completo:", error);
       setErrorMessage(errorMsg);
       if (onError) onError(errorMsg);
     } finally {
@@ -213,6 +229,8 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
   };
 
   const handleSignUp = async () => {
+    console.log("handleSignUp chiamato");
+    
     if (password !== passwordConfirmation) {
       setErrorMessage(messages.mismatched);
       if (onError) onError(messages.mismatched);
@@ -232,16 +250,23 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
       const result = await sdk.handleSignUp(username, password, passwordConfirmation, {
         messages
       });
+      console.log("Risultato registrazione standard:", result);
 
       if (result.success && result.userPub) {
         if (onSignupSuccess) {
-          onSignupSuccess({ userPub: result.userPub, username });
+          onSignupSuccess({ 
+            userPub: result.userPub,
+            username: username,
+            password: password,
+            authMethod: 'standard_signup' as const
+          });
         }
       } else {
         throw new Error(result.error || 'Errore durante la registrazione');
       }
     } catch (error: any) {
       const errorMsg = error.message || 'Errore durante la registrazione';
+      console.error("Errore completo:", error);
       setErrorMessage(errorMsg);
       if (onError) onError(errorMsg);
     } finally {
@@ -274,6 +299,10 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
   };
 
   const handleMetaMaskLogin = async () => {
+    console.log("handleMetaMaskLogin chiamato");
+    console.log("isMetaMaskConnected:", isMetaMaskConnected);
+    console.log("metamaskAddress:", metamaskAddress);
+    
     if (!isMetaMaskConnected || !metamaskAddress) {
       setErrorMessage('Connetti prima MetaMask');
       if (onError) onError('Connetti prima MetaMask');
@@ -285,10 +314,32 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
 
     try {
       const username = `metamask_${metamaskAddress.slice(2, 8)}`;
+      
+      // Verifica se esiste una password salvata
+      const savedPassword = localStorage.getItem(`lonewolf_${username}`);
+      
+      if (savedPassword) {
+        console.log("Password salvata trovata, tentativo di login diretto con LoneWolf...");
+        
+        if (onLoginSuccess) {
+          const authResult = {
+            userPub: metamaskAddress,
+            username: username,
+            password: savedPassword,
+            authMethod: 'metamask_saved' as const
+          };
+          
+          onLoginSuccess(authResult);
+          setLoading(false);
+          return;
+        }
+      }
+
+      console.log("Tentativo di login con MetaMask...");
       const result = await sdk.loginWithMetaMask(metamaskAddress);
+      console.log("Risultato login con MetaMask:", result);
 
       if (result.success) {
-        // Salva la password generata in localStorage
         if (result.password) {
           localStorage.setItem(`lonewolf_${username}`, result.password);
         }
@@ -298,7 +349,8 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
             userPub: result.userPub || metamaskAddress,
             username: username,
             password: result.password,
-            wallet: result.wallet
+            wallet: result.wallet,
+            authMethod: 'metamask_direct' as const
           });
         }
       } else {
@@ -306,6 +358,7 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
       }
     } catch (error: any) {
       const errorMsg = error.message || 'Errore nel login con MetaMask';
+      console.error("Errore completo:", error);
       setErrorMessage(errorMsg);
       if (onError) onError(errorMsg);
     } finally {
@@ -314,6 +367,8 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
   };
 
   const handleMetaMaskSignUp = async () => {
+    console.log("handleMetaMaskSignUp chiamato");
+    
     if (!isMetaMaskConnected || !metamaskAddress) {
       setErrorMessage('Connetti prima MetaMask');
       if (onError) onError('Connetti prima MetaMask');
@@ -325,10 +380,14 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
 
     try {
       const username = `metamask_${metamaskAddress.slice(2, 8)}`;
+      console.log("Tentativo di registrazione con MetaMask...");
+      
       const result = await sdk.signUpWithMetaMask(metamaskAddress);
+      console.log("Risultato registrazione con MetaMask:", result);
 
       if (result.success) {
-        // Salva la password generata in localStorage
+        console.log("Registrazione con MetaMask riuscita");
+        
         if (result.password) {
           localStorage.setItem(`lonewolf_${username}`, result.password);
         }
@@ -338,12 +397,12 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
             userPub: result.userPub || metamaskAddress,
             username: username,
             password: result.password,
-            wallet: result.wallet
+            wallet: result.wallet,
+            authMethod: 'metamask_signup' as const
           });
         }
       } else {
-        // Se l'utente esiste già, prova il login
-        if (result.error && result.error.includes('User already created')) {
+        if (result.error?.includes('User already created')) {
           console.log('Utente già esistente, tentativo di login...');
           return handleMetaMaskLogin();
         }
@@ -351,6 +410,7 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
       }
     } catch (error: any) {
       const errorMsg = error.message || 'Errore nella registrazione con MetaMask';
+      console.error("Errore completo:", error);
       setErrorMessage(errorMsg);
       if (onError) onError(errorMsg);
     } finally {
@@ -377,7 +437,11 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
       if (result.success) {
         // Qui dovremmo avere un modo per ottenere l'userPub dopo l'autenticazione
         if (onLoginSuccess) {
-          onLoginSuccess({ userPub: 'webauthn-user-pub', username });
+          onLoginSuccess({ 
+            userPub: 'webauthn-user-pub', 
+            username, 
+            authMethod: 'webauthn' as const 
+          });
         }
       } else {
         throw new Error(result.error || 'Errore nell\'autenticazione con WebAuthn');
@@ -410,7 +474,11 @@ const LoginWithShogun: React.FC<LoginWithShogunProps> = ({
       if (result.success) {
         // Qui dovremmo avere un modo per ottenere l'userPub dopo la registrazione
         if (onSignupSuccess) {
-          onSignupSuccess({ userPub: 'webauthn-user-pub', username });
+          onSignupSuccess({ 
+            userPub: 'webauthn-user-pub', 
+            username, 
+            authMethod: 'webauthn' as const 
+          });
         }
       } else {
         throw new Error(result.error || 'Errore nella registrazione con WebAuthn');
