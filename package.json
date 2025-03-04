@@ -1,0 +1,18 @@
+{
+  "name": "shogun",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "relay",
+    "wallet",
+    "messenger",
+    "sdk",
+    "protocol"
+  ],
+  "scripts": {
+    "start-server": "node relay/start.js",
+    "start-messenger": "cd messenger && yarn start",
+    "start-wallet": "cd wallet && yarn dev",
+    "build-sdk": "cd sdk && yarn build"
+  }
+} 

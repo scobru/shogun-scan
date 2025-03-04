@@ -1110,39 +1110,31 @@ export class ShogunSDK {
       
       // Utilizziamo una promessa che si risolve sempre, anche in caso di errore o mancanza di dati
       const userExists = await new Promise<boolean>((resolve) => {
-        let resolved = false;
         
-        // Funzione per risolvere la promessa solo una volta
-        const resolveOnce = (exists: boolean) => {
-          if (!resolved) {
-            resolved = true;
-            resolve(exists);
-          }
-        };
         
         // Utilizziamo sia 'once' che un controllo manuale per assicurarci che la promessa si risolva
         this.gundb.gun.get('Users').get(metamaskUsername).once((data: any) => {
           console.log("Risposta Gun per verifica utente:", data ? "Utente trovato" : "Utente non trovato");
-          resolveOnce(!!data);
+            resolve(!!data);
         });
         
         // Utilizziamo un approccio alternativo per verificare l'assenza di dati
         // Questo evita l'uso del metodo 'not' che potrebbe non essere disponibile in tutte le versioni di Gun
         setTimeout(() => {
           this.gundb.gun.get('Users').get(metamaskUsername).once((data: any) => {
-            if (!data && !resolved) {
+            if (!data) {
               console.log("Utente non trovato (verifica secondaria)");
-              resolveOnce(false);
+              resolve(false);
             }
           });
-        }, 1000);
+        }, 5000);
         
         // Assicuriamoci che la promessa si risolva dopo un po' se Gun non risponde
         // Questo non è un timeout vero e proprio, ma un fallback di sicurezza
         setTimeout(() => {
           console.log("Nessuna risposta da Gun DB, assumiamo che l'utente non esista");
-          resolveOnce(false);
-        }, 3000);
+          resolve(false);
+        }, 5000);
       });
       
       // Se l'utente esiste già, proviamo a fare login

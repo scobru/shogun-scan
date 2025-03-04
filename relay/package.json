@@ -1,4 +1,5 @@
 {
+  "name": "@shogun/relay",
   "type": "module",
   "dependencies": {
     "express": "^4.21.2",

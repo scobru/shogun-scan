@@ -1,5 +1,5 @@
 {
-  "name": "lonewolf-protocol",
+  "name": "@shogun/protocol",
   "version": "0.1.4",
   "description": "The LoneWolf Protocol powers the LoneWolf Messenger and everything else that uses it.",
   "main": "index.js",

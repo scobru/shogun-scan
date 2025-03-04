@@ -4,8 +4,8 @@ import fs from "fs";
 
 
 //remove all files in the folder
-fs.readdirSync("relay-data").forEach((file) => {
-  fs.unlinkSync(`relay-data/${file}`);
+fs.readdirSync("./relay/radata").forEach((file) => {
+  fs.unlinkSync(`./relay/radata/${file}`);
 });
 
 const app = express();
