@@ -977,7 +977,7 @@ export class ShogunSDK implements IShogunSDK {
   ): Promise<any> {
     try {
       log("Tentativo di autenticazione con Hedgehog:", username);
-      const result = await this.hedgehog.signIn(username, password);
+      const result = await this.hedgehog.signUp(username, password);
       log("Autenticazione Hedgehog completata");
       return result;
     } catch (error) {
