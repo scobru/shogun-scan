@@ -21,6 +21,11 @@ import {
 } from "./types/shogun";
 import { IGunInstance } from "gun/types/gun";
 
+
+// import hedgehog
+//import { Hedgehog } from "@audius/hedgehog";
+import  Hedgehog from "./hedgehog/browser";
+
 let gun: any;
 
 /**
