@@ -334,6 +334,11 @@ class Webauthn {
     return Object.values(creds.credentials);
   }
 
+  // Metodo pubblico per ottenere i dispositivi dell'utente
+  async getDevices(username: string): Promise<DeviceInfo[]> {
+    return this.getRegisteredDevices(username);
+  }
+
   async removeDevice(username: string, credentialId: string): Promise<boolean> {
     const creds = await this.getWebAuthnCredentials(username);
     if (!creds?.credentials || !creds.credentials[credentialId]) {
@@ -425,4 +430,3 @@ if (typeof window !== 'undefined') {
 }
 
 export { Webauthn };
-export default Webauthn;

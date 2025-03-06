@@ -29,7 +29,6 @@ class GunDB {
     console.log("GunDB initialized");
   }
 
-
   async createGunUser(username: string, password: string) {
     console.log("Creating Gun user:", username);
     return new Promise((resolve, reject) => {
@@ -81,14 +80,16 @@ class GunDB {
               is: user.is,
               pair: pair ? "present" : "missing",
             });
-            
+
             if (!user.is) {
-              reject(new Error('Autenticazione fallita: utente non autenticato'));
+              reject(
+                new Error("Autenticazione fallita: utente non autenticato")
+              );
               return;
             }
-            
+
             if (!pair) {
-              reject(new Error('Autenticazione fallita: chiavi mancanti'));
+              reject(new Error("Autenticazione fallita: chiavi mancanti"));
               return;
             }
 
@@ -97,9 +98,12 @@ class GunDB {
         });
       }),
       // Timeout dopo 5 secondi
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout durante l\'autenticazione')), 5000)
-      )
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Timeout durante l'autenticazione")),
+          5000
+        )
+      ),
     ]);
   }
 
@@ -415,4 +419,3 @@ if (typeof window !== "undefined") {
 }
 
 export { GunDB };
-export default GunDB;

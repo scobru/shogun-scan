@@ -613,4 +613,3 @@ if (typeof window !== 'undefined') {
 }
 
 export { Stealth };
-export default Stealth;

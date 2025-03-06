@@ -2,16 +2,14 @@ import React, { useState, useEffect } from "react";
 import Button from "./components/Button";
 import Sidebar from "./components/Sidebar";
 import LoginWithShogunReact from "./components/LoginWithShogunReact";
-// import { LoginWithShogunReact } from "shogun-sdk";
 import { messages, rpcOptions } from "./constants";
 import { WalletInfo } from "./types";
 import "./App.css";
 import { ShogunSDK } from "shogun-sdk";
 import { ethers } from "ethers";
-import * as jose from "jose";
 
 export const shogunSDK = new ShogunSDK({
-  peers: ["http://localhost:8765/gun"],
+  peers: ["http://localhost:8765/gun"]
 });
 
 export const gun = shogunSDK.gun;

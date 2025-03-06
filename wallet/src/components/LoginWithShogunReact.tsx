@@ -453,9 +453,11 @@ const LoginWithShogunReact: React.FC<LoginWithShogunReactProps> = ({
 
   return (
     <div className="bg-card p-8 rounded-xl w-full max-w-[380px] shadow-2xl border border-white/5">
-      <h1 className="text-2xl font-semibold text-center mb-6">
-        Shogun Wallet
-      </h1>
+      <div className="flex justify-center items-center w-full h-auto">
+        <h1 className="text-2xl font-semibold text-center mb-6">
+          Shogun Wallet
+        </h1>
+      </div>
 
       <div className="flex w-full mb-4">
         <div 

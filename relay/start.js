@@ -22,6 +22,7 @@ const server = app.listen(port, () => {
 // Inizializza Gun
 const gun = Gun({
   web: server,
+  file: "./relay/radata",
   radisk: true, // Abilita il salvataggio su disco
 });
 

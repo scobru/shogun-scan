@@ -2,7 +2,7 @@
  * The MetaMaskAuth class provides functionality for connecting, signing up, and logging in using MetaMask.
  */
 import { ethers } from 'ethers';
-import GunDB from '../gun/gun';
+import { GunDB } from '../gun/gun';
 import { log } from '../index';
 
 // Estendere l'interfaccia Window per includere ethereum
@@ -42,12 +42,25 @@ interface AuthResult {
   username?: string;
   password?: string;
   error?: string;
+  nonce?: string;
+  timestamp?: number;
+  messageToSign?: string;
+}
+
+interface MetaMaskCredentials {
+  username: string;
+  password: string;
+  nonce: string;
+  timestamp: number;
+  messageToSign: string;
 }
 
 class MetaMask {
   private gundb: GunDB;
   private hedgehog: any;
-  private readonly AUTH_DATA_TABLE: string;
+  public readonly AUTH_DATA_TABLE: string;
+  private static readonly TIMEOUT_MS = 5000;
+  private static readonly MESSAGE_TO_SIGN = 'Access with shogun';
 
   /**
    * Initializes the MetaMaskAuth instance.
@@ -58,6 +71,25 @@ class MetaMask {
     this.gundb = gundb;
     this.hedgehog = hedgehog;
     this.AUTH_DATA_TABLE = "AuthData";
+  }
+
+  private validateAddress(address: string): void {
+    if (!address || !ethers.isAddress(address)) {
+      throw new Error("Indirizzo Ethereum non valido");
+    }
+  }
+
+  private generateSecurePassword(signature: string): string {
+    return ethers.keccak256(ethers.toUtf8Bytes(signature)).slice(2);
+  }
+
+  private async waitForGunResponse(query: any): Promise<any> {
+    return Promise.race([
+      new Promise((resolve) => query.once(resolve)),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), MetaMask.TIMEOUT_MS)
+      )
+    ]);
   }
 
   /**
@@ -95,170 +127,63 @@ class MetaMask {
     }
   }
 
-  /**
-   * Signs up a new user with MetaMask.
-   * @param {string} address - The Ethereum address of the user.
-   * @returns {Promise<AuthResult>} A promise that resolves with an object containing registration status, username, and password.
-   */
-  async signUp(address: string): Promise<AuthResult> {
+  async generateCredentials(address: string): Promise<MetaMaskCredentials> {
     try {
-      if (!address) {
-        throw new Error("Invalid MetaMask address");
-      }
+      this.validateAddress(address);
 
-      // Check if the username is already in use
-      // Dai log vediamo che il formato è metamask_0x8aa5f726
       const metamaskUsername = `metamask_${address.slice(0, 10)}`;
-      console.log("Tentativo di registrazione con username:", metamaskUsername);
-      
-      const existingUser = await new Promise<any>((resolve) => {
-        this.gundb.gun.get('Users').get(metamaskUsername).once((data: any) => {
-          resolve(data);
-        });
-      });
-      
-      if (existingUser) {
-        throw new Error("Account already registered with this MetaMask address");
-      }
+      log("Verifica credenziali per:", metamaskUsername);
 
-      // Generate a random nonce
+      // Verifica esistenza utente
+      const [gunUser, hedgehogUser] = await Promise.all([
+        this.waitForGunResponse(this.gundb.gun.get('Users').get(metamaskUsername)),
+        this.waitForGunResponse(this.gundb.gun.get(this.AUTH_DATA_TABLE).get(address))
+      ]);
+
       const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
       const timestamp = Date.now();
 
-      // Create the message to sign
-      const messageToSign = `Access with shogun`;
-
-      // Request the signature of the message
+      // Richiedi la firma del messaggio
       const signature = await window.ethereum.request({
         method: 'personal_sign',
-        params: [messageToSign, address],
+        params: [MetaMask.MESSAGE_TO_SIGN, address],
       }) as string;
 
-      // Verify the signature
-      const recoveredAddress = ethers.verifyMessage(messageToSign, signature);
+      // Verifica la firma
+      const recoveredAddress = ethers.verifyMessage(MetaMask.MESSAGE_TO_SIGN, signature);
       if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
-        throw new Error("Signature verification failed");
+        throw new Error("Verifica della firma fallita");
       }
 
-      const securePassword = ethers.keccak256(ethers.toUtf8Bytes(signature)).slice(2);
-
-      // Register the account with Hedgehog
-      await this.hedgehog.signUp(metamaskUsername, securePassword);
-
-      // Save authentication data
-      await this.gundb.writeToGun(this.AUTH_DATA_TABLE, address, {
+      return {
+        username: metamaskUsername,
+        password: this.generateSecurePassword(signature),
         nonce,
         timestamp,
-        messageToSign,
-        username: metamaskUsername,
-        address: address.toLowerCase()
-      });
-
-      return {
-        success: true,
-        username: metamaskUsername,
-        password: securePassword
+        messageToSign: MetaMask.MESSAGE_TO_SIGN
       };
-    } catch (error: unknown) {
-      console.error("Error registering with MetaMask:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Error during registration"
-      };
+    } catch (error) {
+      log("Errore nella generazione delle credenziali:", error);
+      throw error;
     }
   }
 
-  /**
-   * Logs in a user with MetaMask.
-   * @param {string} address - The Ethereum address of the user.
-   * @returns {Promise<AuthResult>} A promise that resolves with an object containing login status, username, and password.
-   */
   async login(address: string): Promise<AuthResult> {
     try {
-      if (!address) {
-        throw new Error("Invalid MetaMask address");
-      }
-
-      // Definisci l'username che dovrebbe essere usato
-      // Dai log vediamo che il formato è metamask_0x8aa5f726
-      const metamaskUsername = `metamask_${address.slice(0, 10)}`;
-      console.log("Tentativo di login con username:", metamaskUsername);
+      const credentials = await this.generateCredentials(address);
       
-      // Verifica se l'utente esiste in Gun
-      const userExists = await new Promise<boolean>((resolve) => {
-        this.gundb.gun.get('Users').get(metamaskUsername).once((data: any) => {
-          resolve(!!data);
-        });
-      });
-      
-      // Verifica se l'utente esiste in Hedgehog
-      let hedgehogUserExists = false;
-      try {
-        // Verifichiamo se esiste il documento in Hedgehog
-        const lookupKey = ethers.keccak256(ethers.toUtf8Bytes(metamaskUsername));
-        const existingDoc = await this.gundb.gun.get(this.AUTH_DATA_TABLE).get(address).once();
-        hedgehogUserExists = !!existingDoc;
-      } catch (error) {
-        console.log("Errore nella verifica dell'utente Hedgehog:", error);
-      }
-      
-      if (!userExists && !hedgehogUserExists) {
-        console.log("Utente non trovato:", metamaskUsername);
-        return {
-          success: false,
-          error: "Account not registered. Please register first."
-        };
-      }
-      
-      // Create the message to sign
-      const messageToSign = `Access with shogun`;
-
-      // Request the signature of the message
-      const signature = await window.ethereum.request({
-        method: 'personal_sign',
-        params: [messageToSign, address],
-      }) as string;
-
-      // Verify the signature
-      const recoveredAddress = ethers.verifyMessage(messageToSign, signature);
-      if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
-        throw new Error("Signature verification failed");
-      }
-
-      const securePassword = ethers.keccak256(ethers.toUtf8Bytes(signature)).slice(2);
-
-      // Se l'utente esiste in Hedgehog ma non in Gun, dobbiamo crearlo in Gun
-      if (hedgehogUserExists && !userExists) {
-        console.log("Utente esistente in Hedgehog ma non in Gun, creazione utente Gun...");
-        try {
-          // Effettuiamo un logout prima di creare l'utente
-          this.gundb.gun.user().leave();
-          
-          // Creiamo l'utente Gun
-          await this.gundb.createGunUser(metamaskUsername, securePassword);
-          console.log("Utente Gun creato con successo");
-        } catch (gunError) {
-          if (gunError instanceof Error && gunError.message.includes("User already created")) {
-            console.log("Utente Gun già esistente");
-          } else {
-            console.error("Errore nella creazione dell'utente Gun:", gunError);
-            throw gunError;
-          }
-        }
-      }
-
       return {
         success: true,
-        username: metamaskUsername,
-        password: securePassword
+        username: credentials.username,
+        password: credentials.password
       };
-    } catch (error: unknown) {
-      console.error("Error logging in with MetaMask:", error);
+    } catch (error) {
+      log("Errore nel login con MetaMask:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Error during login"
+        error: error instanceof Error ? error.message : "Errore durante il login"
       };
     }
   }
@@ -272,4 +197,3 @@ if (typeof window !== 'undefined') {
 
 
 export { MetaMask };
-export default MetaMask;

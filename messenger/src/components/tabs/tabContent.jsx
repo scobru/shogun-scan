@@ -1,6 +1,8 @@
-let TabContent = ({ label, content }) => {
+const TabContent = (props) => {
   return (
-    <div class="w-full h-full overflow-y-auto overflow-x-hidden">{content}</div>
+    <div class={`h-full ${props.active ? 'block' : 'hidden'}`}>
+      {props.children}
+    </div>
   );
 };
 

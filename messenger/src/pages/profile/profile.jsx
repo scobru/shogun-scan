@@ -1,178 +1,111 @@
-import { gunAvatar } from 'gun-avatar';
-import { gun } from 'lonewolf-protocol';
-import { useNavigation } from '../../contexts/navigationContext';
+import { user } from 'lonewolf-protocol';
 import { createSignal, onMount } from 'solid-js';
-import { createStore } from 'solid-js/store';
 import BackButton from '../../components/buttons/back';
-import EditButton from '../../components/buttons/edit';
-import TickButton from '../../components/buttons/tick';
-import Header from '../../components/header/header';
-import useUserInfo from '../../hooks/userInfo';
-import moment from 'moment';
 
-let ProfilePage = ({ backEnabled = false }) => {
-  let { navigate } = useNavigation();
-
-  let [state, setState] = createStore(
-    { alias: '', pub: '' },
-    { name: 'miniprofile-state' }
-  );
-
-  let [info, setInfo] = useUserInfo();
-
-  let [editingDisplayName, setEditingDisplayName] = createSignal(false);
-  let [editingAbout, setEditingAbout] = createSignal(false);
-
-  let [displayName, setDisplayName] = createSignal('');
-  let [about, setAbout] = createSignal('');
+const ProfilePage = ({ backEnabled }) => {
+  const [displayName, setDisplayName] = createSignal('');
+  const [bio, setBio] = createSignal('');
+  const [isEditing, setIsEditing] = createSignal(false);
 
   onMount(() => {
-    gun.user().once((data) => {
-      setState('pub', (_) => data.pub);
-      setState('alias', (_) => data.alias);
-    });
-
-    setDisplayName(info.displayName || '');
-    setAbout(info.about);
-
-    window.scrollTo({
-      left: 0,
-      top: document.body.scrollHeight,
-      behavior: 'smooth',
-    });
+    // Carica i dati del profilo
+    setDisplayName(user.displayName || '');
+    setBio(user.bio || '');
   });
 
-  return (
-    <div class="flex flex-col w-full h-full animate-fade-in">
-      <Header
-        title="Profile"
-        start={() =>
-          backEnabled && <BackButton onClick={() => navigate('/')} />
+  const handleSave = () => {
+    user.updateProfile(
+      {
+        displayName: displayName(),
+        bio: bio(),
+      },
+      ({ errMessage, success }) => {
+        if (errMessage) console.error(errMessage);
+        else {
+          console.log(success);
+          setIsEditing(false);
         }
-      />
+      }
+    );
+  };
 
-      <div class="flex flex-col lg:flex-row w-full h-full p-3 lg:px-10 space-y-4 lg:space-y-0 space-x-0 lg:space-x-4 overflow-y-auto">
-        <div class="flex flex-col space-y-4 w-full lg:w-3/5">
-          <div class="flex flex-col space-y-3">
-            <div class="uppercase text-gray-400 dark:text-gray-300">
-              Profile Image Test
-            </div>
+  return (
+    <div class="flex flex-col h-full bg-gray-900">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <div class="flex items-center space-x-4">
+          {backEnabled && <BackButton class="text-gray-400 hover:text-violet-500" />}
+          <h1 class="text-xl font-medium text-gray-100">Profilo</h1>
+        </div>
+        <button
+          onClick={() => setIsEditing(!isEditing())}
+          class="text-violet-500 hover:text-violet-400"
+        >
+          {isEditing() ? 'Annulla' : 'Modifica'}
+        </button>
+      </div>
 
-            <div class="text-gray-900 dark:text-white">
-              Feature coming soon...
-            </div>
+      <div class="flex-1 p-6 space-y-6">
+        {/* Avatar e info principali */}
+        <div class="flex items-center space-x-4">
+          <div class="w-20 h-20 bg-gray-800 rounded-full overflow-hidden">
+            <img
+              src={`https://avatars.dicebear.com/api/identicon/${user.is?.pub}.svg`}
+              alt="Profile"
+              class="w-full h-full object-cover"
+            />
           </div>
-          <div class="flex flex-col space-y-3">
-            <div class="uppercase text-gray-400 dark:text-gray-300">
-              Display Name
-            </div>
-
-            <div class="flex items-center space-x-2">
+          <div>
+            {isEditing() ? (
               <input
                 type="text"
-                class="relative w-full h-auto border-l border-t border-r border-b rounded-md border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-700 outline-none p-2 overflow-y-auto"
-                placeholder="What would you like to be called?"
-                value={info.displayName}
-                disabled={!editingDisplayName()}
-                onInput={(event) => {
-                  setDisplayName(event.target.value);
-                }}
+                value={displayName()}
+                onInput={(e) => setDisplayName(e.target.value)}
+                class="bg-gray-800 text-gray-100 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                placeholder="Il tuo nome"
               />
-
-              <div class="flex flex-col justify-center items-center w-10 h-10">
-                {editingDisplayName() ? (
-                  <TickButton
-                    extraClass={'hover:text-green-600'}
-                    onClick={() => {
-                      setInfo({ displayName: displayName() });
-                      setEditingDisplayName(false);
-                    }}
-                  />
-                ) : (
-                  <EditButton
-                    extraClass={'hover:text-blue-600'}
-                    onClick={() => setEditingDisplayName(true)}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          <div class="flex flex-col space-y-3">
-            <div class="uppercase text-gray-400 dark:text-gray-300">
-              About Me
-            </div>
-
-            <div class="flex items-start space-x-2">
-              <div
-                class="relative w-full h-32 border-l border-t border-r border-b rounded-md border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-700 outline-none p-2 overflow-y-auto"
-                placeholder="Tell everyone a bit about yourself."
-                contenteditable={editingAbout()}
-                id="about"
-              >
-                {info.about}
-              </div>
-
-              <div class="flex flex-col justify-center items-center w-10 h-10">
-                {editingAbout() ? (
-                  <TickButton
-                    extraClass={'hover:text-green-600'}
-                    onClick={() => {
-                      setInfo({
-                        about: document.getElementById('about').innerText,
-                      });
-                      setEditingAbout(false);
-                    }}
-                  />
-                ) : (
-                  <EditButton
-                    extraClass={'hover:text-blue-600'}
-                    onClick={() => setEditingAbout(true)}
-                  />
-                )}
-              </div>
-            </div>
+            ) : (
+              <h2 class="text-xl font-medium text-gray-100">
+                {displayName() || 'Nessun nome impostato'}
+              </h2>
+            )}
+            <p class="text-sm text-gray-400">@{user.is?.alias}</p>
           </div>
         </div>
-        <div class="flex flex-col space-y-4 w-full lg:w-2/5">
-          <div class="flex flex-col space-y-3">
-            <div class="uppercase text-gray-400 dark:text-gray-300">
-              Preview
-            </div>
 
-            <div class="relative flex flex-col w-full h-auto bg-gray-200 dark:bg-gray-900 rounded-lg">
-              <div class="flex w-full h-24 bg-blue-600 rounded-t-lg"></div>
-              <div class="flex flex-col w-full h-auto bg-gray-200 dark:bg-gray-900 p-2 pt-16 px-6 space-y-3 rounded-b-lg">
-                <div class="absolute left-5 top-16">
-                  <div class="flex justify-center p-1 rounded-full bg-gray-200 dark:bg-gray-900">
-                    <img src={gunAvatar(state.pub, 86)} class="rounded-full" />
-                  </div>
-                </div>
+        {/* Bio */}
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-gray-400">Bio</label>
+          {isEditing() ? (
+            <textarea
+              value={bio()}
+              onInput={(e) => setBio(e.target.value)}
+              class="w-full h-32 bg-gray-800 text-gray-100 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-500"
+              placeholder="Scrivi qualcosa su di te..."
+            />
+          ) : (
+            <p class="text-gray-300">{bio() || 'Nessuna bio impostata'}</p>
+          )}
+        </div>
 
-                <div class="flex flex-col">
-                  <div class="text-lg text-gray-900 dark:text-white">
-                    {info.displayName}
-                  </div>
-                  <div class="text-lg text-gray-400">@{state.alias}</div>
-                </div>
-
-                {info.about && info.about !== '' && (
-                  <div>
-                    <div class="border-b border-gray-200 dark:border-gray-800 w-full mb-3"></div>
-                    <div class="flex flex-col space-y-3">
-                      <div class="uppercase text-gray-400 dark:text-gray-300">
-                        About Me
-                      </div>
-
-                      <div class="w-full h-auto break-words text-gray-900 dark:text-white pb-3">
-                        {info.about}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+        {/* Chiave pubblica */}
+        <div class="space-y-2">
+          <label class="block text-sm font-medium text-gray-400">Chiave pubblica</label>
+          <div class="bg-gray-800 rounded-lg p-4">
+            <p class="text-sm text-gray-300 break-all font-mono">
+              {user.is?.pub || 'Non disponibile'}
+            </p>
           </div>
         </div>
+
+        {/* Pulsante salva */}
+        {isEditing() && (
+          <button
+            onClick={handleSave}
+            class="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+          >
+            Salva modifiche
+          </button>
+        )}
       </div>
     </div>
   );
