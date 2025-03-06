@@ -24,7 +24,7 @@ import { IGunInstance } from "gun/types/gun";
 
 // import hedgehog
 //import { Hedgehog } from "@audius/hedgehog";
-import  Hedgehog from "./hedgehog/browser";
+import "./hedgehog/browser";
 
 let gun: any;
 
