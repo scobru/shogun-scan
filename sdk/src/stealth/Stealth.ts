@@ -2,8 +2,6 @@
  * Gestisce la logica stealth usando Gun e SEA
  */
 import { ethers } from 'ethers';
-import { IGunInstance, IGunUserInstance } from 'gun/types';
-import { GunDB } from '../gun/gun';
 
 // Estendere l'interfaccia Window per includere StealthChain
 declare global {
@@ -44,15 +42,11 @@ interface StealthAddressResult {
 
 
 class Stealth {
-  private gun: IGunInstance<any>;
-  private user: IGunUserInstance | null;
-  private readonly STEALTH_DATA_TABLE: string;
+  public readonly STEALTH_DATA_TABLE: string;
   private lastEphemeralKeyPair: any = null;
   private lastMethodUsed: string = "unknown";
 
-  constructor(gundb: GunDB) {
-    this.gun = gundb.gun;
-    this.user = null;
+  constructor() {
     this.STEALTH_DATA_TABLE = "Stealth";
   }
 
@@ -78,57 +72,25 @@ class Stealth {
   }
 
   /**
-   * Genera le chiavi stealth se non esistono, altrimenti restituisce quelle esistenti
+   * Crea un nuovo account stealth
    */
   async createAccount(): Promise<StealthKeyPair> {
     try {
-      // Verifica se esistono già delle chiavi
-      const existingKeys = await this.getPair();
-      if (existingKeys) {
-        console.log("Chiavi stealth esistenti trovate");
-        return existingKeys;
+      // Genera una nuova coppia di chiavi
+      const keyPair = await (Gun as any).SEA.pair();
+      
+      if (!keyPair || !keyPair.pub || !keyPair.priv || !keyPair.epub || !keyPair.epriv) {
+        throw new Error("Failed to generate stealth key pair");
       }
       
-      console.log("Creazione nuove chiavi stealth...");
-
-      // Verifica che l'utente sia disponibile
-      if (!this.gun.user().is) {
-        this.user = this.gun.user().recall({ sessionStorage: true });
-        
-        if (!this.gun.user().is) {
-          throw new Error("User not authenticated");
-        }
-      }
-
-      return new Promise((resolve, reject) => {
-        (Gun as any).SEA.pair((pair: any) => {
-          if (!pair?.pub || !pair?.priv || !pair?.epub || !pair?.epriv) {
-            reject(new Error("Generated keys are invalid"));
-            return;
-          }
-
-          const stealthKeyPair: StealthKeyPair = {
-            pub: pair.pub,
-            priv: pair.priv,
-            epub: pair.epub,
-            epriv: pair.epriv,
-          };
-          
-          console.log("Nuove chiavi stealth generate");
-
-          this.save(stealthKeyPair)
-            .then(() => {
-              console.log("Chiavi stealth salvate con successo");
-              resolve(stealthKeyPair);
-            })
-            .catch(error => {
-              console.error("Errore nel salvataggio delle chiavi stealth:", error);
-              reject(error);
-            });
-        });
-      });
+      return {
+        pub: keyPair.pub,
+        priv: keyPair.priv,
+        epub: keyPair.epub,
+        epriv: keyPair.epriv
+      };
     } catch (error) {
-      console.error("Errore in createAccount:", error);
+      console.error("Error creating stealth account:", error);
       throw error;
     }
   }
@@ -270,7 +232,7 @@ class Stealth {
   /**
    * Apre un indirizzo stealth derivando la chiave privata
    */
-  async openStealthAddress(stealthAddress: string, ephemeralPublicKey: string): Promise<ethers.Wallet> {
+  async openStealthAddress(stealthAddress: string, ephemeralPublicKey: string, pair: StealthKeyPair): Promise<ethers.Wallet> {
     console.log(`Tentativo di apertura dell'indirizzo stealth ${stealthAddress}`);
     
     // Prima controlla se abbiamo i dati salvati in locale
@@ -301,20 +263,7 @@ class Stealth {
     console.log(`Tentativo di apertura dell'indirizzo stealth ${stealthAddress}`);
     
     // Recupera le chiavi stealth dell'utente
-    let keys = await this.getPair();
-    
-    if (!keys) {
-      console.log("Chiavi stealth non trovate, tentativo di creazione...");
-      try {
-        keys = await this.createAccount();
-        if (!keys) {
-          throw new Error("Stealth keys not found and creation failed");
-        }
-      } catch (error) {
-        console.error("Errore nella creazione delle chiavi stealth:", error);
-        throw new Error("Stealth keys not found and creation failed");
-      }
-    }
+    let keys = pair
     
     console.log("Apertura indirizzo stealth con chiavi recuperate:", {
       stealthAddress,
@@ -440,158 +389,37 @@ class Stealth {
   }
 
   /**
-   * Salva le chiavi stealth nel profilo utente
+   * Ottiene la chiave pubblica da un indirizzo
    */
-  async save(stealthKeyPair: StealthKeyPair): Promise<any> {
+  async getPublicKey(publicKey: string): Promise<string | null> {
+    // Formatta la chiave pubblica
+    return this.formatPublicKey(publicKey);
+  }
+
+  /**
+   * Salva le chiavi stealth nel profilo utente
+   * @returns Le chiavi stealth da salvare
+   */
+  prepareStealthKeysForSaving(stealthKeyPair: StealthKeyPair): StealthKeyPair {
     if (!stealthKeyPair?.pub || !stealthKeyPair?.priv || !stealthKeyPair?.epub || !stealthKeyPair?.epriv) {
       throw new Error("Invalid stealth keys: missing or incomplete parameters");
     }
 
-    if (!this.gun.user().is) {
-      this.user = this.gun.user().recall({ sessionStorage: true });
-      
-      if (!this.gun.user().is) {
-        throw new Error("User not authenticated for saving stealth keys");
-      }
-    }
-    
-    const appKeyPair = (this.gun.user() as any)._.sea;
-    if (!appKeyPair) {
-      throw new Error("Gun key pair not found");
-    }
-
-    console.log("Salvataggio chiavi stealth per utente:", appKeyPair.pub);
-
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Prima crittografa i dati sensibili
-        const encryptedPriv = await (Gun as any).SEA.encrypt(stealthKeyPair.priv, appKeyPair);
-        const encryptedEpriv = await (Gun as any).SEA.encrypt(stealthKeyPair.epriv, appKeyPair);
-
-        // Poi salva i dati crittografati
-        this.gun.get(this.STEALTH_DATA_TABLE).get(appKeyPair.pub).put({
-          pub: stealthKeyPair.pub,
-          priv: encryptedPriv,
-          epub: stealthKeyPair.epub,
-          epriv: encryptedEpriv,
-          timestamp: Date.now()
-        }, (ack: any) => {
-          if (ack.err) {
-            reject(new Error(ack.err));
-          } else {
-            resolve(ack);
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    return stealthKeyPair;
   }
 
   /**
-   * Recupera le chiavi stealth dell'utente corrente
+   * Deriva un wallet dal segreto condiviso
    */
-  async getPair(): Promise<StealthKeyPair | null> {
-    try {
-      // Assicurati che Gun sia inizializzato
-      if (!this.gun) {
-        console.error("Gun non è inizializzato");
-        return null;
-      }
-
-      // Recupera l'utente
-      this.user = this.gun.user().recall({ sessionStorage: true });
-      
-      // Verifica che l'utente sia autenticato
-      if (!this.user || !(this.user as any).is) {
-        console.error("Utente non autenticato");
-        return null;
-      }
-      
-      // Ottieni la coppia di chiavi dell'app
-      const appKeyPair = (this.user as any)._.sea;
-      
-      // Verifica che le chiavi dell'app siano valide
-      if (!appKeyPair || !appKeyPair.pub) {
-        console.error("Chiavi dell'app non valide");
-        return null;
-      }
-      
-      console.log("Cercando chiavi stealth per pub:", appKeyPair.pub);
-
-      return new Promise((resolve, reject) => {
-        this.gun.get(this.STEALTH_DATA_TABLE).get(appKeyPair.pub).once(async (data: any) => {
-          // Log per debug
-          console.log("Dati stealth trovati:", data);
-          
-          if (!data) {
-            console.warn("Nessun dato stealth trovato per", appKeyPair.pub);
-            resolve(null);
-            return;
-          }
-
-          try {
-            // Verifica che i dati crittografati esistano
-            if (!data.priv || !data.epriv) {
-              console.error("Dati stealth incompleti");
-              resolve(null);
-              return;
-            }
-            
-            // Decrittografa i dati
-            console.log("Tentativo di decrittare i dati stealth...");
-            const priv = await (Gun as any).SEA.decrypt(data.priv, appKeyPair);
-            const epriv = await (Gun as any).SEA.decrypt(data.epriv, appKeyPair);
-            
-            if (!priv || !epriv) {
-              console.error("Fallita la decrittazione delle chiavi stealth");
-              resolve(null);
-              return;
-            }
-
-            console.log("Chiavi stealth decrittate con successo");
-            resolve({
-              pub: data.pub,
-              priv,
-              epub: data.epub,
-              epriv
-            });
-          } catch (error) {
-            console.error("Errore durante la decrittazione:", error);
-            reject(new Error("Failed to decrypt stealth keys"));
-          }
-        });
-      });
-    } catch (error) {
-      console.error("Errore in getPair:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Recupera la chiave pubblica stealth di un utente
-   */
-  async getPublicKey(publicKey: string): Promise<string | null> {
-    const formattedPubKey = this.formatPublicKey(publicKey);
-    if (!formattedPubKey) {
-      return null;
-    }
-
-    return new Promise((resolve) => {
-      this.gun.get(this.STEALTH_DATA_TABLE).get(formattedPubKey).once((data: any) => {
-        resolve(data?.epub || null);
-      });
-    });
-  }
-
-  // Aggiungere questo helper method alla classe
-  private deriveWalletFromSecret(secret: string): ethers.Wallet {
+  deriveWalletFromSecret(secret: string): ethers.Wallet {
     const stealthPrivateKey = ethers.keccak256(ethers.toUtf8Bytes(secret));
     return new ethers.Wallet(stealthPrivateKey);
   }
 
-  // Aggiungi questo metodo alla classe
-  private saveStealthHistory(address: string, data: any) {
+  /**
+   * Salva i dati stealth nella localStorage
+   */
+  saveStealthHistory(address: string, data: any) {
     // Salva nella localStorage
     try {
       const stealthHistory = localStorage.getItem('stealthHistory') || '{}';
@@ -612,4 +440,4 @@ if (typeof window !== 'undefined') {
   (global as any).Stealth = Stealth;
 }
 
-export { Stealth };
+export { Stealth, StealthKeyPair, StealthAddressResult };

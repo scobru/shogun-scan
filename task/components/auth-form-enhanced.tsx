@@ -4,6 +4,13 @@ import { useGun } from "@/lib/gun-context"
 import LoginWithShogunReact from "./shogun-login"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { AlertCircle, KeyRound, Fingerprint, Wallet } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export function AuthFormEnhanced() {
   const { 
@@ -14,10 +21,18 @@ export function AuthFormEnhanced() {
     setIsAuthenticated,
     loginWithWebAuthn,
     signupWithWebAuthn,
-    isWebAuthnSupported 
+    isWebAuthnSupported,
+    loginWithMetaMask,
+    signUpWithMetaMask
   } = useGun()
+  
   const router = useRouter()
   const [error, setError] = useState<string>("")
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState("login")
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -25,252 +40,339 @@ export function AuthFormEnhanced() {
     }
   }, [isAuthenticated, router])
 
-  const handleLoginSuccess = async (data: { 
-    userPub: string
-    username: string
-    password?: string
-    wallet?: any
-    authMethod?: string
-  }) => {
+  const handleStandardLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    
+    if (!username || !password) {
+      setError("Inserisci nome utente e password")
+      return
+    }
+    
     try {
-      console.log("Login effettuato con successo, dati SDK:", data)
-
-      // Se è un login con WebAuthn o MetaMask, effettua comunque il login nel contesto Gun
-      if (data.authMethod === 'webauthn' || data.authMethod?.includes('metamask')) {
-        console.log("Login con WebAuthn o MetaMask")
-
-        // Verifica che i dati dell'SDK siano presenti
-        if (!data.username || !data.password || !data.userPub) {
-          throw new Error("Credenziali SDK mancanti")
-        }
-
-        // Per MetaMask, usa SOLO le credenziali dell'SDK senza modifiche
-        if (data.authMethod?.includes('metamask')) {
-          // Verifica se ci sono credenziali salvate in localStorage
-          const savedUser = localStorage.getItem("gunUser")
-          if (savedUser) {
-            const userData = JSON.parse(savedUser)
-            if (userData.username && userData.password) {
-              console.log("Tentativo login con credenziali salvate:", { username: userData.username })
-              const success = await login(userData.username, userData.password)
-              if (success) {
-                setIsAuthenticated(true)
-                return
-              }
-            }
-          }
-
-          // Se non ci sono credenziali salvate o il login è fallito, usa le credenziali dell'SDK
-          console.log("Login MetaMask con credenziali SDK:", { username: data.username })
-          const success = await login(data.username, data.password)
-          if (!success) {
-            throw new Error("Errore durante il login MetaMask nel contesto Gun")
-          }
-
-          // Salva i dati dell'utente solo dopo un login riuscito
-          const userData = {
-            pub: data.userPub,
-            username: data.username,
-            authMethod: data.authMethod,
-            wallet: data.wallet,
-            password: data.password
-          }
-          localStorage.setItem("gunUser", JSON.stringify(userData))
-          setIsAuthenticated(true)
-          return
-        }
-
-        // Per WebAuthn
-        if (data.authMethod === 'webauthn') {
-          const success = await loginWithWebAuthn(data.username)
-          if (!success) {
-            throw new Error("Errore durante il login WebAuthn nel contesto Gun")
-          }
-
-          // Salva i dati dell'utente
-          const userData = {
-            pub: data.userPub,
-            username: data.username,
-            authMethod: data.authMethod
-          }
-          localStorage.setItem("gunUser", JSON.stringify(userData))
-          setIsAuthenticated(true)
-          return
-        }
+      setIsLoading(true)
+      const success = await login(username, password)
+      
+      if (!success) {
+        setError("Credenziali non valide")
       }
-
-      // Login standard
-      if (data.username && data.password) {
-        console.log("Login standard")
-        const success = await login(data.username, data.password)
-        if (!success) {
-          throw new Error("Errore durante il login nel contesto")
-        }
-      } else {
-        throw new Error("Dati di login incompleti")
-      }
-
-      setIsAuthenticated(true)
-
     } catch (error: any) {
       console.error("Errore durante il login:", error)
       setError(error.message || "Si è verificato un errore durante il login")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleSignupSuccess = async (data: {
-    userPub: string
-    username: string
-    password?: string
-    wallet?: any
-    authMethod?: string
-  }) => {
+  const handleStandardSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    
+    if (!username || !password) {
+      setError("Inserisci nome utente e password")
+      return
+    }
+    
+    if (password !== confirmPassword) {
+      setError("Le password non corrispondono")
+      return
+    }
+    
     try {
-      console.log("Registrazione effettuata con successo, dati SDK:", data)
+      setIsLoading(true)
+      const success = await signup(username, password)
       
-      // Se è una registrazione con WebAuthn o MetaMask
-      if (data.authMethod === 'webauthn' || data.authMethod?.includes('metamask')) {
-        // Verifica che i dati dell'SDK siano presenti
-        if (!data.username || !data.password || !data.userPub) {
-          throw new Error("Credenziali SDK mancanti")
-        }
-
-        // Per MetaMask, usa SOLO le credenziali dell'SDK senza modifiche
-        if (data.authMethod?.includes('metamask')) {
-          // Verifica se ci sono credenziali salvate in localStorage
-          const savedUser = localStorage.getItem("gunUser")
-          if (savedUser) {
-            const userData = JSON.parse(savedUser)
-            if (userData.username && userData.password) {
-              console.log("Tentativo login con credenziali salvate:", { username: userData.username })
-              const success = await login(userData.username, userData.password)
-              if (success) {
-                setIsAuthenticated(true)
-                return
-              }
-            }
-          }
-
-          // Se non ci sono credenziali salvate o il login è fallito, usa le credenziali dell'SDK
-          console.log("Registrazione MetaMask con credenziali SDK:", { username: data.username })
-          const success = await signup(data.username, data.password)
-          if (!success) {
-            // Se la registrazione fallisce, prova il login con le stesse credenziali
-            console.log("Registrazione fallita, tentativo login con credenziali SDK...")
-            const loginSuccess = await login(data.username, data.password)
-            if (!loginSuccess) {
-              throw new Error("Errore durante la registrazione/login MetaMask nel contesto Gun")
-            }
-          }
-
-          // Salva i dati dell'utente
-          const userData = {
-            pub: data.userPub,
-            username: data.username,
-            authMethod: data.authMethod,
-            wallet: data.wallet,
-            password: data.password
-          }
-          localStorage.setItem("gunUser", JSON.stringify(userData))
-          setIsAuthenticated(true)
-          return
-        }
-
-        // Per WebAuthn
-        if (data.authMethod === 'webauthn') {
-          const success = await signupWithWebAuthn(data.username)
-          if (!success) {
-            const loginSuccess = await loginWithWebAuthn(data.username)
-            if (!loginSuccess) {
-              throw new Error("Errore durante la registrazione/login WebAuthn nel contesto Gun")
-            }
-          }
-
-          // Salva i dati dell'utente
-          const userData = {
-            pub: data.userPub,
-            username: data.username,
-            authMethod: data.authMethod
-          }
-          localStorage.setItem("gunUser", JSON.stringify(userData))
-          setIsAuthenticated(true)
-          return
-        }
-      }
-
-      // Registrazione standard
-      if (data.username && data.password) {
-        // Prima creiamo l'utente
-        const signupSuccess = await signup(data.username, data.password)
-        if (!signupSuccess) {
-          throw new Error("Errore durante la registrazione nel contesto Gun")
-        }
-
-        // Poi effettuiamo il login
-        const loginSuccess = await login(data.username, data.password)
-        if (!loginSuccess) {
-          throw new Error("Errore durante il login dopo la registrazione")
-        }
-      } else {
-        throw new Error("Dati di registrazione incompleti")
+      if (!success) {
+        setError("Errore durante la registrazione")
       }
     } catch (error: any) {
       console.error("Errore durante la registrazione:", error)
       setError(error.message || "Si è verificato un errore durante la registrazione")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleError = (error: string) => {
-    console.error("Errore:", error)
-    setError(error)
+  const handleWebAuthnLogin = async () => {
+    if (!username) {
+      setError("Inserisci il nome utente per il login WebAuthn")
+      return
+    }
+    
+    try {
+      setIsLoading(true)
+      setError("")
+      const success = await loginWithWebAuthn(username)
+      
+      if (!success) {
+        setError("Errore durante il login con WebAuthn")
+      }
+    } catch (error: any) {
+      console.error("Errore durante il login WebAuthn:", error)
+      setError(error.message || "Si è verificato un errore durante il login WebAuthn")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const customMessages = {
-    loginHeader: "Accedi a Task App",
-    signupHeader: "Registrati su Task App",
-    loginButton: "Accedi",
-    signupButton: "Registrati",
-    usernameLabel: "Username",
-    passwordLabel: "Password",
-    confirmPasswordLabel: "Conferma Password",
-    switchToSignup: "Non hai un account? Registrati",
-    switchToLogin: "Hai già un account? Accedi",
-    webauthnLogin: "Accedi con WebAuthn",
-    webauthnSignup: "Registrati con WebAuthn",
-    mismatched: "Le password non corrispondono",
-    empty: "Tutti i campi sono obbligatori",
-    exists: "Utente già esistente"
+  const handleWebAuthnSignup = async () => {
+    if (!username) {
+      setError("Inserisci il nome utente per la registrazione WebAuthn")
+      return
+    }
+    
+    try {
+      setIsLoading(true)
+      setError("")
+      const success = await signupWithWebAuthn(username)
+      
+      if (!success) {
+        setError("Errore durante la registrazione con WebAuthn")
+      }
+    } catch (error: any) {
+      console.error("Errore durante la registrazione WebAuthn:", error)
+      setError(error.message || "Si è verificato un errore durante la registrazione WebAuthn")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  // Se l'utente è già autenticato, non mostrare il form
-  if (isAuthenticated) {
-    return null
+  const handleMetaMaskLogin = async () => {
+    try {
+      setIsLoading(true)
+      setError("")
+      
+      // Prima connetti MetaMask per ottenere l'indirizzo
+      if (!window.ethereum) {
+        setError("MetaMask non è installato")
+        return
+      }
+      
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      if (!accounts || accounts.length === 0) {
+        setError("Nessun account MetaMask disponibile")
+        return
+      }
+      
+      const address = accounts[0]
+      const success = await loginWithMetaMask(address)
+      
+      if (!success) {
+        setError("Errore durante il login con MetaMask")
+      }
+    } catch (error: any) {
+      console.error("Errore durante il login MetaMask:", error)
+      setError(error.message || "Si è verificato un errore durante il login MetaMask")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  // Se l'SDK non è ancora pronto, mostra il loader
+  const handleMetaMaskSignup = async () => {
+    try {
+      setIsLoading(true)
+      setError("")
+      
+      // Prima connetti MetaMask per ottenere l'indirizzo
+      if (!window.ethereum) {
+        setError("MetaMask non è installato")
+        return
+      }
+      
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      if (!accounts || accounts.length === 0) {
+        setError("Nessun account MetaMask disponibile")
+        return
+      }
+      
+      const address = accounts[0]
+      const success = await signUpWithMetaMask(address)
+      
+      if (!success) {
+        setError("Errore durante la registrazione con MetaMask")
+      }
+    } catch (error: any) {
+      console.error("Errore durante la registrazione MetaMask:", error)
+      setError(error.message || "Si è verificato un errore durante la registrazione MetaMask")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Verifica se l'SDK è stato inizializzato
   if (!sdk) {
-    return <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-    </div>
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle>Inizializzazione</CardTitle>
+          <CardDescription>Inizializzazione dell'SDK in corso...</CardDescription>
+        </CardHeader>
+      </Card>
+    )
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      {error && (
-        <div className="mb-4 p-4 bg-destructive/10 text-destructive rounded-lg max-w-md w-full">
-          {error}
-        </div>
-      )}
-      <LoginWithShogunReact
-        sdk={sdk}
-        onLoginSuccess={handleLoginSuccess}
-        onSignupSuccess={handleSignupSuccess}
-        onError={handleError}
-        customMessages={customMessages}
-        darkMode={true}
-        showMetamask={true}
-        showWebauthn={isWebAuthnSupported()}
-      />
-    </div>
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>{activeTab === "login" ? "Accedi" : "Registrati"}</CardTitle>
+        <CardDescription>
+          {activeTab === "login" 
+            ? "Accedi al tuo account con uno dei metodi disponibili" 
+            : "Crea un nuovo account con uno dei metodi disponibili"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="login">Accedi</TabsTrigger>
+            <TabsTrigger value="signup">Registrati</TabsTrigger>
+          </TabsList>
+          
+          {error && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Errore</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          <TabsContent value="login" className="space-y-4 mt-4">
+            <form onSubmit={handleStandardLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Nome utente</Label>
+                <Input 
+                  id="username" 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  placeholder="Inserisci il tuo nome utente" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="Inserisci la tua password" 
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                <KeyRound className="mr-2 h-4 w-4" />
+                Accedi
+              </Button>
+            </form>
+            
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Oppure
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              {isWebAuthnSupported() && (
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleWebAuthnLogin}
+                  disabled={isLoading}
+                >
+                  <Fingerprint className="mr-2 h-4 w-4" />
+                  Accedi con WebAuthn
+                </Button>
+              )}
+              
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleMetaMaskLogin}
+                disabled={isLoading}
+              >
+                <Wallet className="mr-2 h-4 w-4" />
+                Accedi con MetaMask
+              </Button>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="signup" className="space-y-4 mt-4">
+            <form onSubmit={handleStandardSignup} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-username">Nome utente</Label>
+                <Input 
+                  id="signup-username" 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  placeholder="Scegli un nome utente" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-password">Password</Label>
+                <Input 
+                  id="signup-password" 
+                  type="password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="Scegli una password" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Conferma Password</Label>
+                <Input 
+                  id="confirm-password" 
+                  type="password" 
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  placeholder="Conferma la tua password" 
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                <KeyRound className="mr-2 h-4 w-4" />
+                Registrati
+              </Button>
+            </form>
+            
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Oppure
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              {isWebAuthnSupported() && (
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleWebAuthnSignup}
+                  disabled={isLoading}
+                >
+                  <Fingerprint className="mr-2 h-4 w-4" />
+                  Registrati con WebAuthn
+                </Button>
+              )}
+              
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleMetaMaskSignup}
+                disabled={isLoading}
+              >
+                <Wallet className="mr-2 h-4 w-4" />
+                Registrati con MetaMask
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   )
 } 

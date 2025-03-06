@@ -51,4 +51,51 @@ export class Storage {
             }
         }
     }
+    
+    // Metodi per compatibilità con l'interfaccia Storage standard
+    getItem(key: string): string | null {
+        const value = this.store.get(key);
+        return value !== undefined ? JSON.stringify(value) : null;
+    }
+    
+    setItem(key: string, value: string): void {
+        try {
+            const parsedValue = JSON.parse(value);
+            this.store.set(key, parsedValue);
+            
+            // Se in ambiente browser, salva anche nel localStorage
+            if (typeof localStorage !== 'undefined') {
+                try {
+                    localStorage.setItem(key, value);
+                } catch (error) {
+                    console.error(`Errore nel salvare ${key} nel localStorage:`, error);
+                }
+            }
+        } catch (error) {
+            // Se non è JSON valido, salva come stringa
+            this.store.set(key, value);
+            
+            // Se in ambiente browser, salva anche nel localStorage
+            if (typeof localStorage !== 'undefined') {
+                try {
+                    localStorage.setItem(key, value);
+                } catch (error) {
+                    console.error(`Errore nel salvare ${key} nel localStorage:`, error);
+                }
+            }
+        }
+    }
+    
+    removeItem(key: string): void {
+        this.store.delete(key);
+        
+        // Se in ambiente browser, rimuovi anche dal localStorage
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.removeItem(key);
+            } catch (error) {
+                console.error(`Errore nel rimuovere ${key} dal localStorage:`, error);
+            }
+        }
+    }
 } 
