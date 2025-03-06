@@ -1,36 +1,9 @@
 import { ethers } from "ethers";
 import { HDNodeWallet } from "ethers";
-import "gun/lib/then";
 // Dichiarazione modulo per uuid
 declare module "uuid";
 import * as uuid from "uuid";
-import "gun/sea";
 import { GunDB } from "./gun/gun";
-
-// Per risolvere i problemi di import, usiamo interfacce di base invece di dichiarazioni di modulo
-// Questi tipi saranno sostituiti dalle implementazioni effettive durante l'esecuzione
-interface IWebauthn {
-  generateCredentials(username: string): Promise<any>;
-  authenticateUser(username: string): Promise<any>;
-  getDevices(username: string): Promise<any[]>;
-}
-
-interface IStealth {
-  // Metodi di base se necessari
-}
-
-interface IShogunEventEmitter {
-  on(event: string, listener: Function): void;
-  off(event: string, listener: Function): void;
-  emit(event: string, data: any): void;
-}
-
-interface IStorage {
-  getPair(): Promise<any>;
-  getPairSync(): any;
-  setPair(pair: any): Promise<void>;
-  clearAll(): void;
-}
 
 // Ignorare gli errori di typescript per gli import di moduli che esistono a runtime
 import { Webauthn } from "./webauthn/webauthn";
@@ -68,13 +41,13 @@ export class ShogunSDK implements IShogunSDK {
   // Proprietà principali
   // ==========================================
   public gun: IGunInstance<any>;
-  private storage: IStorage;
+  private storage: Storage;
   public gundb: GunDB;
   public hedgehog: any;
-  public webauthn: Webauthn | undefined;
+  public webauthn: Webauthn;
   public metamask: MetaMask | undefined;
   public stealth: Stealth | undefined;
-  private eventEmitter: IShogunEventEmitter;
+  private eventEmitter: ShogunEventEmitter;
 
   /**
    * Costruttore principale di ShogunSDK
