@@ -197,38 +197,120 @@ export class ShogunSDK implements IShogunSDK {
       log("Tentativo di registrazione utente:", username);
       this.checkGun();
 
-      // Verifica se l'utente esiste già
-      const user = await this.hedgehog.getUser(username);
-      if (user) {
-        return { success: false, error: "Username già registrato" };
+      // Prima proviamo a fare login con Hedgehog per vedere se l'utente esiste
+      log("Verifica esistenza utente Hedgehog...");
+      try {
+        const result = await this.hedgehog.login(username, password);
+        if (result) {
+          // Se l'utente esiste già e il login ha successo, emmettiamo l'evento e restituiamo un successo
+          const userPub = result.pub || "";
+          
+          log("Utente già esistente, login completato");
+          
+          this.eventEmitter.emit("auth:signup", {
+            userPub,
+            username,
+            method: "password"
+          });
+          
+          return { success: true, wallet: result, pub: userPub };
+        }
+      } catch (hedgehogError) {
+        log("Utente non esistente su Hedgehog, procedo con la registrazione");
       }
 
-      // Registra con Hedgehog
-      const result = await this.hedgehog.signUp(username, password);
-      if (!result || !result.wallet) {
-        return { success: false, error: "Registrazione fallita" };
+      // Poi proviamo a creare l'utente GUN
+      log("Creazione utente GUN...");
+      let gunErrorCaught = false;
+      try {
+        const result = await this.gundb.createGunUser(username, password);
+        log("Utente GUN creato con successo:", result);
+
+        // Salva la chiave pubblica dell'utente
+        await this.gundb.authenticateGunUser(username, password);
+
+        const user = this.gun.user();
+        let pub = user?.is?.epub;
+
+        if (!pub) {
+          throw new Error("Chiave pubblica non disponibile");
+        }
+
+        // Salva esplicitamente i dati dell'utente usando la chiave pubblica
+        await new Promise((resolve, reject) => {
+          this.gun.get("users").get(pub).put({
+            username: username,
+            epub: pub,
+            created: Date.now()
+          }, (ack) => {
+            if ("err" in ack) reject(new Error(ack.err));
+            else resolve(ack);
+          });
+        });
+
+        log("Dati utente salvati in GUN con chiave pubblica");
+      } catch (gunError) {
+        gunErrorCaught = true;
+        if (gunError instanceof Error && gunError.message.includes("User already created")) {
+          log("Utente GUN già esistente, tento autenticazione...");
+          await this.gundb.authenticateGunUser(username, password);
+          log("Autenticazione GUN con utente esistente completata");
+        } else {
+          throw gunError;
+        }
       }
 
-      log("Utente registrato con successo:", username);
+      log("Aggiornamento chiave pubblica...");
+      await this.updateGunPublicKey();
 
-      // Autentica con Gun
-      const userPub = await this.authenticateWithGun(username, password);
+      // Registrazione o login con Hedgehog
+      log("Registrazione utente Hedgehog...");
+      let wallet;
+      try {
+        wallet = await this.hedgehog.signUp(username, password);
+        log("Utente Hedgehog registrato con successo");
+      } catch (hedgehogError) {
+        if (hedgehogError instanceof Error && hedgehogError.message.includes("User already created")) {
+          log("Utente Hedgehog già esistente, tentativo di login...");
+          wallet = await this.hedgehog.login(username, password);
+          log("Login Hedgehog con utente esistente completato");
+        } else {
+          throw hedgehogError;
+        }
+      }
 
-      // Inizializza i dati dell'utente
-      await this.initializeUserData(username, password, userPub);
+      // Verifica finale e setup
+      const user = this.gun.user();
+      if (!user.is) {
+        log("Riautenticazione GUN necessaria...");
+        await this.gundb.authenticateGunUser(username, password);
+      }
 
-      // Inizializza i percorsi del wallet
-      await this.initializeWalletPaths(userPub);
+      // Aggiorna la chiave pubblica
+      const userPub = user?.is?.epub || "";
 
-      // Notifica l'evento di registrazione
-      this.eventEmitter.emit("auth:signup", { username, userPub });
+      log("Registrazione completata con successo");
 
-      return { success: true, wallet: result.wallet, pub: userPub };
+      this.eventEmitter.emit("auth:signup", {
+        userPub,
+        username,
+        method: "password"
+      });
+
+      return { success: true, wallet: wallet, pub: userPub };
     } catch (error: any) {
       console.error("Errore durante la registrazione:", error);
+      // Cleanup in caso di errore
+      try {
+        this.gun.user()?.leave();
+        sessionStorage.removeItem("gun-current-pair");
+      } catch (cleanupError) {
+        console.error("Errore durante il cleanup:", cleanupError);
+      }
       this.eventEmitter.emit("error", {
-        action: "signup",
-        message: error.message,
+        code: "AUTH_SIGNUP_ERROR",
+        message: error.message || "Errore durante la registrazione",
+        details: error
       });
       return { success: false, error: error.message };
     }
