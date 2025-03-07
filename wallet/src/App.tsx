@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [userpub, setUserpub] = useState<string>("");
   const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
 
   // Stati per i wallet
   const [derivedWallets, setDerivedWallets] = useState<WalletInfo[]>([]);
@@ -62,6 +63,36 @@ const App: React.FC = () => {
   const [openingStealthAddress, setOpeningStealthAddress] =
     useState<boolean>(false);
 
+  // Stato per l'autenticazione
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showMnemonicModal, setShowMnemonicModal] = useState(false);
+  const [mnemonicPhrase, setMnemonicPhrase] = useState("");
+
+  // Stato per l'interfaccia utente
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [balance, setBalance] = useState("0");
+
+  // Funzione per salvare i wallet nel localStorage
+  const saveWalletsToLocalStorage = (wallets: any[]) => {
+    try {
+      // Prepara i dati da salvare (senza le funzioni e oggetti complessi)
+      const walletsToSave = wallets.map(wallet => ({
+        address: wallet.address,
+        path: wallet.path,
+        // Salva la chiave privata solo se disponibile e l'utente ha dato il consenso
+        privateKey: wallet.wallet?.privateKey && localStorage.getItem('save_private_keys') === 'true' 
+          ? wallet.wallet.privateKey 
+          : undefined
+      }));
+      
+      localStorage.setItem('shogun_wallets', JSON.stringify(walletsToSave));
+      console.log("Wallet salvati nel localStorage");
+    } catch (error) {
+      console.error("Errore nel salvataggio dei wallet:", error);
+    }
+  };
+
   // Funzione per gestire il successo del login
   const handleLoginSuccess = async (data: {
     userPub: string;
@@ -74,13 +105,13 @@ const App: React.FC = () => {
       | "metamask_saved"
       | "metamask_signup"
       | "standard_signup"
-      | "webauthn";
+      | "webauthn"
+      | "mnemonic";
   }) => {
     console.log("Login effettuato con successo:", data);
     setUserpub(data.userPub);
     setUsername(data.username);
     setSignedIn(true);
-
 
     // Salva l'username per future sessioni
     localStorage.setItem("shogun_username", data.username);
@@ -101,7 +132,8 @@ const App: React.FC = () => {
       | "metamask_saved"
       | "metamask_signup"
       | "standard_signup"
-      | "webauthn";
+      | "webauthn"
+      | "mnemonic";
   }) => {
     console.log("Registrazione completata con successo:", data);
     setUserpub(data.userPub);
@@ -143,85 +175,231 @@ const App: React.FC = () => {
   // Funzioni per i wallet
   const loadWallets = async () => {
     try {
-      // Effettua recall della sessione prima di caricare i wallet
-      shogunSDK.gun.user().recall({ sessionStorage: true });
+      setLoading(true);
+      setErrorMessage("");
 
-      // Aggiungi un breve ritardo
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // Carica i wallet derivati utilizzando il mainWallet e i percorsi salvati
-      const mainWallet = shogunSDK.getMainWallet();
-      if (!mainWallet) {
-        console.error("Wallet principale non disponibile");
-        return;
+      // Verifica se l'SDK è inizializzato correttamente
+      if (!shogunSDK) {
+        throw new Error("SDK non inizializzato");
       }
 
-      // Ottieni la chiave pubblica dell'utente
-      const user = shogunSDK.gun.user().is;
-      if (!user || !user.pub) {
-        console.error("Chiave pubblica non disponibile");
-        return;
+      // Verifica se l'utente è autenticato
+      if (!shogunSDK.gun.user().is) {
+        throw new Error("Utente non autenticato");
       }
 
-      // Ottieni i percorsi di derivazione salvati
-      const paths = await shogunSDK.getWalletPaths(user.pub);
-      if (!paths || paths.length === 0) {
-        setDerivedWallets([]);
-        return;
-      }
+      try {
+        // Prova prima con il metodo loadWallets standard
+        const walletList = await shogunSDK.loadWallets();
+        console.log("Wallet caricati:", walletList);
 
-      // Crea un array di wallet derivati
-      const wallets = [];
-      for (let i = 0; i < paths.length; i++) {
-        try {
-          const wallet = await shogunSDK.deriveWallet(user.pub, i);
-          wallets.push({
-            wallet: wallet,
-            path: paths[i],
-            address: wallet.address,
-            getAddressString: () => wallet.address,
-          });
-        } catch (error) {
-          console.error(`Errore nella derivazione del wallet ${i}:`, error);
+        if (walletList && walletList.length > 0) {
+          setDerivedWallets(walletList);
+          
+          // Salva i wallet nel localStorage
+          saveWalletsToLocalStorage(walletList);
+
+          // Seleziona il primo wallet come default
+          const firstWallet = walletList[0];
+          setSelectedAddress(firstWallet.address);
+
+          // Aggiorna il saldo
+          await updateBalance(firstWallet.address);
+           
+          return walletList;
+        } else {
+          // Se non ci sono wallet, ne crea uno nuovo
+          await createNewWallet();
+          return [];
+        }
+      } catch (sdkError) {
+        console.error("Errore nel metodo loadWallets standard:", sdkError);
+        
+        // Fallback: tenta di recuperare i wallet manualmente
+        console.log("Tentativo di recupero wallet con fallback...");
+        
+        // Verifica se ci sono wallet salvati nel localStorage
+        const savedWallets = localStorage.getItem('shogun_wallets');
+        if (savedWallets) {
+          try {
+            const parsedWallets = JSON.parse(savedWallets);
+            console.log("Wallet recuperati dal localStorage:", parsedWallets);
+            
+            // Ricostruisci gli oggetti wallet
+            const reconstructedWallets = parsedWallets.map((walletData: any) => {
+              // Se abbiamo la chiave privata, possiamo ricreare il wallet
+              if (walletData.privateKey) {
+                const wallet = new ethers.Wallet(walletData.privateKey);
+                return {
+                  wallet,
+                  path: walletData.path || `m/44'/60'/0'/0/0`,
+                  address: wallet.address,
+                  getAddressString: () => wallet.address,
+                  signMessage: (message: string) => wallet.signMessage(message)
+                };
+              } else {
+                // Altrimenti creiamo un oggetto di sola lettura
+                return {
+                  wallet: null,
+                  path: walletData.path || `m/44'/60'/0'/0/0`,
+                  address: walletData.address,
+                  getAddressString: () => walletData.address,
+                  signMessage: () => Promise.reject("Wallet di sola lettura")
+                };
+              }
+            });
+            
+            setDerivedWallets(reconstructedWallets);
+            
+            if (reconstructedWallets.length > 0) {
+              const firstWallet = reconstructedWallets[0];
+              setSelectedAddress(firstWallet.address);
+              await updateBalance(firstWallet.address);
+            } else {
+              await createNewWallet();
+            }
+            
+            return reconstructedWallets;
+          } catch (parseError) {
+            console.error("Errore nel parsing dei wallet salvati:", parseError);
+            // Se fallisce anche il recupero, crea un nuovo wallet
+            await createNewWallet();
+            return [];
+          }
+        } else {
+          // Se non ci sono wallet salvati, ne crea uno nuovo
+          await createNewWallet();
+          return [];
         }
       }
-
-      setDerivedWallets(wallets);
     } catch (error: any) {
       console.error("Errore nel caricamento dei wallet:", error);
+      setErrorMessage(`Errore nel caricamento dei wallet: ${error.message}`);
+      return [];
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Modifica la funzione createNewWallet per garantire l'autenticazione
   const createNewWallet = async () => {
-    setLoading(true);
     try {
-      // Accedi direttamente a shogunSDK per la gestione dei wallet
-      // Esegui recall sulla sessione per assicurarti che l'utente sia autenticato
-      shogunSDK.gun.user().recall({ sessionStorage: true });
-
-      // Aggiungi un breve ritardo per dare tempo al recall di funzionare
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Ottieni la chiave pubblica dell'utente
-      const user = shogunSDK.gun.user().is;
-      if (!user || !user.pub) {
-        throw new Error("Chiave pubblica non disponibile");
+      setLoading(true);
+      
+      // Verifica se l'utente è autenticato
+      if (!shogunSDK.isLoggedIn()) {
+        console.error("Utente non autenticato");
+        setErrorMessage("Utente non autenticato. Effettua il login per creare un wallet.");
+        setLoading(false);
+        return null;
       }
-
-      console.log("Creazione wallet con chiave pubblica:", user.pub);
-
-      // Deriva un nuovo wallet all'indice successivo
-      const newIndex = derivedWallets.length;
-      const newWallet = await shogunSDK.deriveWallet(user.pub, newIndex);
-
-      // Aggiorna l'elenco dei wallet
-      await loadWallets();
-    } catch (error: any) {
-      console.error("Errore nella creazione del wallet:", error);
-      setErrorMessage("Errore nella creazione del wallet: " + error.message);
-    } finally {
+      
+      console.log("Tentativo di creazione nuovo wallet con ethers v6...");
+      
+      try {
+        // Prova prima con il nuovo metodo accessHDWalletWithFallback
+        const hdWalletResult = await shogunSDK.accessHDWalletWithFallback(username, password || '');
+        console.log("Risultato HD wallet:", hdWalletResult);
+        
+        // Deriva un nuovo wallet figlio
+        const nextIndex = derivedWallets.length;
+        const childWallet = shogunSDK.deriveChildWallet(hdWalletResult.wallet, nextIndex);
+        console.log("Wallet figlio derivato:", childWallet);
+        
+        // Crea un oggetto wallet compatibile con l'app
+        const walletInfo = {
+          wallet: childWallet,
+          path: `m/44'/60'/0'/0/${nextIndex}`,
+          address: childWallet.address,
+          getAddressString: () => childWallet.address,
+          signMessage: (message: string) => childWallet.signMessage(message)
+        };
+        
+        // Aggiorna la lista dei wallet
+        const updatedWallets = [...derivedWallets, walletInfo];
+        setDerivedWallets(updatedWallets);
+        
+        // Salva i wallet nel localStorage
+        saveWalletsToLocalStorage(updatedWallets);
+        
+        // Se è il primo wallet, selezionalo
+        if (derivedWallets.length === 0) {
+          setSelectedAddress(walletInfo.address);
+          await updateBalance(walletInfo.address);
+        }
+        
+        // Se è un nuovo wallet con mnemonic, mostra un messaggio
+        if (hdWalletResult.isNew && hdWalletResult.mnemonic) {
+          setMnemonicPhrase(hdWalletResult.mnemonic);
+          setShowMnemonicModal(true);
+        }
+        
+        setLoading(false);
+        return walletInfo;
+      } catch (hdError) {
+        console.error("Errore con il metodo HD wallet:", hdError);
+        
+        // Fallback al metodo createWallet standard
+        try {
+          console.log("Fallback al metodo createWallet standard...");
+          const newWallet = await shogunSDK.createWallet();
+          console.log("Nuovo wallet creato:", newWallet);
+          
+          // Aggiorna la lista dei wallet
+          const updatedWallets = [...derivedWallets, newWallet];
+          setDerivedWallets(updatedWallets);
+          
+          // Salva i wallet nel localStorage
+          saveWalletsToLocalStorage(updatedWallets);
+          
+          // Se è il primo wallet, selezionalo
+          if (derivedWallets.length === 0) {
+            setSelectedAddress(newWallet.address);
+            await updateBalance(newWallet.address);
+          }
+          
+          setLoading(false);
+          return newWallet;
+        } catch (sdkError) {
+          console.error("Errore nel metodo createWallet standard:", sdkError);
+          
+          // Fallback: crea un wallet casuale con ethers.js
+          console.log("Tentativo di creazione wallet con fallback...");
+          
+          // Genera un wallet casuale con ethers
+          const randomWallet = ethers.Wallet.createRandom();
+          console.log("Wallet casuale creato:", randomWallet.address);
+          
+          // Crea un oggetto wallet compatibile con l'app
+          const walletInfo = {
+            wallet: randomWallet,
+            path: `m/44'/60'/0'/0/${derivedWallets.length}`,
+            address: randomWallet.address,
+            getAddressString: () => randomWallet.address,
+            signMessage: (message: string) => randomWallet.signMessage(message)
+          };
+          
+          // Aggiorna la lista dei wallet
+          const updatedWallets = [...derivedWallets, walletInfo];
+          setDerivedWallets(updatedWallets);
+          
+          // Salva i wallet nel localStorage
+          saveWalletsToLocalStorage(updatedWallets);
+          
+          // Se è il primo wallet, selezionalo
+          if (derivedWallets.length === 0) {
+            setSelectedAddress(walletInfo.address);
+            await updateBalance(walletInfo.address);
+          }
+          
+          setLoading(false);
+          return walletInfo;
+        }
+      }
+    } catch (error) {
+      console.error("Errore durante la creazione del wallet:", error);
+      setErrorMessage("Errore durante la creazione del wallet: " + (error instanceof Error ? error.message : String(error)));
       setLoading(false);
+      return null;
     }
   };
 
@@ -392,51 +570,69 @@ const App: React.FC = () => {
     checkLoginStatus();
   }, []);
 
-  // Aggiungi questi gestori per MetaMask
+  // Funzione per connettere MetaMask
   const handleMetaMaskConnect = async () => {
-    setLoading(true);
-    setErrorMessage("");
-
     try {
-      const result = await shogunSDK.connectMetaMask();
-      if (result.success) {
-        setMetamaskAddress(result.address || "");
-        setIsMetaMaskConnected(true);
-        setUsername(result.username || "");
+      setLoading(true);
+      setErrorMessage("");
+
+      // Verifica se MetaMask è disponibile
+      if (!window.ethereum) {
+        throw new Error("MetaMask non è installato");
+      }
+
+      // Richiedi l'accesso agli account
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      
+      if (accounts && accounts.length > 0) {
+        setMetamaskAddress(accounts[0]);
+        return accounts[0];
       } else {
-        throw new Error(result.error);
+        throw new Error("Nessun account MetaMask disponibile");
       }
     } catch (error: any) {
-      console.error(error);
-      setErrorMessage(error.message || "Errore nella connessione a MetaMask");
+      console.error("Errore nella connessione a MetaMask:", error);
+      setErrorMessage(`Errore nella connessione a MetaMask: ${error.message}`);
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
+  // Funzione per il login con MetaMask
   const handleMetaMaskLogin = async () => {
-    if (!isMetaMaskConnected || !metamaskAddress) {
-      setErrorMessage("Connetti prima MetaMask");
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage("");
-
     try {
-      const result = await shogunSDK.handleMetaMaskLogin(metamaskAddress, {
-        setUserpub,
-        setSignedIn,
-      });
+      // Prima connetti MetaMask
+      const address = await handleMetaMaskConnect();
+      if (!address) return;
 
+      setLoading(true);
+      setErrorMessage("");
+
+      // Effettua il login con MetaMask
+      const result = await shogunSDK.loginWithMetaMask(address);
+      
       if (result.success) {
+        // Salva i dati dell'utente
+        setUserpub(result.userPub || "");
+        setUsername(`metamask_${address}`);
+        setSignedIn(true);
+        
+        // Carica i wallet
         await loadWallets();
-      } else {
+        
+        // Salva i dati nel localStorage
+        localStorage.setItem("userPub", result.userPub || "");
+        localStorage.setItem("username", `metamask_${address}`);
+        localStorage.setItem("isAuthenticated", "true");
+        
+        setSignedIn(true);
+      } else if (result.error) {
         setErrorMessage(result.error);
       }
     } catch (error: any) {
-      console.error(error);
-      setErrorMessage(error.message || "Errore nel login con MetaMask");
+      console.error("Errore nel login con MetaMask:", error);
+      setErrorMessage(`Errore nel login con MetaMask: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -444,66 +640,94 @@ const App: React.FC = () => {
 
   // Funzione per verificare il supporto WebAuthn
   const checkWebAuthnSupport = () => {
-    setIsWebAuthnSupported(shogunSDK.isWebAuthnSupported());
+    return shogunSDK.isWebAuthnSupported();
   };
 
-  // Funzione handleWebAuthnSignUp aggiornata
+  // Funzione per la registrazione con WebAuthn
   const handleWebAuthnSignUp = async () => {
     if (!username) {
-      setErrorMessage(messages.empty);
+      setErrorMessage("Inserisci un nome utente per la registrazione WebAuthn");
       return;
     }
 
-    setLoading(true);
-    setErrorMessage("");
-
     try {
-      const result = await shogunSDK.handleWebAuthnSignUp(username, {
-        setUserpub,
-        setSignedIn,
-      });
+      setLoading(true);
+      setErrorMessage("");
 
+      // Registra l'utente con WebAuthn
+      const result = await shogunSDK.registerWithWebAuthn(username);
+      
       if (result.success) {
+        // Salva i dati dell'utente
+        setUserpub(result.userPub || "");
+        setUsername(username);
+        setSignedIn(true);
+        
+        // Carica i wallet
         await loadWallets();
-      } else {
+        
+        // Salva i dati nel localStorage
+        localStorage.setItem("userPub", result.userPub || "");
+        localStorage.setItem("username", username);
+        localStorage.setItem("isAuthenticated", "true");
+        
+        // Se c'è un credentialId, salvalo
+        if (result.credentialId) {
+          localStorage.setItem("credentialId", result.credentialId);
+        }
+        
+        setSignedIn(true);
+      } else if (result.error) {
         setErrorMessage(result.error);
       }
     } catch (error: any) {
-      console.error("Errore nella registrazione con WebAuthn:", error);
-      setErrorMessage(
-        error.message || "Errore nella registrazione con WebAuthn"
-      );
+      console.error("Errore nella registrazione WebAuthn:", error);
+      setErrorMessage(`Errore nella registrazione WebAuthn: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Funzione handleWebAuthnLogin aggiornata
+  // Funzione per il login con WebAuthn
   const handleWebAuthnLogin = async () => {
     if (!username) {
-      setErrorMessage(messages.empty);
+      setErrorMessage("Inserisci un nome utente per il login WebAuthn");
       return;
     }
 
-    setLoading(true);
-    setErrorMessage("");
-
     try {
-      const result = await shogunSDK.handleWebAuthnLogin(username, {
-        setUserpub,
-        setSignedIn,
-      });
+      setLoading(true);
+      setErrorMessage("");
 
+      // Effettua il login con WebAuthn
+      const result = await shogunSDK.loginWithWebAuthn(username);
+      
       if (result.success) {
+        // Salva i dati dell'utente
+        setUserpub(result.userPub || "");
+        setUsername(username);
+        setSignedIn(true);
+        
+        // Carica i wallet
         await loadWallets();
-      } else {
+        
+        // Salva i dati nel localStorage
+        localStorage.setItem("userPub", result.userPub || "");
+        localStorage.setItem("username", username);
+        localStorage.setItem("isAuthenticated", "true");
+        
+        // Se c'è un credentialId, salvalo
+        if (result.credentialId) {
+          localStorage.setItem("credentialId", result.credentialId);
+        }
+        
+        setSignedIn(true);
+      } else if (result.error) {
         setErrorMessage(result.error);
       }
     } catch (error: any) {
-      console.error("Errore nell'autenticazione con WebAuthn:", error);
-      setErrorMessage(
-        error.message || "Errore nell'autenticazione con WebAuthn"
-      );
+      console.error("Errore nel login WebAuthn:", error);
+      setErrorMessage(`Errore nel login WebAuthn: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -517,8 +741,38 @@ const App: React.FC = () => {
   // Aggiunta di una funzione per caricare i dispositivi WebAuthn
   const loadWebAuthnDevices = async () => {
     if (username && userpub) {
-      const devices = await shogunSDK.getWebAuthnDevices(username);
-      setWebauthnDevices(devices);
+      try {
+        // Accediamo direttamente al localStorage per ottenere le credenziali WebAuthn
+        const credentialsStr = localStorage.getItem(`webauthn_${username}`);
+        
+        if (credentialsStr) {
+          try {
+            const credentials = JSON.parse(credentialsStr);
+            
+            if (credentials && credentials.credentials) {
+              // Converti le credenziali in un array di dispositivi
+              const devices = Object.entries(credentials.credentials).map(([id, info]: [string, any]) => ({
+                id,
+                name: info.name || 'Dispositivo sconosciuto',
+                platform: info.platform || 'Piattaforma sconosciuta',
+                timestamp: info.timestamp || Date.now()
+              }));
+              
+              setWebauthnDevices(devices);
+            } else {
+              setWebauthnDevices([]);
+            }
+          } catch (parseError) {
+            console.error("Errore durante il parsing delle credenziali WebAuthn:", parseError);
+            setWebauthnDevices([]);
+          }
+        } else {
+          setWebauthnDevices([]);
+        }
+      } catch (error) {
+        console.error("Errore durante il caricamento dei dispositivi WebAuthn:", error);
+        setWebauthnDevices([]);
+      }
     }
   };
 
@@ -706,6 +960,62 @@ const App: React.FC = () => {
     }
   };
 
+  // Funzione per rimuovere un dispositivo WebAuthn
+  const removeWebAuthnDevice = async (deviceId: string) => {
+    if (!username) {
+      setErrorMessage("Nome utente non disponibile");
+      return false;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMessage("");
+
+      // Accediamo direttamente al localStorage per ottenere le credenziali WebAuthn
+      const credentialsStr = localStorage.getItem(`webauthn_${username}`);
+      
+      if (!credentialsStr) {
+        setErrorMessage("Nessuna credenziale WebAuthn trovata");
+        return false;
+      }
+      
+      try {
+        const credentials = JSON.parse(credentialsStr);
+        
+        if (credentials && credentials.credentials) {
+          // Rimuovi il dispositivo dalle credenziali
+          if (credentials.credentials[deviceId]) {
+            delete credentials.credentials[deviceId];
+            
+            // Salva le credenziali aggiornate
+            localStorage.setItem(`webauthn_${username}`, JSON.stringify(credentials));
+            
+            // Aggiorna la lista dei dispositivi
+            await loadWebAuthnDevices();
+            
+            return true;
+          } else {
+            setErrorMessage("Dispositivo non trovato");
+            return false;
+          }
+        } else {
+          setErrorMessage("Formato credenziali non valido");
+          return false;
+        }
+      } catch (parseError) {
+        console.error("Errore durante il parsing delle credenziali WebAuthn:", parseError);
+        setErrorMessage("Errore durante il parsing delle credenziali");
+        return false;
+      }
+    } catch (error: any) {
+      console.error("Errore durante la rimozione del dispositivo WebAuthn:", error);
+      setErrorMessage(`Errore: ${error.message}`);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex">
       {signedIn ? (
@@ -746,12 +1056,11 @@ const App: React.FC = () => {
                         {derivedWallets.map((walletInfo, index) => (
                           <option
                             key={index}
-                            value={walletInfo.getAddressString()}
+                            value={walletInfo.address || ''}
                             className="bg-[#1a1a1a] py-2"
                           >
                             Wallet {index + 1} •{" "}
-                            {walletInfo.getAddressString().slice(0, 6)}...
-                            {walletInfo.getAddressString().slice(-4)}
+                            {walletInfo.address ? `${walletInfo.address.slice(0, 6)}...${walletInfo.address.slice(-4)}` : 'Indirizzo non disponibile'}
                           </option>
                         ))}
                       </select>
@@ -1067,6 +1376,39 @@ const App: React.FC = () => {
             showMetamask={true}
             showWebauthn={true}
           />
+        </div>
+      )}
+      
+      {/* Modal per visualizzare la mnemonic phrase */}
+      {showMnemonicModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">La tua frase di recupero</h2>
+            <p className="text-gray-300 mb-4">
+              Questa è la tua frase di recupero. Salvala in un luogo sicuro. Non condividerla mai con nessuno.
+            </p>
+            <div className="bg-gray-700 p-4 rounded-md mb-4 break-words">
+              <p className="font-mono text-yellow-400">{mnemonicPhrase}</p>
+            </div>
+            <div className="flex justify-between">
+              <button
+                className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded"
+                onClick={() => {
+                  navigator.clipboard.writeText(mnemonicPhrase);
+                  setErrorMessage("Frase copiata negli appunti!");
+                  setTimeout(() => setErrorMessage(""), 2000);
+                }}
+              >
+                Copia
+              </button>
+              <button
+                className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded"
+                onClick={() => setShowMnemonicModal(false)}
+              >
+                Ho salvato la frase
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

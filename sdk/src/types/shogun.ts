@@ -68,6 +68,47 @@ export interface IShogunSDK {
   // Metodi MetaMask
   loginWithMetaMask(address: string): Promise<AuthResult>;
   signUpWithMetaMask(address: string): Promise<AuthResult>;
+  
+  // Metodi Wallet
+  getMainWallet(): any;
+  createWallet(): Promise<any>;
+  loadWallets(): Promise<any[]>;
+  deriveWallet(userpub: string, index: number): Promise<any>;
+  signMessage(wallet: any, message: string | Uint8Array): Promise<string>;
+  verifySignature(message: string | Uint8Array, signature: any): any;
+  
+  // Metodi HD Wallet con ethers v6
+  createHDWallet(username: string, password: string): Promise<{
+    wallet: any;
+    mnemonic?: string;
+    address: string;
+    privateKey: string;
+  }>;
+  deriveChildWallet(hdWallet: any, index: number): any;
+  encryptWallet(wallet: any, password: string): Promise<string>;
+  decryptWallet(json: string, password: string): Promise<any>;
+  signTransaction(wallet: any, toAddress: string, value: string): Promise<string>;
+  generateMnemonicWallet(): { wallet: any; mnemonic: string };
+  restoreFromMnemonic(mnemonic: string): any;
+  saveMnemonicToGun(userpub: string, mnemonic: string): Promise<void>;
+  getMnemonicFromGun(userpub: string): Promise<string | null>;
+  saveMnemonicToLocalStorage(mnemonic: string): void;
+  getMnemonicFromLocalStorage(): string | null;
+  accessHDWallet(username: string, password: string): Promise<{
+    wallet: any;
+    mnemonic?: string;
+    isNew: boolean;
+  }>;
+  accessHDWalletWithFallback(username: string, password: string): Promise<{
+    wallet: any;
+    mnemonic?: string;
+    isNew: boolean;
+  }>;
+  migrateToEthersV6(): Promise<boolean>;
+  
+  // Metodi di utilità
+  logout(): void;
+  isLoggedIn(): boolean;
 }
 
 export interface ShogunSDKConfig {

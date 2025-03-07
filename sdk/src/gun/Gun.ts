@@ -13,6 +13,7 @@ interface WalletPathsData {
 
 class GunDB {
   public gun: IGunInstance<any>;
+  public hedgehog: any;
 
   /**
    * Initializes the GunDB instance.
@@ -32,10 +33,32 @@ class GunDB {
   async createGunUser(username: string, password: string) {
     console.log("Creating Gun user:", username);
     return new Promise((resolve, reject) => {
+      
       this.gun.user().create(username, password, (ack) => {
         console.log("Response to Gun user creation:", ack);
         if ("err" in ack) {
           console.error("Error creating Gun user:", ack.err);
+          
+          // Se l'errore è "User is already being created or authenticated!", riprova dopo un breve ritardo
+          if (ack.err === "User is already being created or authenticated!") {
+            console.log("Riprovo la creazione dell'utente dopo un breve ritardo...");
+            setTimeout(() => {
+              this.createGunUser(username, password)
+                .then(resolve)
+                .catch(reject);
+            }, 1500); // Riprova dopo 1.5 secondi
+            return;
+          }
+          
+          // Se l'errore è "User already created", prova ad autenticare l'utente
+          if (ack.err === "User already created") {
+            console.log("Utente già esistente, tentativo di autenticazione...");
+            this.authenticateGunUser(username, password)
+              .then(resolve)
+              .catch(reject);
+            return;
+          }
+          
           reject(new Error(ack.err));
         } else {
           console.log("Gun user created, proceeding with authentication");
@@ -57,54 +80,56 @@ class GunDB {
 
   async authenticateGunUser(username: string, password: string) {
     console.log("Authenticating Gun user:", username);
-    return Promise.race([
-      new Promise((resolve, reject) => {
-        // Verifica preliminare dello stato dell'utente
-        const user = this.gun.user();
-        if (user.is) {
-          console.log("Utente già autenticato, effettuo logout...");
-          user.leave();
-        }
+    
+    return new Promise((resolve, reject) => {
+      // Verifica se c'è già un'operazione di creazione o autenticazione in corso
+      // if ((this.gun.user() as any)._?.tag?.auth) {
+      //   console.log("Un'operazione di autenticazione è già in corso, attendere...");
+      //   setTimeout(() => {
+      //     this.authenticateGunUser(username, password)
+      //       .then(resolve)
+      //       .catch(reject);
+      //   }, 1000); // Riprova dopo 1 secondo
+      //   return;
+      // }
 
-        this.gun.user().auth(username, password, (ack) => {
-          console.log("Response to Gun user authentication:", ack);
-          if ("err" in ack) {
-            console.error("Error authenticating Gun user:", ack.err);
-            reject(new Error(ack.err));
-          } else {
-            console.log("Gun user authenticated successfully");
-            // Verifica che l'utente sia effettivamente autenticato
-            const user = this.gun.user() as any;
-            const pair = user._.sea;
-            console.log("Gun user status after authentication:", {
-              is: user.is,
-              pair: pair ? "present" : "missing",
-            });
+      // Verifica se l'utente è già autenticato
+      const currentUser = this.gun.user().is;
+      if (currentUser && currentUser.alias === username) {
+        console.log("Utente già autenticato:", username);
+        resolve({ alias: username, pub: currentUser.pub });
+        return;
+      }
 
-            if (!user.is) {
-              reject(
-                new Error("Autenticazione fallita: utente non autenticato")
-              );
-              return;
-            }
+      // Esegui il logout prima di autenticare un nuovo utente
+      if (currentUser && currentUser.alias !== username) {
+        console.log("Logout dell'utente corrente prima di autenticare:", username);
+        this.gun.user().leave();
+      }
 
-            if (!pair) {
-              reject(new Error("Autenticazione fallita: chiavi mancanti"));
-              return;
-            }
-
-            resolve(ack);
+      this.gun.user().auth(username, password, (ack) => {
+        console.log("Response to Gun user authentication:", ack);
+        if ("err" in ack) {
+          console.error("Error authenticating Gun user:", ack.err);
+          
+          // Se l'errore è "User is already being created or authenticated!", riprova dopo un breve ritardo
+          if (ack.err === "User is already being created or authenticated!") {
+            console.log("Riprovo l'autenticazione dell'utente dopo un breve ritardo...");
+            setTimeout(() => {
+              this.authenticateGunUser(username, password)
+                .then(resolve)
+                .catch(reject);
+            }, 1500); // Riprova dopo 1.5 secondi
+            return;
           }
-        });
-      }),
-      // Timeout dopo 5 secondi
-      new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error("Timeout durante l'autenticazione")),
-          5000
-        )
-      ),
-    ]);
+          
+          reject(new Error(ack.err));
+        } else {
+          console.log("Gun user authenticated successfully");
+          resolve(ack);
+        }
+      });
+    });
   }
 
   /**
@@ -208,88 +233,6 @@ class GunDB {
           } else {
             console.log("Document written successfully!");
             resolve(dataWithTimestamp);
-          }
-        });
-    });
-  }
-
-  /**
-   * Creates a document in Gun if it does not already exist.
-   * @param {string} tableName - The name of the table to write to.
-   * @param {string} primaryKey - The primary key for the data.
-   * @param {Object} data - The data to be written.
-   * @returns {Promise<any>} A promise that resolves with the written data.
-   * @throws {Error} If the document already exists or if the primary key is invalid.
-   */
-  async createIfNotExists(
-    tableName: string,
-    primaryKey: string,
-    data: any
-  ): Promise<any> {
-    if (!primaryKey) {
-      throw new Error("Invalid primary key");
-    }
-
-    try {
-      // First check if the document exists
-      const existing = await new Promise<any>((resolve) => {
-        this.gun
-          .get(tableName)
-          .get(primaryKey)
-          .once((data: any) => {
-            resolve(data);
-          });
-      });
-
-      // If the document exists and has valid data
-      if (
-        existing &&
-        Object.keys(existing).filter((k) => k !== "_" && k !== "#").length > 0
-      ) {
-        console.log("Existing document:", existing);
-        throw new Error(`Document already exists for key ${primaryKey}`);
-      }
-
-      // If the document does not exist or has no valid data, proceed with writing
-      return this.writeToGun(tableName, primaryKey, data);
-    } catch (e) {
-      if (e instanceof Error && e.message.includes("already exists")) {
-        throw e;
-      }
-      // If the error is not due to the document's existence, try to write
-      return this.writeToGun(tableName, primaryKey, data);
-    }
-  }
-
-  /**
-   * Reads a record from Gun using a lookup key.
-   * @param {string} tableName - The name of the table to read from.
-   * @param {Object} obj - An object containing the lookup key.
-   * @param {string} obj.lookupKey - The key to look up the record.
-   * @returns {Promise<any>} A promise that resolves with the found data.
-   * @throws {Error} If the lookup key is invalid or the document is not found.
-   */
-  async readRecordFromGun(
-    tableName: string,
-    obj: { lookupKey: string }
-  ): Promise<any> {
-    if (!obj || !obj.lookupKey) {
-      throw new Error("Invalid lookup key");
-    }
-
-    return new Promise((resolve, reject) => {
-      this.gun
-        .get(tableName)
-        .get(obj.lookupKey)
-        .once((data: any) => {
-          // Check if the document exists and has valid data
-          if (
-            data &&
-            Object.keys(data).filter((k) => k !== "_" && k !== "#").length > 0
-          ) {
-            resolve(data);
-          } else {
-            reject(new Error("Document not found"));
           }
         });
     });

@@ -2,7 +2,7 @@
  * The MetaMaskAuth class provides functionality for connecting, signing up, and logging in using MetaMask.
  */
 import { ethers } from 'ethers';
-import { log } from '../index';
+import { log } from '../utils/logger';
 
 // Extend the Window interface to include ethereum
 declare global {
@@ -52,10 +52,10 @@ class MetaMask {
   private static readonly MESSAGE_TO_SIGN = 'Access with shogun';
 
   /**
-   * Initializes the MetaMaskAuth instance.
+   * Initialize the MetaMask connector
    */
   constructor() {
-    this.AUTH_DATA_TABLE = "AuthData";
+    this.AUTH_DATA_TABLE = 'metamask_auth_data';
   }
 
   private validateAddress(address: string): void {

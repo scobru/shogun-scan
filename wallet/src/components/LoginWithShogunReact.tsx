@@ -5,13 +5,7 @@ import Link from './Link';
 
 // Estendo l'interfaccia ShogunSDK per includere i metodi che stiamo utilizzando
 interface ExtendedShogunSDK extends ShogunSDK {
-  metamask?: {
-    connectMetaMask: () => Promise<any>;
-  };
-  loginWithMetaMask?: (address: string) => Promise<any>;
-  signUpWithMetaMask?: (address: string) => Promise<any>;
-  authenticateWithWebAuthn?: (username: string) => Promise<any>;
-  registerWithWebAuthn?: (username: string) => Promise<any>;
+  // Non è più necessario estendere l'interfaccia poiché tutti i metodi sono già definiti nel nuovo SDK
 }
 
 interface CustomMessages {
@@ -35,20 +29,20 @@ interface CustomMessages {
 }
 
 interface LoginWithShogunReactProps {
-  sdk: ExtendedShogunSDK;
+  sdk: ShogunSDK;
   onLoginSuccess?: (data: { 
     userPub: string; 
     username: string;
     password?: string;
     wallet?: any;
-    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn';
+    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn' | 'mnemonic';
   }) => void;
   onSignupSuccess?: (data: { 
     userPub: string; 
     username: string;
     password?: string;
     wallet?: any;
-    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn';
+    authMethod?: 'standard' | 'metamask_direct' | 'metamask_saved' | 'metamask_signup' | 'standard_signup' | 'webauthn' | 'mnemonic';
   }) => void;
   onError?: (error: string) => void;
   customMessages?: CustomMessages;
@@ -70,382 +64,385 @@ const LoginWithShogunReact: React.FC<LoginWithShogunReactProps> = ({
   const [activeTab, setActiveTab] = useState<number>(0);
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [passwordConfirmation, setPasswordConfirmation] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const [isMetaMaskConnected, setIsMetaMaskConnected] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [metamaskConnected, setMetamaskConnected] = useState<boolean>(false);
   const [metamaskAddress, setMetamaskAddress] = useState<string>('');
-  const [isWebAuthnSupported, setIsWebAuthnSupported] = useState<boolean>(false);
-
-  // Messaggi predefiniti
-  const messages = {
-    loginHeader: customMessages?.loginHeader || 'Accedi a Shogun',
-    signupHeader: customMessages?.signupHeader || 'Registrati su Shogun',
-    loginButton: customMessages?.loginButton || 'Accedi',
-    signupButton: customMessages?.signupButton || 'Registrati',
-    usernameLabel: customMessages?.usernameLabel || 'Username',
-    passwordLabel: customMessages?.passwordLabel || 'Password',
-    confirmPasswordLabel: customMessages?.confirmPasswordLabel || 'Conferma Password',
-    switchToSignup: customMessages?.switchToSignup || 'Non hai un account? Registrati',
-    switchToLogin: customMessages?.switchToLogin || 'Hai già un account? Accedi',
-    metamaskConnect: customMessages?.metamaskConnect || 'Connetti MetaMask',
-    metamaskLogin: customMessages?.metamaskLogin || 'Accedi con MetaMask',
-    metamaskSignup: customMessages?.metamaskSignup || 'Registrati con MetaMask',
-    webauthnLogin: customMessages?.webauthnLogin || 'Accedi con WebAuthn',
-    webauthnSignup: customMessages?.webauthnSignup || 'Registrati con WebAuthn',
-    mismatched: customMessages?.mismatched || 'Le password non corrispondono',
-    empty: customMessages?.empty || 'Tutti i campi sono obbligatori',
-    exists: customMessages?.exists || 'Utente già esistente'
-  };
+  const [showMnemonicInput, setShowMnemonicInput] = useState(false);
+  const [mnemonicPhrase, setMnemonicPhrase] = useState("");
 
   // Verifica se WebAuthn è supportato
-  useEffect(() => {
-    if (showWebauthn) {
-      const supported = sdk.isWebAuthnSupported();
-      console.log("WebAuthn supportato:", supported);
-      setIsWebAuthnSupported(supported);
-    }
-  }, [sdk, showWebauthn]);
+  const isWebAuthnSupported = (): boolean => {
+    return sdk.isWebAuthnSupported();
+  };
 
+  // Gestione del login standard
   const handleLogin = async () => {
-    console.log("handleLogin chiamato");
-    
     if (!username || !password) {
-      setErrorMessage(messages.empty);
-      if (onError) onError(messages.empty);
+      setError(customMessages.empty || 'Tutti i campi sono obbligatori');
+      onError && onError(customMessages.empty || 'Tutti i campi sono obbligatori');
       return;
     }
 
     setLoading(true);
-    setErrorMessage('');
+    setError('');
 
     try {
-      const result = await sdk.handleLogin(username, password, {});
-      console.log("Risultato login standard:", result);
-
-      if (result.success && result.userPub) {
-        if (onLoginSuccess) {
-          onLoginSuccess({ 
-            userPub: result.userPub,
-            username: username,
-            password: password,
-            authMethod: 'standard'
-          });
+      const result = await sdk.handleLogin(username, password, {
+        setUserpub: (pub: string) => {
+          console.log('Login success, pub:', pub);
+        },
+        setSignedIn: (signedIn: boolean) => {
+          console.log('Login state:', signedIn);
         }
-      } else {
-        throw new Error(result.error || 'Errore durante il login');
-      }
-    } catch (error: any) {
-      const errorMsg = error.message || 'Errore durante il login';
-      console.error("Errore completo:", error);
-      setErrorMessage(errorMsg);
-      if (onError) onError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignUp = async () => {
-    console.log("handleSignUp chiamato");
-    
-    if (password !== passwordConfirmation) {
-      setErrorMessage(messages.mismatched);
-      if (onError) onError(messages.mismatched);
-      return;
-    }
-
-    if (!username || !password || !passwordConfirmation) {
-      setErrorMessage(messages.empty);
-      if (onError) onError(messages.empty);
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage('');
-
-    try {
-      const result = await sdk.handleSignUp(username, password, passwordConfirmation, {
-        messages
       });
-      console.log("Risultato registrazione standard:", result);
 
-      if (result.success && result.userPub) {
-        if (onSignupSuccess) {
-          onSignupSuccess({ 
-            userPub: result.userPub,
-            username: username,
-            password: password,
-            authMethod: 'standard_signup'
-          });
-        }
-      } else {
-        throw new Error(result.error || 'Errore durante la registrazione');
+      if (result.success) {
+        onLoginSuccess && onLoginSuccess({
+          userPub: result.userPub || '',
+          username,
+          password,
+          wallet: result.wallet,
+          authMethod: 'standard'
+        });
+      } else if (result.error) {
+        setError(result.error);
+        onError && onError(result.error);
       }
     } catch (error: any) {
-      const errorMsg = error.message || 'Errore durante la registrazione';
-      console.error("Errore completo:", error);
-      setErrorMessage(errorMsg);
-      if (onError) onError(errorMsg);
+      console.error('Login error:', error);
+      setError(error.message || 'Errore durante il login');
+      onError && onError(error.message || 'Errore durante il login');
     } finally {
       setLoading(false);
     }
   };
 
+  // Gestione della registrazione standard
+  const handleSignUp = async () => {
+    if (!username || !password || !confirmPassword) {
+      setError(customMessages.empty || 'Tutti i campi sono obbligatori');
+      onError && onError(customMessages.empty || 'Tutti i campi sono obbligatori');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError(customMessages.mismatched || 'Le password non corrispondono');
+      onError && onError(customMessages.mismatched || 'Le password non corrispondono');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await sdk.handleSignUp(username, password, confirmPassword, {
+        setUserpub: (pub: string) => {
+          console.log('Signup success, pub:', pub);
+        },
+        setSignedIn: (signedIn: boolean) => {
+          console.log('Signup state:', signedIn);
+        },
+        setErrorMessage: (msg: string) => {
+          console.error('Signup error message:', msg);
+          setError(msg);
+          onError && onError(msg);
+        },
+        messages: {
+          userExists: customMessages.exists || 'Utente già esistente'
+        }
+      });
+
+      if (result.success) {
+        onSignupSuccess && onSignupSuccess({
+          userPub: result.userPub || '',
+          username,
+          password,
+          wallet: result.wallet,
+          authMethod: 'standard_signup'
+        });
+      } else if (result.error) {
+        setError(result.error);
+        onError && onError(result.error);
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      setError(error.message || 'Errore durante la registrazione');
+      onError && onError(error.message || 'Errore durante la registrazione');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Gestione della connessione a MetaMask
   const handleMetaMaskConnect = async () => {
-    if (!showMetamask) return;
-    
     setLoading(true);
-    setErrorMessage('');
+    setError('');
 
     try {
-      // Verifica se metamask è disponibile nell'SDK
-      if (!sdk.metamask) {
-        throw new Error('MetaMask non è supportato in questa versione dell\'SDK');
+      // Verifica se MetaMask è disponibile
+      if (!window.ethereum) {
+        throw new Error('MetaMask non è installato');
       }
+
+      // Richiedi l'accesso agli account
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       
-      const result = await sdk.metamask.connectMetaMask();
-      if (result?.success) {
-        setMetamaskAddress(result.address || '');
-        setIsMetaMaskConnected(true);
-        setUsername(result.username || '');
+      if (accounts && accounts.length > 0) {
+        setMetamaskConnected(true);
+        setMetamaskAddress(accounts[0]);
       } else {
-        throw new Error(result?.error || 'Errore nella connessione a MetaMask');
+        throw new Error('Nessun account MetaMask disponibile');
       }
     } catch (error: any) {
-      const errorMsg = error.message || 'Errore nella connessione a MetaMask';
-      setErrorMessage(errorMsg);
-      if (onError) onError(errorMsg);
+      console.error('MetaMask connect error:', error);
+      setError(error.message || 'Errore durante la connessione a MetaMask');
+      onError && onError(error.message || 'Errore durante la connessione a MetaMask');
     } finally {
       setLoading(false);
     }
   };
 
+  // Gestione del login con MetaMask
   const handleMetaMaskLogin = async () => {
-    console.log("handleMetaMaskLogin chiamato");
-    
-    if (!isMetaMaskConnected || !metamaskAddress) {
-      setErrorMessage('Connetti prima MetaMask');
-      if (onError) onError('Connetti prima MetaMask');
-      return;
+    if (!metamaskConnected || !metamaskAddress) {
+      await handleMetaMaskConnect();
+      if (!metamaskConnected || !metamaskAddress) {
+        return;
+      }
     }
 
     setLoading(true);
-    setErrorMessage('');
+    setError('');
 
     try {
-      const username = `metamask_${metamaskAddress.slice(2, 8)}`;
-      
-      // Verifica se esiste una password salvata
-      const savedPassword = localStorage.getItem(`lonewolf_${username}`);
-      
-      if (savedPassword) {
-        console.log("Password salvata trovata, tentativo di login diretto con LoneWolf...");
-        
-        if (onLoginSuccess) {
-          const authResult = {
-            userPub: metamaskAddress,
-            username: username,
-            password: savedPassword,
-            authMethod: 'metamask_saved' as const
-          };
-          
-          onLoginSuccess(authResult);
-          setLoading(false);
-          return;
-        }
+      // Verifica se MetaMask è disponibile
+      if (!window.ethereum) {
+        throw new Error('MetaMask non è installato');
       }
 
-      console.log("Tentativo di login con MetaMask...");
-      
-      // Verifica se loginWithMetaMask è disponibile nell'SDK
-      if (!sdk.loginWithMetaMask) {
-        throw new Error('Login con MetaMask non è supportato in questa versione dell\'SDK');
+      // Assicurati che l'indirizzo sia aggiornato
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) {
+        throw new Error('Nessun account MetaMask disponibile');
       }
       
-      const result = await sdk.loginWithMetaMask(metamaskAddress);
-      console.log("Risultato login con MetaMask:", result);
+      const currentAddress = accounts[0];
+      setMetamaskAddress(currentAddress);
+
+      // Effettua il login con MetaMask
+      const result = await sdk.loginWithMetaMask(currentAddress);
 
       if (result.success) {
-        if (result.password) {
-          localStorage.setItem(`lonewolf_${username}`, result.password);
-        }
-
-        if (onLoginSuccess) {
-          onLoginSuccess({ 
-            userPub: result.userPub,
-            username: username,
-            password: result.password,
-            wallet: result.wallet,
-            authMethod: 'metamask_direct'
-          });
-        }
-      } else {
-        // Se il login fallisce, proviamo a registrare l'utente
-        if (result.error && (
-            result.error.includes("Account not registered") || 
-            result.error.includes("Account not found") ||
-            result.error.includes("missing data")
-          )) {
-          console.log("Account non registrato o dati mancanti, tentativo di registrazione...");
+        onLoginSuccess && onLoginSuccess({
+          userPub: result.userPub || '',
+          username: result.username || `metamask_${currentAddress.slice(0, 10)}`,
+          wallet: result.wallet,
+          authMethod: 'metamask_direct'
+        });
+      } else if (result.error) {
+        // Se l'utente non esiste, prova a registrarlo
+        if (result.error.includes('Utente non trovato')) {
+          console.log('Utente non trovato, tentativo di registrazione...');
           await handleMetaMaskSignUp();
-          return;
+        } else {
+          setError(result.error);
+          onError && onError(result.error);
         }
-        
-        throw new Error(result.error || 'Errore durante il login con MetaMask');
       }
     } catch (error: any) {
-      const errorMsg = error.message || 'Errore nel login con MetaMask';
-      console.error("Errore completo:", error);
-      setErrorMessage(errorMsg);
-      if (onError) onError(errorMsg);
+      console.error('MetaMask login error:', error);
+      setError(error.message || 'Errore durante il login con MetaMask');
+      onError && onError(error.message || 'Errore durante il login con MetaMask');
     } finally {
       setLoading(false);
     }
   };
 
+  // Gestione della registrazione con MetaMask
   const handleMetaMaskSignUp = async () => {
-    console.log("handleMetaMaskSignUp chiamato");
-    
-    if (!isMetaMaskConnected || !metamaskAddress) {
-      setErrorMessage('Connetti prima MetaMask');
-      if (onError) onError('Connetti prima MetaMask');
-      return;
+    if (!metamaskConnected || !metamaskAddress) {
+      await handleMetaMaskConnect();
+      if (!metamaskConnected || !metamaskAddress) {
+        return;
+      }
     }
 
     setLoading(true);
-    setErrorMessage('');
+    setError('');
 
     try {
-      const username = `metamask_${metamaskAddress.slice(2, 8)}`;
-      console.log("Tentativo di registrazione con MetaMask...");
-      
-      // Verifica se signUpWithMetaMask è disponibile nell'SDK
-      if (!sdk.signUpWithMetaMask) {
-        throw new Error('Registrazione con MetaMask non è supportata in questa versione dell\'SDK');
+      // Verifica se MetaMask è disponibile
+      if (!window.ethereum) {
+        throw new Error('MetaMask non è installato');
+      }
+
+      // Assicurati che l'indirizzo sia aggiornato
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) {
+        throw new Error('Nessun account MetaMask disponibile');
       }
       
-      // Chiamiamo direttamente il metodo, che ora ha una gestione migliorata delle promesse
-      const result = await sdk.signUpWithMetaMask(metamaskAddress);
-      console.log("Risultato registrazione con MetaMask:", result);
+      const currentAddress = accounts[0];
+      setMetamaskAddress(currentAddress);
+
+      // Effettua la registrazione con MetaMask
+      const result = await sdk.signUpWithMetaMask(currentAddress);
 
       if (result.success) {
-        console.log("Registrazione con MetaMask riuscita");
-        
-        if (result.password) {
-          localStorage.setItem(`lonewolf_${username}`, result.password);
+        onSignupSuccess && onSignupSuccess({
+          userPub: result.userPub || '',
+          username: result.username || `metamask_${currentAddress.slice(0, 10)}`,
+          wallet: result.wallet,
+          authMethod: 'metamask_signup'
+        });
+      } else if (result.error) {
+        // Se l'utente esiste già, prova a fare il login
+        if (result.error.includes('already exists') || result.error.includes('già esistente')) {
+          console.log('User already exists, trying to login...');
+          await handleMetaMaskLogin();
+        } else {
+          setError(result.error);
+          onError && onError(result.error);
         }
-
-        if (onSignupSuccess) {
-          onSignupSuccess({ 
-            userPub: result.userPub || metamaskAddress,
-            username: username,
-            password: result.password,
-            wallet: result.wallet,
-            authMethod: 'metamask_signup'
-          });
-        }
-      } else {
-        if (result.error?.includes('User already created')) {
-          console.log('Utente già esistente, tentativo di login...');
-          return handleMetaMaskLogin();
-        }
-        throw new Error(result.error || 'Errore durante la registrazione con MetaMask');
       }
     } catch (error: any) {
-      const errorMsg = error.message || 'Errore nella registrazione con MetaMask';
-      console.error("Errore completo:", error);
-      setErrorMessage(errorMsg);
-      if (onError) onError(errorMsg);
+      console.error('MetaMask signup error:', error);
+      setError(error.message || 'Errore durante la registrazione con MetaMask');
+      onError && onError(error.message || 'Errore durante la registrazione con MetaMask');
     } finally {
       setLoading(false);
     }
   };
 
+  // Gestione del login con WebAuthn
   const handleWebAuthnLogin = async () => {
-    if (!showWebauthn || !isWebAuthnSupported) return;
-    
     if (!username) {
-      setErrorMessage(messages.empty);
-      if (onError) onError(messages.empty);
+      setError(customMessages.empty || 'Il nome utente è obbligatorio');
+      onError && onError(customMessages.empty || 'Il nome utente è obbligatorio');
       return;
     }
 
     setLoading(true);
-    setErrorMessage('');
+    setError('');
 
     try {
-      console.log("Tentativo di login con WebAuthn...");
-      
-      // Verifica se authenticateWithWebAuthn è disponibile nell'SDK
-      if (!sdk.authenticateWithWebAuthn) {
-        throw new Error('Autenticazione WebAuthn non è supportata in questa versione dell\'SDK');
-      }
-      
-      const result = await sdk.authenticateWithWebAuthn(username);
-      console.log("Risultato login WebAuthn:", result);
-      
+      const result = await sdk.loginWithWebAuthn(username);
+
       if (result.success) {
-        if (onLoginSuccess) {
-          onLoginSuccess({ 
-            userPub: result.userPub || result.credentialId || 'webauthn-user-pub', 
-            username: username,
-            password: result.password || `WebAuthn_${username}_${Date.now()}`,
-            authMethod: 'webauthn'
-          });
-        }
-      } else {
-        throw new Error(result.error || "Errore durante l'autenticazione WebAuthn");
+        onLoginSuccess && onLoginSuccess({
+          userPub: result.userPub || '',
+          username,
+          password: result.password,
+          authMethod: 'webauthn'
+        });
+      } else if (result.error) {
+        setError(result.error);
+        onError && onError(result.error);
       }
     } catch (error: any) {
-      const errorMsg = error.message || "Errore durante l'autenticazione WebAuthn";
-      console.error("Errore WebAuthn:", errorMsg);
-      setErrorMessage(errorMsg);
-      if (onError) onError(errorMsg);
+      console.error('WebAuthn login error:', error);
+      setError(error.message || 'Errore durante il login con WebAuthn');
+      onError && onError(error.message || 'Errore durante il login con WebAuthn');
     } finally {
       setLoading(false);
     }
   };
 
+  // Gestione della registrazione con WebAuthn
   const handleWebAuthnSignUp = async () => {
-    if (!showWebauthn || !isWebAuthnSupported) return;
-    
     if (!username) {
-      setErrorMessage(messages.empty);
-      if (onError) onError(messages.empty);
+      setError(customMessages.empty || 'Il nome utente è obbligatorio');
+      onError && onError(customMessages.empty || 'Il nome utente è obbligatorio');
       return;
     }
 
     setLoading(true);
-    setErrorMessage('');
+    setError('');
 
     try {
-      console.log("Tentativo di registrazione con WebAuthn...");
-      
-      // Verifica se registerWithWebAuthn è disponibile nell'SDK
-      if (!sdk.registerWithWebAuthn) {
-        throw new Error('Registrazione WebAuthn non è supportata in questa versione dell\'SDK');
-      }
-      
       const result = await sdk.registerWithWebAuthn(username);
-      console.log("Risultato registrazione WebAuthn:", result);
-      
+
       if (result.success) {
-        if (onSignupSuccess) {
-          onSignupSuccess({ 
-            userPub: result.userPub || result.credentialId || 'webauthn-user-pub', 
-            username: username,
-            password: result.password || `WebAuthn_${username}_${Date.now()}`,
-            authMethod: 'webauthn'
-          });
-        }
-      } else {
-        throw new Error(result.error || "Errore durante la registrazione WebAuthn");
+        onSignupSuccess && onSignupSuccess({
+          userPub: result.userPub || '',
+          username,
+          password: result.password,
+          authMethod: 'webauthn'
+        });
+      } else if (result.error) {
+        setError(result.error);
+        onError && onError(result.error);
       }
     } catch (error: any) {
-      const errorMsg = error.message || "Errore durante la registrazione WebAuthn";
-      console.error("Errore WebAuthn:", errorMsg);
-      setErrorMessage(errorMsg);
-      if (onError) onError(errorMsg);
+      console.error('WebAuthn signup error:', error);
+      setError(error.message || 'Errore durante la registrazione con WebAuthn');
+      onError && onError(error.message || 'Errore durante la registrazione con WebAuthn');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMnemonicLogin = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      if (!mnemonicPhrase.trim()) {
+        setError("Inserisci una frase mnemonica valida");
+        return;
+      }
+      
+      // Verifica se la mnemonic phrase è valida
+      try {
+        // Ripristina il wallet dalla mnemonic phrase
+        const wallet = sdk.restoreFromMnemonic(mnemonicPhrase);
+        
+        // Salva la mnemonic phrase in localStorage
+        sdk.saveMnemonicToLocalStorage(mnemonicPhrase);
+        
+        // Se l'utente ha inserito username e password, prova ad autenticarsi in GunDB
+        if (username && password) {
+          try {
+            // Usa il metodo handleLogin per autenticarsi
+            const loginResult = await sdk.handleLogin(username, password, {});
+            
+            if (loginResult.success) {
+              // Se l'autenticazione ha successo, salva la mnemonic in GunDB
+              const user = sdk.gun.user();
+              const userpub = user?.is?.pub;
+              
+              if (userpub) {
+                await sdk.saveMnemonicToGun(userpub, mnemonicPhrase);
+              }
+            } else {
+              console.warn("Autenticazione non riuscita:", loginResult.error);
+            }
+          } catch (authError) {
+            console.error("Errore durante l'autenticazione in GunDB:", authError);
+            // Continua comunque, poiché abbiamo il wallet
+          }
+        }
+        
+        // Notifica il successo
+        if (onLoginSuccess) {
+          onLoginSuccess({
+            userPub: sdk.gun.user()?.is?.pub || '',
+            username: username || wallet.address,
+            wallet: wallet,
+            authMethod: 'mnemonic'
+          });
+        }
+      } catch (error: any) {
+        console.error("Errore durante il ripristino del wallet:", error);
+        setError(error.message || "Frase mnemonica non valida");
+        onError && onError(error.message || "Frase mnemonica non valida");
+      }
+    } catch (error: any) {
+      console.error("Errore durante il login con mnemonic:", error);
+      setError(error.message || "Errore durante il login con mnemonic");
+      onError && onError(error.message || "Errore durante il login con mnemonic");
     } finally {
       setLoading(false);
     }
@@ -475,103 +472,175 @@ const LoginWithShogunReact: React.FC<LoginWithShogunReactProps> = ({
       </div>
 
       <div className="text-center text-lg mb-4">
-        {activeTab === 0 ? messages.loginHeader : messages.signupHeader}
+        {activeTab === 0 ? customMessages.loginHeader || 'Accedi a Shogun' : customMessages.signupHeader || 'Registrati su Shogun'}
       </div>
 
       {activeTab === 0 ? (
         <div className="flex flex-col gap-3">
-          <input
-            className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-            placeholder={messages.usernameLabel}
-            onChange={(e) => setUsername(e.target.value)}
-            value={username}
-          />
-          <input
-            className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-            placeholder={messages.passwordLabel}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-          />
-          <Button
-            onClick={handleLogin}
-            fullWidth
-            loading={loading}
-            text={messages.loginButton}
-          />
-
-          <Link
-            onClick={() => setActiveTab(1)}
-            text={messages.switchToSignup}
-          />
-
-          {showWebauthn && isWebAuthnSupported && (
-            <Button
-              onClick={handleWebAuthnLogin}
-              fullWidth
-              text={messages.webauthnLogin}
-            />
-          )}
-
-          {showMetamask && (
-            <>
+          {!showMnemonicInput ? (
+            <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+              <input
+                className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
+                placeholder={customMessages.usernameLabel || 'Username'}
+                onChange={(e) => setUsername(e.target.value)}
+                value={username}
+              />
+              <input
+                className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
+                placeholder={customMessages.passwordLabel || 'Password'}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+              />
               <Button
-                onClick={handleMetaMaskConnect}
+                onClick={handleLogin}
                 fullWidth
-                text={isMetaMaskConnected ? 'MetaMask Connesso' : messages.metamaskConnect}
+                loading={loading}
+                text={customMessages.loginButton || 'Accedi'}
+              />
+
+              <Link
+                onClick={() => setActiveTab(1)}
+                text={customMessages.switchToSignup || 'Non hai un account? Registrati'}
+              />
+
+              {showWebauthn && isWebAuthnSupported() && (
+                <Button
+                  onClick={handleWebAuthnLogin}
+                  fullWidth
+                  text={customMessages.webauthnLogin || 'Accedi con WebAuthn'}
+                />
+              )}
+
+              {showMetamask && (
+                <>
+                  <Button
+                    onClick={handleMetaMaskConnect}
+                    fullWidth
+                    text={metamaskConnected ? 'MetaMask Connesso' : customMessages.metamaskConnect || 'Connetti MetaMask'}
+                  />
+                  
+                  {metamaskConnected && (
+                    <div className="bg-white/5 p-3 rounded-lg">
+                      <p className="text-sm text-gray-400 mb-2 break-all">
+                        Account: {metamaskAddress}
+                      </p>
+                      <Button
+                        onClick={handleMetaMaskLogin}
+                        fullWidth
+                        text={customMessages.metamaskLogin || 'Accedi con MetaMask'}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  className="text-primary hover:text-primary-light text-sm w-full text-center"
+                  onClick={() => setShowMnemonicInput(true)}
+                >
+                  Accedi con frase mnemonica
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); handleMnemonicLogin(); }}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">
+                  Frase Mnemonica
+                </label>
+                <textarea
+                  className="w-full p-3 bg-black/20 border border-white/10 rounded-lg text-white focus:border-primary outline-none resize-y"
+                  placeholder="Inserisci la tua frase mnemonica di 12 parole..."
+                  value={mnemonicPhrase}
+                  onChange={(e) => setMnemonicPhrase(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">
+                  Username (opzionale)
+                </label>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-black/20 border border-white/10 rounded-lg text-white focus:border-primary outline-none"
+                  placeholder="Username per GunDB (opzionale)"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">
+                  Password (opzionale)
+                </label>
+                <input
+                  type="password"
+                  className="w-full p-3 bg-black/20 border border-white/10 rounded-lg text-white focus:border-primary outline-none"
+                  placeholder="Password per GunDB (opzionale)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              
+              <Button
+                onClick={handleMnemonicLogin}
+                text="Accedi con Mnemonic"
+                loading={loading}
+                fullWidth
               />
               
-              {isMetaMaskConnected && (
-                <div className="bg-white/5 p-3 rounded-lg">
-                  <p className="text-sm text-gray-400 mb-2 break-all">
-                    Account: {metamaskAddress}
-                  </p>
-                  <Button
-                    onClick={handleMetaMaskLogin}
-                    fullWidth
-                    text={messages.metamaskLogin}
-                  />
-                </div>
-              )}
-            </>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  className="text-primary hover:text-primary-light text-sm w-full text-center"
+                  onClick={() => setShowMnemonicInput(false)}
+                >
+                  Torna al login standard
+                </button>
+              </div>
+            </form>
           )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           <input
             className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-            placeholder={messages.usernameLabel}
+            placeholder={customMessages.usernameLabel || 'Username'}
             onChange={(e) => setUsername(e.target.value)}
             value={username}
           />
           <input
             className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-            placeholder={messages.passwordLabel}
+            placeholder={customMessages.passwordLabel || 'Password'}
             onChange={(e) => setPassword(e.target.value)}
             type="password"
           />
           <input
             className="w-full p-3.5 bg-white/3 border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary outline-none"
-            placeholder={messages.confirmPasswordLabel}
-            onChange={(e) => setPasswordConfirmation(e.target.value)}
+            placeholder={customMessages.confirmPasswordLabel || 'Conferma Password'}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             type="password"
           />
           <Button
             onClick={handleSignUp}
             fullWidth
             loading={loading}
-            text={messages.signupButton}
+            text={customMessages.signupButton || 'Registrati'}
           />
 
           <Link
             onClick={() => setActiveTab(0)}
-            text={messages.switchToLogin}
+            text={customMessages.switchToLogin || 'Hai già un account? Accedi'}
           />
 
-          {showWebauthn && isWebAuthnSupported && (
+          {showWebauthn && isWebAuthnSupported() && (
             <Button
               onClick={handleWebAuthnSignUp}
               fullWidth
-              text={messages.webauthnSignup}
+              text={customMessages.webauthnSignup || 'Registrati con WebAuthn'}
             />
           )}
 
@@ -580,10 +649,10 @@ const LoginWithShogunReact: React.FC<LoginWithShogunReactProps> = ({
               <Button
                 onClick={handleMetaMaskConnect}
                 fullWidth
-                text={isMetaMaskConnected ? 'MetaMask Connesso' : messages.metamaskConnect}
+                text={metamaskConnected ? 'MetaMask Connesso' : customMessages.metamaskConnect || 'Connetti MetaMask'}
               />
               
-              {isMetaMaskConnected && (
+              {metamaskConnected && (
                 <div className="bg-white/5 p-3 rounded-lg">
                   <p className="text-sm text-gray-400 mb-2 break-all">
                     Account: {metamaskAddress}
@@ -591,7 +660,7 @@ const LoginWithShogunReact: React.FC<LoginWithShogunReactProps> = ({
                   <Button
                     onClick={handleMetaMaskSignUp}
                     fullWidth
-                    text={messages.metamaskSignup}
+                    text={customMessages.metamaskSignup || 'Registrati con MetaMask'}
                   />
                 </div>
               )}
@@ -600,9 +669,9 @@ const LoginWithShogunReact: React.FC<LoginWithShogunReactProps> = ({
         </div>
       )}
 
-      {errorMessage && (
+      {error && (
         <div className="mt-3 bg-error/10 border border-error/20 text-error text-sm rounded-lg p-3 text-center">
-          {errorMessage}
+          {error}
         </div>
       )}
     </div>

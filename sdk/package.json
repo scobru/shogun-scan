@@ -6,10 +6,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
-    "postbuild": "cp -r src/hedgehog dist/hedgehog",
-    "test": "jest",
-    "build:react": "tsc -p tsconfig.react.json",
-    "build:solid": "tsc -p tsconfig.json"
+    "test": "jest"
   },
   "type": "module",
   "main": "dist/index.js",
