@@ -1,0 +1,52 @@
+{
+  "name": "@shogun/shogun-button",
+  "description": "Shogun connector button",
+  "version": "0.1.0",
+  "files": [
+    "dist",
+    "styles.css"
+  ],
+  "keywords": [
+    "shogun",
+    "wallet",
+    "ethereum",
+    "react",
+    "react-hook",
+    "hooks",
+    "authentication"
+  ],
+  "author": "Shogun",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./styles.css": "./dist/index.css"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
+    "dev": "pnpm build:watch & pnpm typegen:watch",
+    "prepare": "pnpm build",
+    "prebuild": "pnpm typegen",
+    "typecheck": "pnpm tsc --noEmit",
+    "typegen": "tsc --emitDeclarationOnly || true",
+    "typegen:watch": "tsc --emitDeclarationOnly --watch",
+    "postinstall": "yarn link @shogun/shogun-core"
+  },
+  "dependencies": {
+    "prettier": "^3.5.3",
+    "@shogun/shogun-core": "link:../shogun-core"
+  },
+  "peerDependencies": {
+    "ethers": "^6.0.0",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shogun/shogun-button.git",
+    "directory": "packages/shogun-button"
+  }
+}

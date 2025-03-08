@@ -1,8 +1,0 @@
-{
-  "name": "@shogun/relay",
-  "type": "module",
-  "dependencies": {
-    "express": "^4.21.2",
-    "gun": "^0.2020.1240"
-  }
-}

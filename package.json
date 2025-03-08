@@ -3,16 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "relay",
-    "wallet",
-    "messenger",
-    "sdk",
-    "protocol"
+    "shogun-relay",
+    "shogun-wallet",
+    "shogun-protocol",
+    "shogun-core",
+    "shogun-button",
+    "shogun-wallet-app",
+    "shogun-messenger-app",
+    "shogun-task-app"
   ],
   "scripts": {
-    "start-server": "node relay/start.js",
-    "start-messenger": "cd messenger && yarn start",
-    "start-wallet": "cd wallet && yarn dev",
-    "build-sdk": "cd sdk && yarn build"
+    "build-all": "cd shogun-core && yarn build && cd ../shogun-button && yarn build",
+    "start-relay": "node shogun-relay/start.js",
+    "start-messenger": "cd shogun-messenger-app && yarn start",
+    "start-wallet": "cd shogun-wallet-app && yarn dev",
+    "build-sdk": "cd shogun-core && yarn build"
   }
 } 
