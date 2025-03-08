@@ -155,6 +155,7 @@ class GunDB {
    */
   async signUp(username: string, password: string): Promise<any> {
     log("signUp", username, password);
+
     try {
       // Verifica se l'utente esiste già
       const isAvailable = await this.isUsernameAvailable(username);
@@ -166,36 +167,82 @@ class GunDB {
         };
       }
 
-      // Utilizziamo il metodo create di Gun
-      return new Promise((resolve) => {
-        this.gun.user().create(username, password, (ack: any) => {
-          if (ack.err) {
-            log(`Errore durante la creazione dell'utente: ${ack.err}`);
-            resolve({
-              success: false,
-              error: ack.err,
-            });
-          } else {
-            log(`Utente ${username} creato con successo, tentativo di login...`);
+      log("create user", username, password);
+
+      // Utilizziamo il metodo create di Gun con un timeout
+      return new Promise((resolve, reject) => {
+        // Imposta un timeout per evitare blocchi indefiniti
+        const timeout = setTimeout(() => {
+          log(`Timeout raggiunto durante la creazione dell'utente: ${username}`);
+          resolve({
+            success: false,
+            error: "Timeout durante la creazione dell'utente",
+          });
+        }, 10000); // 10 secondi di timeout
+        
+        try {
+          this.gun.user().create(username, password, (ack: any) => {
+            log("create user ack", ack);
             
-            // Dopo la creazione, eseguiamo il login
-            this.gun.user().auth(username, password, (loginAck: any) => {
-              if (loginAck.err) {
-                log(`Errore durante il login post-registrazione: ${loginAck.err}`);
+            if (ack.err) {
+              clearTimeout(timeout);
+              log(`Errore durante la creazione dell'utente: ${ack.err}`);
+              resolve({
+                success: false,
+                error: ack.err,
+              });
+            } else {
+              log(`Utente ${username} creato con successo, tentativo di login...`);
+              
+              // Imposta un nuovo timeout per l'operazione di login
+              const loginTimeout = setTimeout(() => {
+                clearTimeout(timeout); // Cancella il timeout precedente
+                log(`Timeout raggiunto durante il login post-registrazione: ${username}`);
                 resolve({
                   success: false,
-                  error: loginAck.err,
+                  error: "Timeout durante il login post-registrazione",
                 });
-              } else {
-                log("signUp success", loginAck.sea?.pub);
+              }, 10000); // 10 secondi di timeout
+              
+              // Dopo la creazione, eseguiamo il login
+              try {
+                this.gun.user().auth(username, password, (loginAck: any) => {
+                  clearTimeout(loginTimeout);
+                  clearTimeout(timeout);
+                  
+                  if (loginAck.err) {
+                    log(`Errore durante il login post-registrazione: ${loginAck.err}`);
+                    resolve({
+                      success: false,
+                      error: loginAck.err,
+                    });
+                  } else {
+                    log("signUp success", loginAck.sea?.pub);
+                    resolve({
+                      success: true,
+                      userPub: loginAck.sea?.pub,
+                    });
+                  }
+                });
+              } catch (authError) {
+                clearTimeout(loginTimeout);
+                clearTimeout(timeout);
+                log(`Eccezione durante il login post-registrazione: ${authError}`);
                 resolve({
-                  success: true,
-                  userPub: loginAck.sea?.pub,
+                  success: false,
+                  error: authError instanceof Error ? authError.message : "Errore durante il login post-registrazione",
                 });
               }
-            });
-          }
-        });
+            }
+          });
+        } catch (createError) {
+          clearTimeout(timeout);
+          log(`Eccezione durante la creazione dell'utente: ${createError}`);
+          resolve({
+            success: false,
+            error: createError instanceof Error ? createError.message : "Errore durante la creazione dell'utente",
+          });
+        }
       });
     } catch (error) {
       console.error("Errore durante la registrazione:", error);

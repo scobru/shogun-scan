@@ -4,7 +4,7 @@ import { GunDB } from "./gun/gun";
 import { Webauthn } from "./webauthn/webauthn";
 import { MetaMask } from "./connector/metamask";
 import { Stealth } from "./stealth/stealth";
-import { ShogunEventEmitter } from "./events/eventEmitter";
+import { EventEmitter } from "./utils/eventEmitter";
 import { Storage } from "./storage/storage";
 import {
   IShogunSDK,
@@ -46,7 +46,7 @@ export class ShogunSDK implements IShogunSDK {
   public metamask: MetaMask;
   public stealth: Stealth;
   private storage: Storage;
-  private eventEmitter: ShogunEventEmitter;
+  private eventEmitter: EventEmitter;
   private walletManager: WalletManager;
 
   /**
@@ -60,7 +60,7 @@ export class ShogunSDK implements IShogunSDK {
     this.storage = new Storage();
 
     // Inizializza l'emettitore di eventi
-    this.eventEmitter = new ShogunEventEmitter();
+    this.eventEmitter = new EventEmitter();
 
     // Inizializza GunDB con supporto WebSocket
     const gundbConfig = {
@@ -75,13 +75,13 @@ export class ShogunSDK implements IShogunSDK {
     this.gun = this.gundb.getGun();
 
     // Inizializza i moduli
-    this.webauthn = new Webauthn(this.gun); // Passa l'istanza Gun a Webauthn
+    this.webauthn = new Webauthn(); // Passa l'istanza Gun a Webauthn
     this.metamask = new MetaMask();
     this.stealth = new Stealth();
 
     // Inizializza i gestori
     this.walletManager = new WalletManager(this.gundb, this.gun, this.storage);
-    
+
     // Log di inizializzazione completata
     log("ShogunSDK inizializzato con successo");
   }
@@ -92,24 +92,28 @@ export class ShogunSDK implements IShogunSDK {
    */
   isLoggedIn(): boolean {
     const gunLoggedIn = this.gundb.isLoggedIn();
-    log(`Verifica dello stato di autenticazione: Gun=${gunLoggedIn ? 'autenticato' : 'non autenticato'}`);
-    
+    log(
+      `Verifica dello stato di autenticazione: Gun=${gunLoggedIn ? "autenticato" : "non autenticato"}`
+    );
+
     // Se Gun indica che siamo autenticati, restituisci true
     if (gunLoggedIn) {
       return true;
     }
-    
+
     // Verifica anche il localStorage per le credenziali (pair)
     // Questo può aiutare quando Gun non ha completato l'autenticazione ma le credenziali sono presenti
     const gunUser = this.gun.user();
     // @ts-ignore - Accesso a proprietà interna di Gun non completamente tipizzata
     const hasPair = gunUser && gunUser._ && gunUser._.sea;
-    
+
     // Verifica anche localstorage
-    const hasLocalPair = this.storage.getItem('pair');
-    
-    log(`Controlli aggiuntivi: GunUser=${!!gunUser}, GunSea=${!!hasPair}, LocalPair=${!!hasLocalPair}`);
-    
+    const hasLocalPair = this.storage.getItem("pair");
+
+    log(
+      `Controlli aggiuntivi: GunUser=${!!gunUser}, GunSea=${!!hasPair}, LocalPair=${!!hasLocalPair}`
+    );
+
     // Considera autenticato se il user._ contiene sea o se c'è un pair nel localStorage
     return gunLoggedIn || !!hasPair || !!hasLocalPair;
   }
@@ -196,7 +200,6 @@ export class ShogunSDK implements IShogunSDK {
    * @param username - Nome utente
    * @param password - Password
    * @param passwordConfirmation - Conferma password
-   * @param useCleanupIfNeeded - Se effettuare un cleanup in caso di errore
    * @returns Risultato della registrazione
    */
   async signUp(
@@ -224,7 +227,27 @@ export class ShogunSDK implements IShogunSDK {
       }
 
       log(`signUp ${username} ${password}`);
-      const result = await this.gundb.signUp(username, password);
+      
+      // Creazione di un timeout di sicurezza
+      const timeoutPromise = new Promise<SignUpResult>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("Timeout durante la registrazione dopo 15 secondi"));
+        }, 15000); // 15 secondi di timeout
+      });
+      
+      // Esecuzione dell'operazione di registrazione con GunDB
+      const registrationPromise = this.gundb.signUp(username, password);
+      
+      // Utilizzo di Promise.race per gestire il timeout
+      const result = await Promise.race([registrationPromise, timeoutPromise])
+        .catch(error => {
+          logError(`Errore durante la registrazione: ${error.message}`);
+          return {
+            success: false,
+            error: error.message || "Errore durante la registrazione"
+          };
+        });
+      
       log("Result", result);
 
       if (result.success) {
@@ -285,78 +308,52 @@ export class ShogunSDK implements IShogunSDK {
         };
       }
 
-      // Otteniamo le credenziali WebAuthn per l'utente
+      // Verifichiamo che l'utente abbia già delle credenziali WebAuthn salvate
       log(`Recupero credenziali WebAuthn per l'utente: ${username}`);
-      const credentialsData =
-        await this.webauthn.generateCredentials (username,
-          null,
-          true,
-          "WebAuthn"
-        );
+      const storedCredentialsString = this.storage.getItem(
+        `webauthn_credential_${username}`
+      );
 
-      if (!credentialsData || !credentialsData.credentialId) {
-        logError(
-          `Nessuna credenziale WebAuthn trovata per l'utente: ${username}`
-        );
+      if (!storedCredentialsString) {
+        logError(`Nessuna credenziale WebAuthn trovata per l'utente: ${username}`);
         return {
           success: false,
-          error: "Nessuna credenziale WebAuthn trovata per questo utente",
+          error: "Nessuna credenziale WebAuthn trovata per questo utente. Se non hai mai usato WebAuthn, devi prima registrare il tuo dispositivo durante la fase di registrazione.",
         };
       }
 
-      log(`Credenziali WebAuthn recuperate per l'utente: ${username}`);
-
-       // Convertiamo il credentialId in una stringa sicura da usare come password
-       let hashedCredentialId: string;
-       try {
-         // Convertiamo prima l'UUID in una stringa di bytes UTF-8
-         const encoder = new TextEncoder();
-         const credentialIdBytes = encoder.encode(credentialsData.credentialId);
-         
-         // Calcoliamo il digest SHA-256
-         hashedCredentialId = ethers.keccak256(credentialIdBytes);
-         log(`Credential ID convertito con successo in hex: ${hashedCredentialId.slice(0, 10)}...`);
-       } catch (error) {
-         logError(`Errore nella conversione del credentialId: ${error}`);
-         // Fallback: usiamo una stringa derivata deterministicamente
-         const fallbackPassword = `webauthn-${username}-${Date.now()}`;
-         hashedCredentialId = ethers.keccak256(ethers.toUtf8Bytes(fallbackPassword));
-         log(`Utilizzato metodo alternativo per la generazione della password`);
-       }
- 
-       // Salva le informazioni sul device per future autenticazioni
-       try {
-         this.storage.setItem(
-           `webauthn_credential_${username}`,
-           JSON.stringify({
-             credentialId: credentialsData.credentialId,
-             username: username,
-             created: Date.now()
-           })
-         );
-         log(`Credenziali WebAuthn salvate per l'utente: ${username}`);
-       } catch (storageError) {
-         logWarning(`Impossibile salvare le credenziali WebAuthn: ${storageError}`);
-       }
-
-      // Login with the derived password
-      const result = await this.login(username, hashedCredentialId) as AuthResult;
-
-      if (result.success) {
-        log(`Login WebAuthn riuscito per l'utente: ${username}`);
-        this.eventEmitter.emit("auth:login", {
-          username,
-          method: "webauthn",
-          userPub: result.userPub,
-        });
-      } else {
-        logError(
-          `Login WebAuthn fallito per l'utente: ${username}`,
-          result.error
+      try {
+        // Parsiamo le credenziali salvate
+        const storedCredentials = JSON.parse(storedCredentialsString);
+        
+        // Otteniamo le credenziali WebAuthn per l'utente
+        log(`Autenticazione WebAuthn per l'utente: ${username}`);
+        const hashedCredentialId = ethers.keccak256(
+          ethers.toUtf8Bytes(storedCredentials.credentialId)
         );
+        
+        // Effettuiamo direttamente il login con le credenziali salvate
+        const result = await this.login(username, hashedCredentialId);
+        
+        if (result.success) {
+          log(`Login WebAuthn riuscito per l'utente: ${username}`);
+          this.eventEmitter.emit("auth:login", {
+            username,
+            method: "webauthn",
+            userPub: result.userPub,
+          });
+        } else {
+          logError(`Login WebAuthn fallito per l'utente: ${username}`, result.error);
+        }
+        
+        return result;
+      } catch (error) {
+        logError(`Errore nell'elaborazione delle credenziali WebAuthn: ${error}`);
+        return {
+          success: false,
+          error: "Errore durante l'autenticazione WebAuthn",
+        };
       }
-
-      return result;
     } catch (error) {
       logError(
         `Errore durante il login WebAuthn per l'utente: ${username}`,
@@ -364,7 +361,10 @@ export class ShogunSDK implements IShogunSDK {
       );
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Errore durante il login con WebAuthn",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante il login con WebAuthn",
       };
     }
   }
@@ -388,12 +388,12 @@ export class ShogunSDK implements IShogunSDK {
 
       // Creiamo nuove credenziali WebAuthn per l'utente
       log(`Creazione credenziali WebAuthn per l'utente: ${username}`);
-      const credentialsData =
-        await this.webauthn.generateCredentials(username,
-          null,
-          true,
-          "WebAuthn"
-        );
+      const credentialsData = await this.webauthn.generateCredentials(
+        username,
+        null,
+        false,
+        "WebAuthn"
+      );
 
       if (!credentialsData || !credentialsData.credentialId) {
         logError(
@@ -406,22 +406,26 @@ export class ShogunSDK implements IShogunSDK {
       }
 
       log(`Credenziali WebAuthn create per l'utente: ${username}`);
-      
+
       // Convertiamo il credentialId in una stringa sicura da usare come password
       let hashedCredentialId: string;
       try {
         // Convertiamo prima l'UUID in una stringa di bytes UTF-8
         const encoder = new TextEncoder();
         const credentialIdBytes = encoder.encode(credentialsData.credentialId);
-        
+
         // Calcoliamo il digest SHA-256
         hashedCredentialId = ethers.keccak256(credentialIdBytes);
-        log(`Credential ID convertito con successo in hex: ${hashedCredentialId.slice(0, 10)}...`);
+        log(
+          `Credential ID convertito con successo in hex: ${hashedCredentialId.slice(0, 10)}...`
+        );
       } catch (error) {
         logError(`Errore nella conversione del credentialId: ${error}`);
         // Fallback: usiamo una stringa derivata deterministicamente
         const fallbackPassword = `webauthn-${username}-${Date.now()}`;
-        hashedCredentialId = ethers.keccak256(ethers.toUtf8Bytes(fallbackPassword));
+        hashedCredentialId = ethers.keccak256(
+          ethers.toUtf8Bytes(fallbackPassword)
+        );
         log(`Utilizzato metodo alternativo per la generazione della password`);
       }
 
@@ -432,15 +436,17 @@ export class ShogunSDK implements IShogunSDK {
           JSON.stringify({
             credentialId: credentialsData.credentialId,
             username: username,
-            created: Date.now()
+            created: Date.now(),
           })
         );
         log(`Credenziali WebAuthn salvate per l'utente: ${username}`);
       } catch (storageError) {
-        logWarning(`Impossibile salvare le credenziali WebAuthn: ${storageError}`);
+        logWarning(
+          `Impossibile salvare le credenziali WebAuthn: ${storageError}`
+        );
       }
 
-      // Registrazione utente
+      // Login with the derived password
       const result = await this.signUp(username, hashedCredentialId);
 
       if (result.success) {
@@ -451,10 +457,31 @@ export class ShogunSDK implements IShogunSDK {
           userPub: result.userPub,
         });
       } else {
-        logError(
-          `Registrazione WebAuthn fallita per l'utente: ${username}`,
-          result.error
-        );
+        // Se l'utente esiste già, proviamo a fare login direttamente
+        if (result.error === "User already exists") {
+          log(`L'utente ${username} esiste già, provo a fare login con WebAuthn`);
+          
+          // Tentiamo il login con le credenziali appena create
+          const loginResult = await this.login(username, hashedCredentialId);
+          
+          if (loginResult.success) {
+            log(`Login WebAuthn riuscito per l'utente esistente: ${username}`);
+            this.eventEmitter.emit("auth:login", {
+              username,
+              method: "webauthn",
+              userPub: loginResult.userPub,
+            });
+            
+            // Restituiamo un risultato di successo ma con un flag che indica che era un utente esistente
+            return {
+              success: true,
+              userPub: loginResult.userPub,
+              error: "Utente già esistente, login effettuato con successo"
+            };
+          }
+        }
+        
+        logError(`Registrazione WebAuthn fallita per l'utente: ${username}`, result.error);
       }
 
       return result;
@@ -465,9 +492,10 @@ export class ShogunSDK implements IShogunSDK {
       );
       return {
         success: false,
-        error: error instanceof Error 
-          ? error.message 
-          : "Errore durante la registrazione con WebAuthn",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Errore durante la registrazione con WebAuthn",
       };
     }
   }
@@ -492,27 +520,38 @@ export class ShogunSDK implements IShogunSDK {
       );
 
       // Esegui il login con le credenziali
-      const result = await this.login(credentials.username, credentials.password);
+      const result = await this.login(
+        credentials.username,
+        credentials.password
+      );
 
       if (result.success) {
-        log(`Login con MetaMask completato con successo per l'indirizzo: ${address}`);
-        
+        log(
+          `Login con MetaMask completato con successo per l'indirizzo: ${address}`
+        );
+
         // Forza la creazione del wallet
         try {
           // Resetta il main wallet per assicurarsi che venga rigenerato
           this.walletManager.resetMainWallet();
-          
+
           // Ottieni il main wallet
           const wallet = this.getMainWallet();
           if (wallet) {
-            log(`Wallet creato con successo per l'indirizzo MetaMask: ${address}`);
+            log(
+              `Wallet creato con successo per l'indirizzo MetaMask: ${address}`
+            );
             log(`Indirizzo wallet: ${wallet.address}`);
           } else {
-            log(`Impossibile creare il wallet per l'indirizzo MetaMask: ${address}`);
+            log(
+              `Impossibile creare il wallet per l'indirizzo MetaMask: ${address}`
+            );
           }
         } catch (walletError: any) {
           // Non far fallire il login se c'è un problema con il wallet
-          logError(`Errore nella creazione del wallet per MetaMask: ${walletError.message || walletError}`);
+          logError(
+            `Errore nella creazione del wallet per MetaMask: ${walletError.message || walletError}`
+          );
         }
 
         // Emetti l'evento di login
@@ -560,22 +599,31 @@ export class ShogunSDK implements IShogunSDK {
       );
 
       // Qui dovremmo andare direttamente alla registrazione
-      const result = await this.signUp(credentials.username, credentials.password);
+      const result = await this.signUp(
+        credentials.username,
+        credentials.password
+      );
 
       if (result.success) {
-        log(`Registrazione con MetaMask completata con successo per: ${address}`);
-        
+        log(
+          `Registrazione con MetaMask completata con successo per: ${address}`
+        );
+
         // Per login dopo registrazione
         try {
           // Ottieni il main wallet
           this.walletManager.resetMainWallet();
           const wallet = this.getMainWallet();
           if (wallet) {
-            log(`Wallet creato con successo per l'indirizzo MetaMask: ${address}`);
+            log(
+              `Wallet creato con successo per l'indirizzo MetaMask: ${address}`
+            );
             log(`Indirizzo wallet: ${wallet.address}`);
           }
         } catch (walletError: any) {
-          logError(`Errore nella creazione del wallet per MetaMask: ${walletError.message || walletError}`);
+          logError(
+            `Errore nella creazione del wallet per MetaMask: ${walletError.message || walletError}`
+          );
         }
 
         // Emettiamo l'evento di registrazione
@@ -590,7 +638,9 @@ export class ShogunSDK implements IShogunSDK {
           username: credentials.username,
         };
       } else {
-        logError(`Registrazione con MetaMask fallita per l'indirizzo: ${address}: ${result.error}`);
+        logError(
+          `Registrazione con MetaMask fallita per l'indirizzo: ${address}: ${result.error}`
+        );
         return {
           success: false,
           error: result.error || "Errore durante la registrazione con MetaMask",
@@ -674,29 +724,6 @@ export class ShogunSDK implements IShogunSDK {
   }
 
   /**
-   * Cripta un wallet
-   * @param wallet - Wallet da criptare
-   * @param password - Password per la crittografia
-   * @returns JSON del wallet criptato
-   */
-  async encryptWallet(
-    wallet: ethers.Wallet,
-    password: string
-  ): Promise<string> {
-    return this.walletManager.encryptWallet(wallet, password);
-  }
-
-  /**
-   * Decripta un wallet
-   * @param json - JSON del wallet criptato
-   * @param password - Password per la decrittografia
-   * @returns Wallet decriptato
-   */
-  async decryptWallet(json: string, password: string): Promise<ethers.Wallet> {
-    return this.walletManager.decryptWallet(json, password);
-  }
-
-  /**
    * Firma una transazione
    * @param wallet - Wallet per la firma
    * @param toAddress - Indirizzo destinatario
@@ -710,221 +737,6 @@ export class ShogunSDK implements IShogunSDK {
   ): Promise<string> {
     return this.walletManager.signTransaction(wallet, toAddress, value);
   }
-
-
-  /**
-   * Ottiene lo stato di autenticazione in modo sincrono
-   * @returns Stato di autenticazione
-   */
-  getAuthStateSync(): { gunLoggedIn: boolean; isPending: boolean } {
-    const gunLoggedIn = this.isLoggedIn();
-    const pending = false; // Non gestiamo più lo stato pending in questo modo
-    
-    log(`Stato di autenticazione: ${JSON.stringify({ gunLoggedIn, isPending: pending })}`);
-    
-    return {
-      gunLoggedIn,
-      isPending: pending,
-    };
-  }
-
-  /**
-   * Crea credenziali WebAuthn integrate con GunDB
-   * @param username - Nome utente
-   * @returns Promise con le credenziali create
-   */
-  async createWebAuthnGunCredential(username: string): Promise<AuthResult> {
-    try {
-      log(`Creazione credenziale WebAuthn-Gun per l'utente: ${username}`);
-
-      if (!username) {
-        logError("Username richiesto per la creazione della credenziale WebAuthn-Gun");
-        return {
-          success: false,
-          error: "Username richiesto",
-        };
-      }
-
-      const result = await this.webauthn.createGunCredential(username);
-      
-      if (!result.credential) {
-        logError(`Impossibile creare la credenziale WebAuthn-Gun per l'utente: ${username}`);
-        return {
-          success: false,
-          error: "Impossibile creare la credenziale WebAuthn",
-        };
-      }
-      
-      log(`Credenziale WebAuthn-Gun creata per l'utente: ${username}, pub: ${result.pub.substring(0, 10)}...`);
-      
-      // Salva la credenziale nel localStorage per future interazioni
-      this.storage.setItem(`webauthn_gun_pub_${username}`, result.pub);
-      
-      return {
-        success: true,
-        userPub: result.pub,
-        username,
-      };
-    } catch (error) {
-      logError(`Errore durante la creazione della credenziale WebAuthn-Gun per l'utente: ${username}`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto",
-      };
-    }
-  }
-  
-  /**
-   * Autentica un utente con WebAuthn direttamente con GunDB
-   * @param username - Nome utente
-   * @returns Promise con il risultato dell'autenticazione
-   */
-  async authenticateWithWebAuthnGun(username: string): Promise<AuthResult> {
-    try {
-      log(`Richiesta autenticazione WebAuthn-Gun per l'utente: ${username}`);
-
-      if (!username) {
-        logError("Username richiesto per l'autenticazione WebAuthn-Gun");
-        return {
-          success: false,
-          error: "Username richiesto",
-        };
-      }
-
-      const result = await this.webauthn.authenticateWithGun(username);
-      
-      if (!result.success) {
-        logError(`Autenticazione WebAuthn-Gun fallita per l'utente: ${username}`, result.error);
-        return {
-          success: false,
-          error: result.error || "Autenticazione fallita",
-        };
-      }
-      
-      log(`Autenticazione WebAuthn-Gun completata per l'utente: ${username}, pub: ${result.pub?.substring(0, 10)}...`);
-      
-      // Emetti l'evento di login
-      this.eventEmitter.emit("auth:login", {
-        username,
-        method: "webauthn",
-        userPub: result.pub,
-      });
-      
-      return {
-        success: true,
-        userPub: result.pub,
-        username,
-      };
-    } catch (error) {
-      logError(`Errore durante l'autenticazione WebAuthn-Gun per l'utente: ${username}`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto",
-      };
-    }
-  }
-  
-  /**
-   * Salva dati su GunDB utilizzando l'autenticazione WebAuthn
-   * @param path - Percorso Gun
-   * @param data - Dati da salvare
-   * @param username - Nome utente
-   * @returns Promise con il risultato dell'operazione
-   */
-  async putToGunWithWebAuthn(path: string, data: any, username: string): Promise<{
-    success: boolean;
-    error?: string;
-  }> {
-    try {
-      log(`Salvataggio dati con WebAuthn-Gun per l'utente: ${username}, path: ${path}`);
-
-      if (!username) {
-        logError("Username richiesto per il salvataggio con WebAuthn-Gun");
-        return {
-          success: false,
-          error: "Username richiesto",
-        };
-      }
-
-      // Autentica l'utente
-      const authResult = await this.webauthn.authenticateWithGun(username);
-      
-      if (!authResult.success || !authResult.authenticator) {
-        logError(`Autenticazione WebAuthn-Gun fallita per l'utente: ${username}`, authResult.error);
-        return {
-          success: false,
-          error: authResult.error || "Autenticazione fallita",
-        };
-      }
-      
-      // Salva i dati
-      await this.webauthn.putToGun(path, data, authResult.authenticator);
-      
-      log(`Dati salvati con successo con WebAuthn-Gun per l'utente: ${username}, path: ${path}`);
-      
-      return {
-        success: true,
-      };
-    } catch (error) {
-      logError(`Errore durante il salvataggio con WebAuthn-Gun per l'utente: ${username}`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto",
-      };
-    }
-  }
-  
-  /**
-   * Firma dati con WebAuthn
-   * @param data - Dati da firmare
-   * @param username - Nome utente
-   * @returns Promise con la firma
-   */
-  async signDataWithWebAuthn(data: any, username: string): Promise<{
-    success: boolean;
-    signature?: any;
-    error?: string;
-  }> {
-    try {
-      log(`Firma dati con WebAuthn per l'utente: ${username}`);
-
-      if (!username) {
-        logError("Username richiesto per la firma con WebAuthn");
-        return {
-          success: false,
-          error: "Username richiesto",
-        };
-      }
-
-      // Autentica l'utente
-      const authResult = await this.webauthn.authenticateWithGun(username);
-      
-      if (!authResult.success || !authResult.authenticator) {
-        logError(`Autenticazione WebAuthn fallita per l'utente: ${username}`, authResult.error);
-        return {
-          success: false,
-          error: authResult.error || "Autenticazione fallita",
-        };
-      }
-      
-      // Firma i dati
-      const signature = await this.webauthn.signData(data, authResult.authenticator);
-      
-      log(`Dati firmati con successo con WebAuthn per l'utente: ${username}`);
-      
-      return {
-        success: true,
-        signature,
-      };
-    } catch (error) {
-      logError(`Errore durante la firma con WebAuthn per l'utente: ${username}`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto",
-      };
-    }
-  }
-
 }
 
 // Esporta la classe principale

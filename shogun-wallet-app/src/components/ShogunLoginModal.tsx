@@ -169,7 +169,15 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
         
         console.log("Tentativo di login con WebAuthn per", username);
         const result = await loginWithWebAuthn(username);
-        if (!result.success) {
+        if (result.success) {
+          console.log("Login con WebAuthn completato con successo:", result);
+          // Chiamata esplicita al callback di successo
+          onLoginSuccess && onLoginSuccess({
+            userPub: result.userPub || "",
+            username,
+            authMethod: "webauthn"
+          });
+        } else {
           setError(result.error || 'Login con WebAuthn fallito');
           setDebugInfo(JSON.stringify(result, null, 2));
         }
@@ -182,9 +190,34 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
         
         console.log("Tentativo di registrazione con WebAuthn per", username);
         const result = await signUpWithWebAuthn(username);
-        if (!result.success) {
-          setError(result.error || 'Registrazione con WebAuthn fallita');
-          setDebugInfo(JSON.stringify(result, null, 2));
+        if (result.success) {
+          console.log("Registrazione con WebAuthn completata con successo:", result);
+          // Chiamata esplicita al callback di successo
+          onSignupSuccess && onSignupSuccess({
+            userPub: result.userPub || "",
+            username,
+            authMethod: "webauthn"
+          });
+        } else {
+          // Messaggio personalizzato per il caso "User already exists"
+          if (result.error === 'User already exists') {
+            setError('Questo username è già registrato. Se sei tu, per favore utilizza il login invece della registrazione.');
+            setDebugInfo('Utente già esistente nel sistema. Prova ad effettuare il login invece della registrazione.');
+          } 
+          // Caso in cui l'utente esiste già ma siamo riusciti a fare login
+          else if (result.error && result.error.includes('Utente già esistente, login effettuato con successo')) {
+            console.log("Login automatico effettuato per utente esistente:", username);
+            // Trattiamo questo come un successo di login anche se era una registrazione
+            onLoginSuccess && onLoginSuccess({
+              userPub: result.userPub || "",
+              username,
+              authMethod: "webauthn"
+            });
+          }
+          else {
+            setError(result.error || 'Registrazione con WebAuthn fallita');
+            setDebugInfo(JSON.stringify(result, null, 2));
+          }
         }
       }
     } catch (err: any) {

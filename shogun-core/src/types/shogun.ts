@@ -50,8 +50,6 @@ export interface IShogunSDK {
   deriveWallet(index: number): Promise<WalletInfo>;
   signMessage(wallet: ethers.Wallet, message: string | Uint8Array): Promise<string>;
   verifySignature(message: string | Uint8Array, signature: string): string;
-  encryptWallet(wallet: ethers.Wallet, password: string): Promise<string>;
-  decryptWallet(json: string, password: string): Promise<ethers.Wallet>;
   signTransaction(wallet: ethers.Wallet, toAddress: string, value: string): Promise<string>;
 
   // Metodi di utilità

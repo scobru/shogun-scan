@@ -48,8 +48,8 @@ class Webauthn {
 
       import('base64url').then(module => {
         const base64url = module.default;
-        log("X coordinate (32 bytes):", base64url.encode(xCoord));
-        log("Y coordinate (32 bytes):", base64url.encode(yCoord));
+        log("X coordinate (32 bytes):", base64url.encode(xCoord as any));
+        log("Y coordinate (32 bytes):", base64url.encode(yCoord as any));
 
         const pub = `${base64url.encode(xCoord as any)}.${base64url.encode(yCoord as any)}`;
         log("Final pub format:", pub);

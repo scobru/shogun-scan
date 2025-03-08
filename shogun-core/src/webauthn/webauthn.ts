@@ -1,7 +1,3 @@
-// Importazioni esistenti
-// import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
-import { log, logError, logWarning } from "../utils/logger";
-
 // Costanti
 const TIMEOUT_MS = 60000;
 const MIN_USERNAME_LENGTH = 3;
@@ -146,28 +142,11 @@ const generateCredentialsFromSalt = (
   };
 };
 
-// Utility functions per la conversione base64url
-const base64url = {
-  encode: function(buffer: ArrayBuffer): string {
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
-  },
-  decode: function(str: string): string {
-    str = str.replace(/-/g, '+').replace(/_/g, '/');
-    while (str.length % 4) str += '=';
-    return atob(str);
-  }
-};
-
 class Webauthn {
   private rpId: string;
-  private gunInstance: any; // Riferimento a Gun
-  
-  constructor(gunInstance?: any) {
+
+  constructor() {
     this.rpId = this.getRpId();
-    this.gunInstance = gunInstance;
   }
 
   private getRpId(): string {
@@ -239,15 +218,18 @@ class Webauthn {
         );
       }
 
-      if (existingCreds && !isNewDevice) {
-        throw new Error("Username già registrato con WebAuthn");
+      // Caso 1: È un nuovo dispositivo ma dobbiamo avere credenziali esistenti
+      if (isNewDevice) {
+        if (!existingCreds) {
+          throw new Error(
+            "Per aggiungere un nuovo dispositivo, devi prima accedere con un dispositivo già registrato"
+          );
+        }
       }
-
-      if (!existingCreds && isNewDevice) {
-        throw new Error(
-          "Username non trovato. Registrati prima come nuovo utente"
-        );
-      }
+      
+      // Nota: rimuoviamo il controllo che impedisce la registrazione quando existingCreds esiste
+      // Questo permette di registrare un utente anche se è già presente nella WebAuthn store locale
+      // ma non è ancora registrato in GunDB (risolve il problema "User already exists" ma nessuna credenziale trovata)
 
       const challenge = generateChallenge(username);
 
@@ -429,312 +411,14 @@ class Webauthn {
     );
   }
 
-  /**
-   * Ottiene le credenziali WebAuthn per un utente
-   * @param username Nome utente
-   * @returns Credenziali WebAuthn o null se non trovate
-   */
-  async getCredentialsForUser(username: string): Promise<any> {
-    try {
-      log(`Cerco credenziali WebAuthn per l'utente: ${username}`);
-
-      // Implementa la logica per recuperare le credenziali WebAuthn
-      // Questo è un esempio minimale, andrà adattato all'implementazione specifica
-
-      // Verifica se l'utente esiste
-      const userCredentials = localStorage.getItem(
-        `webauthn_credentials_${username}`
-      );
-
-      if (!userCredentials) {
-        log(`Nessuna credenziale WebAuthn trovata per l'utente: ${username}`);
-        return null;
-      }
-
-      const credentials = JSON.parse(userCredentials);
-      log(`Credenziali WebAuthn trovate per l'utente: ${username}`);
-
-      return credentials;
-    } catch (error) {
-      logError(
-        `Errore durante il recupero delle credenziali WebAuthn per l'utente: ${username}`,
-        error
-      );
-      return null;
-    }
-  }
-
-  /**
-   * Crea una nuova credenziale WebAuthn integrata con GunDB
-   * @param username - Username dell'utente
-   * @returns Promise con le credenziali create
-   */
-  async createGunCredential(username: string): Promise<{
-    credential: any;
-    pub: string;
-    authenticator: (data: any) => Promise<any>;
-  }> {
-    try {
-      this.validateUsername(username);
-      
-      // Crea una nuova credenziale WebAuthn
-      const credential = await navigator.credentials.create({
-        publicKey: {
-          challenge: getRandomBytes(16),
-          rp: { id: window.location.hostname, name: "Shogun Wallet" },
-          user: {
-            id: new TextEncoder().encode(username),
-            name: username,
-            displayName: username
-          },
-          // Algoritmi compatibili con SEA
-          pubKeyCredParams: [
-            { type: "public-key", alg: -7 },   // ECDSA, P-256
-            { type: "public-key", alg: -25 },  // ECDH, P-256
-            { type: "public-key", alg: -257 }  // RS256
-          ],
-          authenticatorSelection: {
-            userVerification: "preferred"
-          },
-          timeout: 60000,
-          attestation: "none"
-        }
-      });
-      
-      if (!credential) {
-        throw new Error("Impossibile creare la credenziale WebAuthn");
-      }
-      
-      // Estrai la chiave pubblica
-      const response: any = credential?.id;
-      const publicKey = response.getPublicKey();
-      const rawKey = new Uint8Array(publicKey);
-      
-      // Estrai le coordinate X e Y (32 byte ciascuna)
-      const xCoord = rawKey.slice(27, 59);
-      const yCoord = rawKey.slice(59, 91);
-      
-      // Formato della chiave pubblica compatibile con GunDB/SEA
-      const pub = `${base64url.encode(xCoord)}.${base64url.encode(yCoord)}`;
-      
-      // Crea una funzione authenticator per firmare dati
-      const authenticator = async (data: any) => {
-        const challenge = new TextEncoder().encode(
-          typeof data === 'string' ? data : JSON.stringify(data)
-        );
-        
-        const options = {
-          publicKey: {
-            challenge,
-            rpId: window.location.hostname,
-            userVerification: "preferred",
-            allowCredentials: [{
-              type: "public-key",
-              id: credential.id
-            }],
-            timeout: 60000
-          }
-        };
-        
-        const assertion = await navigator.credentials.get(options);
-        return assertion?.id;
-      };
-      
-      // Salva l'associazione username -> pub in Gun
-      if (this.gunInstance) {
-        this.gunInstance.get(`webauthn_${username}`).put({ pub });
-      }
-      
-      return { credential, pub, authenticator };
-    } catch (error) {
-      console.error("Errore nella creazione della credenziale Gun WebAuthn:", error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Autentica un utente con WebAuthn e GunDB
-   * @param username - Username dell'utente
-   * @returns Credenziali per Gun
-   */
-  async authenticateWithGun(username: string): Promise<{
-    success: boolean;
-    authenticator?: (data: any) => Promise<any>;
-    pub?: string;
-    error?: string;
-  }> {
-    try {
-      this.validateUsername(username);
-      
-      if (!this.gunInstance) {
-        throw new Error("Istanza Gun non disponibile");
-      }
-      
-      // Recupera la chiave pubblica salvata per l'utente
-      return new Promise((resolve) => {
-        this.gunInstance.get(`webauthn_${username}`).once(async (data: any) => {
-          if (!data || !data.pub) {
-            resolve({
-              success: false,
-              error: "Nessuna credenziale WebAuthn trovata per questo utente"
-            });
-            return;
-          }
-          
-          try {
-            const pub = data.pub;
-            
-            // Chiedi all'utente di autenticarsi con il dispositivo
-            const credential = await navigator.credentials.get({
-              publicKey: {
-                challenge: getRandomBytes(16),
-                rpId: window.location.hostname,
-                userVerification: "preferred",
-                allowCredentials: [{
-                  type: "public-key",
-                  // Qui avremmo bisogno dell'ID del dispositivo, ma non lo abbiamo salvato
-                  // In un'implementazione completa, dovresti salvare anche l'ID
-                  id: new Uint8Array([1, 2, 3, 4]) // Placeholder
-                }],
-                timeout: 60000
-              }
-            });
-            
-            if (!credential) {
-              resolve({
-                success: false,
-                error: "Autenticazione fallita: nessuna credenziale restituita"
-              });
-              return;
-            }
-            
-            // Crea l'authenticator
-            const authenticator = async (data: any) => {
-              const challenge = new TextEncoder().encode(
-                typeof data === 'string' ? data : JSON.stringify(data)
-              );
-              
-              const options = {
-                publicKey: {
-                  challenge,
-                  rpId: window.location.hostname,
-                  userVerification: "preferred",
-                  allowCredentials: [{
-                    type: "public-key",
-                    id: credential.rawId
-                  }],
-                  timeout: 60000
-                }
-              };
-              
-              const assertion = await navigator.credentials.get(options);
-              return assertion.response;
-            };
-            
-            resolve({
-              success: true,
-              authenticator,
-              pub
-            });
-          } catch (error) {
-            console.error("Errore durante l'autenticazione WebAuthn:", error);
-            resolve({
-              success: false,
-              error: error instanceof Error ? error.message : "Errore sconosciuto"
-            });
-          }
-        });
-      });
-    } catch (error) {
-      console.error("Errore in authenticateWithGun:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto"
-      };
-    }
-  }
-  
-  /**
-   * Firma un dato utilizzando WebAuthn
-   * @param data - Dati da firmare
-   * @param authenticator - Funzione per autenticare e firmare
-   * @returns Promise con la firma
-   */
-  async signData(data: any, authenticator: (data: any) => Promise<any>): Promise<any> {
-    try {
-      // Utilizza SEA.sign se disponibile
-      if (this.gunInstance && this.gunInstance.SEA) {
-        return await this.gunInstance.SEA.sign(data, authenticator);
-      } else {
-        // Fallback: firma direttamente con l'authenticator
-        return await authenticator(data);
-      }
-    } catch (error) {
-      console.error("Errore durante la firma dei dati:", error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Verifica una firma WebAuthn
-   * @param signature - Firma da verificare
-   * @param pub - Chiave pubblica
-   * @returns Promise con i dati verificati o null
-   */
-  async verifySignature(signature: any, pub: string): Promise<any> {
-    try {
-      // Utilizza SEA.verify se disponibile
-      if (this.gunInstance && this.gunInstance.SEA) {
-        return await this.gunInstance.SEA.verify(signature, pub);
-      } else {
-        throw new Error("SEA non disponibile per la verifica");
-      }
-    } catch (error) {
-      console.error("Errore durante la verifica della firma:", error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Salva dati su GunDB utilizzando l'autenticazione WebAuthn
-   * @param path - Percorso Gun
-   * @param data - Dati da salvare
-   * @param authenticator - Funzione per autenticare
-   * @param pub - Chiave pubblica (opzionale, per scrivere nel grafo di un altro utente)
-   * @returns Promise che si risolve quando i dati sono salvati
-   */
-  async putToGun(
-    path: string,
-    data: any,
-    authenticator: (data: any) => Promise<any>,
-    pub?: string
-  ): Promise<void> {
-    try {
-      if (!this.gunInstance) {
-        throw new Error("Istanza Gun non disponibile");
-      }
-      
-      const options = {
-        opt: { authenticator }
-      };
-      
-      if (pub) {
-        (options.opt as any).pub = pub;
-      }
-      
-      await new Promise<void>((resolve, reject) => {
-        this.gunInstance.get(path).put(data, (ack: any) => {
-          if (ack.err) {
-            reject(new Error(ack.err));
-          } else {
-            resolve();
-          }
-        }, options);
-      });
-    } catch (error) {
-      console.error("Errore durante il salvataggio dei dati:", error);
-      throw error;
-    }
+  async sign(data: any) {
+    const signature = await navigator.credentials.get({
+      publicKey: {
+        challenge: new Uint8Array(16),
+        rpId: this.rpId,
+      },
+    });
+    return signature;
   }
 }
 
@@ -745,22 +429,3 @@ if (typeof window !== "undefined") {
 }
 
 export { Webauthn, WebAuthnCredentials, DeviceInfo, CredentialResult };
-
-// Simulazione delle funzioni per consentire la compilazione
-const startRegistration = async (options: any): Promise<any> => {
-  console.warn(
-    "startRegistration è un mock, installare @simplewebauthn/browser per la funzionalità reale"
-  );
-  throw new Error(
-    "Funzionalità non implementata: installare @simplewebauthn/browser"
-  );
-};
-
-const startAuthentication = async (options: any): Promise<any> => {
-  console.warn(
-    "startAuthentication è un mock, installare @simplewebauthn/browser per la funzionalità reale"
-  );
-  throw new Error(
-    "Funzionalità non implementata: installare @simplewebauthn/browser"
-  );
-};
