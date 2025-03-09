@@ -106,6 +106,7 @@ const MOMSection: React.FC<MOMSectionProps> = ({ wallet, address }) => {
     } catch (error: any) {
       console.error('Errore nella pubblicazione del messaggio:', error);
       setError(`Errore nella pubblicazione del messaggio: ${error.message || 'Errore sconosciuto'}`);
+      throw error; // Rilancia l'errore per essere gestito nel componente MessageInput
     } finally {
       setLoading(false);
     }
@@ -215,22 +216,9 @@ const MOMSection: React.FC<MOMSectionProps> = ({ wallet, address }) => {
           }}
         />
         
-        <div className="flex justify-between mt-2">
-          <div>
-            {error && <div className="text-xs text-red-400">{error}</div>}
-            {success && <div className="text-xs text-green-400">{success}</div>}
-          </div>
-          <button
-            onClick={publishMessage}
-            disabled={loading || !newMessage.trim()}
-            className={`px-4 py-2 rounded-md text-white ${
-              loading || !newMessage.trim()
-                ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {loading ? 'Pubblicazione...' : 'Pubblica'}
-          </button>
+        <div className="mt-2">
+          {error && <div className="text-xs text-red-400">{error}</div>}
+          {success && <div className="text-xs text-green-400">{success}</div>}
         </div>
       </div>
       
