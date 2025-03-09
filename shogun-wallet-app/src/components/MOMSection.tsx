@@ -208,6 +208,11 @@ const MOMSection: React.FC<MOMSectionProps> = ({ wallet, address }) => {
           onChange={setNewMessage}
           placeholder="Scrivi il tuo messaggio..."
           rows={3}
+          onSendMessage={async (text) => {
+            // Usa la funzione pubblicaMessaggio esistente
+            await publishMessage();
+            return Promise.resolve();
+          }}
         />
         
         <div className="flex justify-between mt-2">
