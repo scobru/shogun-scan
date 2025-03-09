@@ -26,9 +26,14 @@ interface SignupData {
 interface ShogunLoginModalProps {
   onLoginSuccess?: (data: LoginData) => void;
   onSignupSuccess?: (data: SignupData) => void;
+  onError?: (error: string) => void;
 }
 
-const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onSignupSuccess }) => {
+const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ 
+  onLoginSuccess, 
+  onSignupSuccess,
+  onError
+}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -92,10 +97,12 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
         }
       }
     } catch (error: any) {
-      console.error("Errore durante l'autenticazione:", error);
-      setError(error.message || "Si è verificato un errore durante l'autenticazione");
-    } finally {
+      console.error(`Errore durante ${mode === FormMode.LOGIN ? 'il login' : 'la registrazione'}:`, error);
+      setError(error.message || 'Si è verificato un errore');
       setLoading(false);
+      if (onError) {
+        onError(error.message || 'Si è verificato un errore');
+      }
     }
   };
 
@@ -136,12 +143,13 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
           setDebugInfo(JSON.stringify(result, null, 2));
         }
       }
-    } catch (err: any) {
-      console.error("Errore durante l'autenticazione con MetaMask:", err);
-      setError(err.message || 'Si è verificato un errore con MetaMask');
-      setDebugInfo(err.stack || JSON.stringify(err, null, 2));
-    } finally {
+    } catch (error: any) {
+      console.error("Errore durante il login con MetaMask:", error);
+      setError(error.message || 'Errore durante il login con MetaMask');
       setLoading(false);
+      if (onError) {
+        onError(error.message || 'Errore durante il login con MetaMask');
+      }
     }
   };
 
@@ -211,12 +219,13 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
           }
         }
       }
-    } catch (err: any) {
-      console.error("Errore durante l'autenticazione con WebAuthn:", err);
-      setError(err.message || 'Si è verificato un errore con WebAuthn');
-      setDebugInfo(err.stack || JSON.stringify(err, null, 2));
-    } finally {
+    } catch (error: any) {
+      console.error("Errore durante l'autenticazione WebAuthn:", error);
+      setError(error.message || "Errore durante l'autenticazione WebAuthn");
       setLoading(false);
+      if (onError) {
+        onError(error.message || "Errore durante l'autenticazione WebAuthn");
+      }
     }
   };
 

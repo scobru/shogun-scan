@@ -14,6 +14,8 @@ import {
 import { IGunInstance } from "gun/types/gun";
 import { log, logError, logWarning } from "./utils/logger";
 import { WalletManager } from "./wallet/walletManager";
+import { MOMClient } from "./mom/MOMClient";
+import { MOMCoreOperation, MOMExtendedOperation, MOMDraftMessage, MOMMessage } from "./types/mom";
 import CONFIG from "./config";
 import { ethers } from "ethers";
 
@@ -43,6 +45,7 @@ export class ShogunSDK implements IShogunSDK {
   public webauthn: Webauthn;
   public metamask: MetaMask;
   public stealth: Stealth;
+  public mom: MOMClient;
   private storage: Storage;
   private eventEmitter: EventEmitter;
   private walletManager: WalletManager;
@@ -73,6 +76,15 @@ export class ShogunSDK implements IShogunSDK {
     this.stealth = new Stealth();
 
     this.walletManager = new WalletManager(this.gundb, this.gun, this.storage);
+
+    // Inizializza il client MOM
+    this.mom = new MOMClient({
+      provider: new ethers.JsonRpcProvider(config.rpcUrl || CONFIG.DEFAULT_RPC_URL),
+      gun: this.gun,
+      storageType: config.momStorageType || CONFIG.MOM.DEFAULT_STORAGE,
+      ipfsGateway: config.ipfsGateway,
+      ipfsService: config.ipfsService
+    });
 
     log("ShogunSDK initialized!");
   }
@@ -435,6 +447,9 @@ export class ShogunSDK implements IShogunSDK {
    */
   async loginWithMetaMask(address: string): Promise<AuthResult> {
     try {
+
+      await this.metamask.connectMetaMask();
+
       const credentials = await this.metamask.generateCredentials(address);
 
       this.storage.setItem(
@@ -504,6 +519,8 @@ export class ShogunSDK implements IShogunSDK {
    * @returns Risultato della registrazione
    */
   async signUpWithMetaMask(address: string): Promise<AuthResult> {
+    await this.metamask.connectMetaMask();
+
     try {
       const credentials = await this.metamask.generateCredentials(address);
       this.storage.setItem(
@@ -713,6 +730,45 @@ export class ShogunSDK implements IShogunSDK {
     gunPairImported?: boolean;
   }> {
     return this.walletManager.importAllUserData(backupData, password, options);
+  }
+
+  /**
+   * Pubblica un messaggio secondo lo standard MOM (EIP-2848)
+   * @param wallet Wallet da utilizzare per firmare la transazione
+   * @param message Messaggio da pubblicare
+   * @param operation Operazione da eseguire (default: ADD)
+   * @returns Hash della transazione
+   */
+  async publishMOMMessage(
+    wallet: ethers.Wallet,
+    message: MOMDraftMessage,
+    operation: MOMCoreOperation | MOMExtendedOperation = MOMCoreOperation.ADD
+  ): Promise<string> {
+    return this.mom.publishMessage(wallet, message, operation);
+  }
+  
+  /**
+   * Recupera i messaggi MOM per un indirizzo specifico
+   * @param address Indirizzo di cui recuperare i messaggi
+   * @param fromBlock Blocco di partenza (default: 0)
+   * @param toBlock Blocco di arrivo (default: 'latest')
+   * @returns Lista dei messaggi dell'indirizzo
+   */
+  async getMOMMessages(
+    address: string,
+    fromBlock: number = 0,
+    toBlock: string | number = 'latest'
+  ): Promise<MOMMessage[]> {
+    return this.mom.getMessagesForAddress(address, fromBlock, toBlock);
+  }
+  
+  /**
+   * Recupera i messaggi MOM con il loro contenuto
+   * @param messages Lista dei messaggi
+   * @returns Lista dei messaggi con contenuto
+   */
+  async getMOMMessagesWithContent(messages: MOMMessage[]): Promise<MOMMessage[]> {
+    return this.mom.getMessagesWithContent(messages);
   }
 }
 

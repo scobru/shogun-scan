@@ -20,6 +20,7 @@ export const CONFIG = {
     AUTHENTICATIONS: "Authentications",
     WEBAUTHN: "WebAuthn",
     STEALTH: "Stealth",
+    MOM_MESSAGES: "MOMMessages",
   },
   AUTH: {
     MIN_PASSWORD_LENGTH: 8,
@@ -29,6 +30,12 @@ export const CONFIG = {
   PREFIX: "⚔️ ShogunSDK:",
   PEERS: ["http://localhost:8765/gun"],
   MESSAGE_TO_SIGN: "Access With Shogun",
+  DEFAULT_RPC_URL: "https://eth-mainnet.g.alchemy.com/v2/demo",
+  MOM: {
+    DEFAULT_STORAGE: "gun" as "gun" | "ipfs",
+    IPFS_GATEWAY: "https://ipfs.io/ipfs/",
+    IPFS_SERVICE: "https://ipfs.infura.io:5001/api/v0/add"
+  }
 };
 
 export default CONFIG;

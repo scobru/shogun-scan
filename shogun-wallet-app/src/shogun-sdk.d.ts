@@ -8,6 +8,7 @@ declare module 'shogun-sdk' {
     metamask?: any;
     stealth?: any;
     hedgehog: any;
+    mom?: any; // Nuovo modulo MOM
     
     // Metodi di autenticazione
     handleSignUp: (username: string, password: string, passwordConfirmation: string, options: any) => Promise<any>;
@@ -96,6 +97,23 @@ declare module 'shogun-sdk' {
       walletsImported?: number; 
       gunPairImported?: boolean;
     }>;
+    
+    // Nuovi metodi MOM (My Own Messages)
+    publishMOMMessage: (
+      wallet: any, 
+      message: MOMDraftMessage,
+      operation?: MOMOperation
+    ) => Promise<string>;
+    
+    getMOMMessages: (
+      address: string,
+      fromBlock?: number,
+      toBlock?: string | number
+    ) => Promise<MOMMessage[]>;
+    
+    getMOMMessagesWithContent: (
+      messages: MOMMessage[]
+    ) => Promise<MOMMessage[]>;
   }
 
   export interface StealthKeyPair {
@@ -119,6 +137,30 @@ declare module 'shogun-sdk' {
     signMessage: (message: string | Uint8Array) => Promise<string>;
   }
 
+  // Tipi per MOM
+  export type MOMOperation = number;
+  
+  export interface MOMDraftMessage {
+    content: string;
+    contentType?: string;
+    replyTo?: string;
+    references?: string[];
+  }
+  
+  export interface MOMMessage {
+    multihash: string;
+    content?: string;
+    contentType?: string;
+    transactionHash: string;
+    author: string;
+    timestamp: number;
+    replies?: MOMMessage[];
+    replyTo?: string;
+    endorsed?: boolean;
+    disapproved?: boolean;
+    references?: string[];
+  }
+  
   export class ShogunSDK {
     constructor(options: { peers: string[] });
   }

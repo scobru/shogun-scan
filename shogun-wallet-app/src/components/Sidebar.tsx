@@ -10,6 +10,8 @@ interface SidebarProps {
   onSelectAddress: (address: string) => Promise<void>;
   onCreateWallet: () => Promise<WalletInfo | null>;
   onLogout: () => void;
+  activeSection: string;
+  onSectionChange: (section: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -19,12 +21,42 @@ const Sidebar: React.FC<SidebarProps> = ({
   selectedAddress,
   onSelectAddress,
   onCreateWallet,
-  onLogout
+  onLogout,
+  activeSection,
+  onSectionChange
 }) => {
+  // Sezioni dell'app
+  const sections = [
+    { id: "wallet", name: "Wallet", icon: "💰" },
+    { id: "stealth", name: "Stealth", icon: "🕶️" },
+    { id: "mom", name: "Messaggi", icon: "💬" } // Nuova sezione MOM
+  ];
+
   return (
     <div className="w-[250px] bg-gray-800 p-4 flex flex-col border-r border-gray-700">
       <div className="mb-6">
         <h2 className="text-white text-xl font-semibold">Shogun Wallet</h2>
+      </div>
+      
+      {/* Menu di navigazione */}
+      <div className="mb-6">
+        <h3 className="text-gray-400 text-sm font-medium mb-2">Menu</h3>
+        <nav className="space-y-1">
+          {sections.map(section => (
+            <div
+              key={section.id}
+              onClick={() => onSectionChange(section.id)}
+              className={`p-2 rounded cursor-pointer transition-colors flex items-center space-x-2 ${
+                activeSection === section.id
+                  ? 'bg-primary text-white'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>{section.icon}</span>
+              <span>{section.name}</span>
+            </div>
+          ))}
+        </nav>
       </div>
       
       <div className="mb-4">

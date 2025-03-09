@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import {  shogunConnector  } from "@shogun/shogun-button";
 import "@shogun/shogun-button/styles.css";
 import ShogunLoginModal from "./components/ShogunLoginModal"; 
+import Sidebar from "./components/Sidebar";
+import MOMSection from "./components/MOMSection";
 import { rpcOptions } from "./constants";
 import { WalletInfo, AuthMethod,  StealthKeyPair } from "./types";
 import "./App.css";
@@ -172,6 +174,13 @@ const App: React.FC = () => {
   const loadWallets = async () => {
     try {
       setLoading(true);
+      setErrorMessage("");
+      
+      if (!sdk) {
+        setErrorMessage("SDK non inizializzato");
+        setLoading(false);
+        return;
+      }
       
       // Utilizziamo il nuovo metodo loadWallets dell'SDK
       const wallets = await sdk.loadWallets();
@@ -208,6 +217,12 @@ const App: React.FC = () => {
     try {
       setLoading(true);
       setErrorMessage("");
+      
+      if (!sdk) {
+        setErrorMessage("SDK non inizializzato");
+        setLoading(false);
+        return null;
+      }
       
       // Verifica se l'utente è autenticato
       if (!sdk.isLoggedIn()) {
@@ -1078,9 +1093,18 @@ const App: React.FC = () => {
     }
   };
 
-  // Funzione per impostare la sezione attiva
+  // Funzione per cambiare sezione
   const setSection = (section: string) => {
     setActiveSection(section);
+    
+    // Se stiamo cambiando sezione, chiudi qualsiasi azione attiva
+    if (activeAction) {
+      setActiveAction(null);
+      setShowSendForm(false);
+      setShowSignBox(false);
+      setShowStealthBox(false);
+      setShowStealthOpener(false);
+    }
   };
 
   useEffect(() => {
@@ -1604,110 +1628,16 @@ const App: React.FC = () => {
     );
   };
 
-  return (
-    <div className="flex h-screen bg-gray-900 text-white">
-      {/* Sidebar */}
-      <aside className="w-1/4 bg-gray-800 p-4 border-r border-gray-700 flex flex-col">
-        <h1 className="text-xl font-bold mb-8">Shogun Wallet</h1>
-        
-        {/* Menu di navigazione */}
-        <nav className="flex flex-col space-y-2 mb-6">
-          <button 
-            className={`p-3 rounded flex items-center ${
-              activeSection === "wallet" ? "bg-blue-600" : "hover:bg-gray-700"
-            }`}
-            onClick={() => setSection("wallet")}
-          >
-            <span className="material-icons mr-2">💲</span> 
-            Wallet
-          </button>
-          
-          <button 
-            className={`p-3 rounded flex items-center ${
-              activeSection === "stealth" ? "bg-blue-600" : "hover:bg-gray-700"
-            }`}
-            onClick={() => setSection("stealth")}
-          >
-            <span className="material-icons mr-2">🥷</span> 
-            Stealth
-          </button>
-          
-          <button 
-            className={`p-3 rounded flex items-center ${
-              activeSection === "settings" ? "bg-blue-600" : "hover:bg-gray-700"
-            }`}
-            onClick={() => setSection("settings")}
-          >
-            <span className="material-icons mr-2">⚙️</span> 
-            Impostazioni
-          </button>
-        </nav>
-        
-        {/* Wallet list solo nella sezione wallet */}
-        {activeSection === "wallet" && (
-          <>
-            <h2 className="text-md font-semibold mt-4 mb-2">I tuoi wallet</h2>
-            <div className="space-y-2 mb-4 overflow-y-auto flex-grow">
-              {derivedWallets.map((wallet, index) => (
-                <button
-                  key={wallet.address}
-                  className={`w-full p-2 text-left rounded ${
-                    selectedAddress === wallet.address
-                      ? "bg-blue-700"
-                      : "bg-gray-700"
-                  }`}
-                  onClick={() => selectAddress(wallet.address)}
-                >
-                  <div>Wallet {index + 1}</div>
-                  <div className="text-xs text-gray-300 truncate">
-                    {wallet.address.substring(0, 10)}...{wallet.address.substring(38)}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <button
-              className="w-full mt-2 p-3 bg-blue-600 rounded hover:bg-blue-700"
-              onClick={createNewWallet}
-            >
-              Nuovo Wallet
-            </button>
-          </>
-        )}
-        
-        {/* Rete selection */}
-        <div className="mt-auto">
-          <h2 className="text-md font-semibold mb-2">Rete</h2>
-          <select
-            className="w-full p-2 bg-gray-700 rounded mb-4"
-            value={selectedRpc}
-            onChange={handleRpcChange}
-          >
-            {rpcOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          
-          <button
-            className="w-full p-3 bg-red-600 rounded hover:bg-red-700"
-            onClick={logout}
-          >
-            Logout
-          </button>
-        </div>
-      </aside>
+  // Renderizza la sezione principale in base alla sezione attiva
+  const renderMainContent = () => {
+    // Ottieni il wallet selezionato
+    const selectedWallet = derivedWallets.find(
+      (w) => w.address === selectedAddress
+    );
 
-      {/* Main content area */}
-      <main className="flex-1 p-6 overflow-y-auto">
-        {errorMessage && (
-          <div className="w-full bg-red-700 p-3 rounded mb-4">
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Sezione Wallet */}
-        {activeSection === "wallet" && (
+    switch (activeSection) {
+      case "wallet":
+        return (
           <>
             <div className="mb-6">
               <h2 className="text-2xl font-bold mb-2">Il tuo wallet</h2>
@@ -1860,10 +1790,9 @@ const App: React.FC = () => {
               </div>
             )}
           </>
-        )}
-        
-        {/* Sezione Stealth */}
-        {activeSection === "stealth" && (
+        );
+      case "stealth":
+        return (
           <div>
             <h2 className="text-2xl font-bold mb-6">Indirizzi Stealth</h2>
             
@@ -2041,152 +1970,78 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
-        
-        {/* Sezione Impostazioni - semplificata senza mnemonic */}
-        {activeSection === "settings" && (
-          <div>
-            <h2 className="text-2xl font-bold mb-6">Impostazioni</h2>
-            
-            <div className="bg-gray-800 rounded-lg p-6 mb-4">
-              <h3 className="text-xl font-bold mb-4">Informazioni Utente</h3>
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Username</label>
-                <div className="p-3 bg-gray-700 rounded">
-                  {username || "Non disponibile"}
-                </div>
+        );
+      case "mom":
+        return (
+          <div className="p-6 flex-grow overflow-auto">
+            {selectedWallet ? (
+              <MOMSection 
+                wallet={selectedWallet.wallet}
+                address={selectedWallet.address}
+              />
+            ) : (
+              <div className="text-center text-gray-400 py-8">
+                Seleziona un wallet dalla sidebar per visualizzare i messaggi.
               </div>
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Chiave Pubblica</label>
-                <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
-                  {userpub || "Non disponibile"}
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Metodo di Autenticazione</label>
-                <div className="p-3 bg-gray-700 rounded">
-                  Standard
-                </div>
-              </div>
-            </div>
-            
-            {/* Sezione Esportazione e Ripristino */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-4">
-              <h3 className="text-xl font-bold mb-4">Esportazione Dati</h3>
-              <p className="text-gray-400 mb-4">
-                Esporta i tuoi dati per backup o migrazione. Nota che l'esportazione di chiavi private è rischiosa.
-                Assicurati di proteggere sempre i tuoi dati con una password forte.
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <button
-                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
-                  onClick={handleExportMnemonic}
-                >
-                  <span className="material-icons mr-2">description</span>
-                  Esporta Mnemonica
-                </button>
-                
-                <button
-                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
-                  onClick={handleExportWallets}
-                >
-                  <span className="material-icons mr-2">vpn_key</span>
-                  Esporta Wallet Keys
-                </button>
-                
-                <button
-                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
-                  onClick={handleExportGunPair}
-                >
-                  <span className="material-icons mr-2">security</span>
-                  Esporta Gun Pair
-                </button>
-                
-                <button
-                  className="p-4 bg-purple-600 hover:bg-purple-700 rounded flex items-center justify-center"
-                  onClick={handleExportAllData}
-                >
-                  <span className="material-icons mr-2">backup</span>
-                  Backup Completo
-                </button>
-              </div>
-              
-              <div className="p-4 bg-yellow-800 bg-opacity-30 rounded">
-                <p className="text-yellow-300 text-sm">
-                  <span className="material-icons align-text-bottom mr-1 text-sm">warning</span>
-                  Attenzione: Le chiavi private e la mnemonica permettono l'accesso completo ai tuoi wallet.
-                  Non condividere mai questi dati e conservali in modo sicuro.
-                </p>
-              </div>
-            </div>
-            
-            {/* Nuova Sezione Ripristino */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-4">
-              <h3 className="text-xl font-bold mb-4">Ripristino Dati</h3>
-              <p className="text-gray-400 mb-4">
-                Ripristina i tuoi dati da un backup precedente. Puoi importare una mnemonica, 
-                chiavi wallet, pair Gun o un backup completo.
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <button
-                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
-                  onClick={handleImportMnemonic}
-                >
-                  <span className="material-icons mr-2">settings_backup_restore</span>
-                  Importa Mnemonica
-                </button>
-                
-                <button
-                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
-                  onClick={handleImportWallets}
-                >
-                  <span className="material-icons mr-2">vpn_key</span>
-                  Importa Wallet Keys
-                </button>
-                
-                <button
-                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
-                  onClick={handleImportGunPair}
-                >
-                  <span className="material-icons mr-2">security</span>
-                  Importa Gun Pair
-                </button>
-                
-                <button
-                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
-                  onClick={handleImportAllData}
-                >
-                  <span className="material-icons mr-2">restore</span>
-                  Ripristina Backup
-                </button>
-              </div>
-              
-              <div className="p-4 bg-blue-800 bg-opacity-30 rounded">
-                <p className="text-blue-300 text-sm">
-                  <span className="material-icons align-text-bottom mr-1 text-sm">info</span>
-                  Suggerimento: Per ripristinare un backup completo, avrai bisogno della password
-                  utilizzata durante l'esportazione. Dopo il ripristino del Gun Pair, effettua logout e login.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
-        )}
-      </main>
-      
-      {/* Modal di login se non autenticato */}
-      {showLoginModal && (
-        <ShogunLoginModal
-          onLoginSuccess={handleLoginSuccess}
-          onSignupSuccess={handleSignupSuccess}
-        />
+        );
+      default:
+        return (
+          <div className="text-center text-gray-400 py-8">
+            Sezione non disponibile.
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white flex">
+      {signedIn ? (
+        <>
+          <Sidebar
+            selectedRpc={selectedRpc}
+            onRpcChange={handleRpcChange}
+            wallets={derivedWallets}
+            selectedAddress={selectedAddress || ""}
+            onSelectAddress={selectAddress}
+            onCreateWallet={createNewWallet}
+            onLogout={logout}
+            activeSection={activeSection}
+            onSectionChange={setSection}
+          />
+          <div className="flex-grow flex flex-col min-h-screen">
+            {renderMainContent()}
+          </div>
+        </>
+      ) : (
+        // Schermata di login
+        <div className="flex flex-col items-center justify-center min-h-screen w-full">
+          {!sdkInitialized ? (
+            <div className="text-center bg-red-900 p-6 rounded-lg max-w-lg">
+              <h2 className="text-xl font-bold mb-4">Errore di inizializzazione</h2>
+              <p className="mb-4">{errorMessage || "Impossibile inizializzare l'SDK Shogun. Ricarica la pagina o verifica la tua connessione."}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-white"
+              >
+                Riprova
+              </button>
+            </div>
+          ) : (
+            <ShogunLoginModal
+              onLoginSuccess={handleLoginSuccess}
+              onSignupSuccess={handleSignupSuccess}
+              onError={handleAuthError}
+            />
+          )}
+        </div>
       )}
       
-      {/* Aggiungi il modal per la password */}
+      {/* Modal per le password */}
       {renderPasswordModal()}
       
-      {/* Aggiungi il modal per l'importazione */}
+      {/* Modal per l'importazione */}
       {renderImportModal()}
     </div>
   );

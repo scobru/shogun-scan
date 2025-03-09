@@ -1,22 +1,55 @@
 import React, { useState } from 'react';
 
 interface MessageInputProps {
-  onSendMessage: (text: string) => Promise<void>;
+  id?: string;                                   // ID per il riferimento DOM
+  value?: string;                                // Valore controllato dal componente padre
+  onChange?: (value: string) => void;            // Funzione per aggiornare il valore controllato
+  onSendMessage?: (text: string) => Promise<void>; // Funzione chiamata quando si invia il messaggio
+  placeholder?: string;                          // Placeholder per l'input
+  rows?: number;                                 // Numero di righe per la textarea
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage }) => {
-  const [message, setMessage] = useState('');
+const MessageInput: React.FC<MessageInputProps> = ({ 
+  id,
+  value,
+  onChange,
+  onSendMessage,
+  placeholder = "Scrivi un messaggio...",
+  rows = 1
+}) => {
+  // Usa lo stato interno solo quando non c'è un valore controllato dall'esterno
+  const [internalMessage, setInternalMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  
+  // Determina se usare il valore interno o quello controllato dall'esterno
+  const isControlled = value !== undefined && onChange !== undefined;
+  const message = isControlled ? value : internalMessage;
+  
+  // Gestisce il cambiamento del messaggio
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isControlled) {
+      onChange!(e.target.value);
+    } else {
+      setInternalMessage(e.target.value);
+    }
+  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Verifiche più stringenti
-    if (!message.trim() || sending) return;
+    // Verifica che ci sia un messaggio e una funzione onSendMessage
+    if (!message.trim() || sending || !onSendMessage) return;
     
     const messageToSend = message; // Conserva il messaggio originale
-    setMessage(''); // Pulisci l'input immediatamente per un feedback più rapido
+    
+    // Pulisci l'input immediatamente per un feedback più rapido
+    if (!isControlled) {
+      setInternalMessage('');
+    } else {
+      onChange!('');
+    }
+    
     setSending(true);
     setError('');
     
@@ -25,7 +58,13 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage }) => {
       console.error('Timeout durante l\'invio del messaggio');
       setSending(false);
       setError('Timeout durante l\'invio del messaggio');
-      setMessage(messageToSend); // Ripristina il messaggio
+      
+      // Ripristina il messaggio
+      if (!isControlled) {
+        setInternalMessage(messageToSend);
+      } else {
+        onChange!(messageToSend);
+      }
     }, 20000); // 20 secondi di timeout
     
     try {
@@ -35,7 +74,14 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage }) => {
     } catch (err: any) {
       console.error('Errore invio messaggio:', err);
       setError(err.message || 'Errore nell\'invio del messaggio');
-      setMessage(messageToSend); // Ripristina il messaggio originale
+      
+      // Ripristina il messaggio originale
+      if (!isControlled) {
+        setInternalMessage(messageToSend);
+      } else {
+        onChange!(messageToSend);
+      }
+      
       clearTimeout(sendTimeout);
     } finally {
       setSending(false); // Assicurati che lo stato di invio venga reimpostato
@@ -43,41 +89,42 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage }) => {
   };
   
   return (
-    <div className="mt-4">
+    <div className="w-full">
       {error && (
-        <div className="bg-error/10 border border-error/20 text-error text-sm rounded-lg p-2 mb-2">
+        <div className="bg-red-900/30 border border-red-500/30 text-red-300 text-sm rounded-lg p-2 mb-2">
           {error}
         </div>
       )}
       
       <form 
         onSubmit={handleSubmit} 
-        className="bg-card rounded-xl p-2 flex items-center"
+        className="w-full"
       >
-        <input
-          type="text"
-          className="flex-1 bg-transparent border-none outline-none p-2"
-          placeholder={sending ? "Invio in corso..." : "Scrivi un messaggio..."}
+        <textarea
+          id={id}
+          className="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white resize-none outline-none focus:border-blue-500 transition-colors"
+          placeholder={sending ? "Invio in corso..." : placeholder}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={handleMessageChange}
           disabled={sending}
+          rows={rows}
         />
-        <button
-          type="submit"
-          className={`${sending ? 'bg-gray-500' : 'bg-primary'} text-white p-2 rounded-lg hover:bg-primary/80 transition-colors`}
-          disabled={!message.trim() || sending}
-        >
-          {sending ? (
-            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-            </svg>
-          )}
-        </button>
+        
+        {onSendMessage && (
+          <div className="flex justify-end mt-2">
+            <button
+              type="submit"
+              className={`px-4 py-2 rounded ${
+                !message.trim() || sending
+                  ? 'bg-gray-600 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white transition-colors`}
+              disabled={!message.trim() || sending}
+            >
+              {sending ? "Invio..." : "Invia"}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

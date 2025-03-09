@@ -1039,7 +1039,7 @@ export class WalletManager {
               console.log(`[importWalletKeys] Creato wallet singolo da chiave privata: ${wallet.address}`);
             } catch (walletError) {
               console.error("[importWalletKeys] Errore nella creazione del wallet da chiave privata:", walletError);
-              throw new Error(`Chiave privata non valida: ${walletError.message}`);
+              throw new Error(`Chiave privata non valida: ${walletError}`);
             }
           } else {
             throw new Error("Formato non riconosciuto. Fornisci un file JSON valido.");
@@ -1108,7 +1108,7 @@ export class WalletManager {
         }
       } catch (error) {
         console.error(`[importWalletKeys] Errore nel parsing JSON: ${error}`);
-        throw new Error(`Formato JSON non valido o password errata: ${error.message || String(error)}`);
+        throw new Error(`Formato JSON non valido o password errata: ${error || String(error)}`);
       }
       
       if (!Array.isArray(wallets) || wallets.length === 0) {

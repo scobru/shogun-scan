@@ -59,6 +59,13 @@ export interface IShogunSDK {
 }
 
 export interface ShogunSDKConfig {
+  gunPeers?: string[];
+  localStorage?: boolean;
+  sessionStorage?: boolean;
+  rpcUrl?: string;            // URL del provider RPC Ethereum
+  ipfsGateway?: string;       // Gateway IPFS per i download
+  ipfsService?: string;       // Servizio IPFS per gli upload
+  momStorageType?: "gun" | "ipfs"; // Tipo di storage per i messaggi MOM
   peers?: string[];
   gundb?: {
     peers?: string[];
