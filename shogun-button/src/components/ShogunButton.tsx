@@ -338,7 +338,7 @@ export function ShogunButtonProvider({
         throw new Error("WebAuthn non è supportato in questo browser");
       }
 
-      const result = await sdk.registerWithWebAuthn(username);
+      const result = await sdk.signUpWithWebAuthn(username);
       
       if (result.success) {
         const mainWallet = sdk.getMainWallet();

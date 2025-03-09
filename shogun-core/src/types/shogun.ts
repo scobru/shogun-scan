@@ -35,11 +35,13 @@ export interface IShogunSDK {
 
   // Metodi di autenticazione diretti
   login(username: string, password: string): Promise<AuthResult>;
-  signUp(username: string, password: string, passwordConfirmation?: string): Promise<SignUpResult>;
   loginWithWebAuthn(username: string): Promise<AuthResult>;
-  registerWithWebAuthn(username: string): Promise<AuthResult>;
   loginWithMetaMask(address: string): Promise<AuthResult>;
+
+  signUp(username: string, password: string, passwordConfirmation?: string): Promise<SignUpResult>;
   signUpWithMetaMask(address: string): Promise<AuthResult>;
+  signUpWithWebAuthn(username: string): Promise<AuthResult>;
+
   // Metodi di supporto
   isWebAuthnSupported(): boolean;
 
@@ -47,7 +49,6 @@ export interface IShogunSDK {
   getMainWallet(): ethers.Wallet | null;
   createWallet(): Promise<WalletInfo>;
   loadWallets(): Promise<WalletInfo[]>;
-  deriveWallet(index: number): Promise<WalletInfo>;
   signMessage(wallet: ethers.Wallet, message: string | Uint8Array): Promise<string>;
   verifySignature(message: string | Uint8Array, signature: string): string;
   signTransaction(wallet: ethers.Wallet, toAddress: string, value: string): Promise<string>;

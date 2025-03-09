@@ -17,7 +17,6 @@ import { WalletManager } from "./wallet/walletManager";
 import CONFIG from "./config";
 import { ethers } from "ethers";
 
-
 let gun: any;
 
 /**
@@ -322,7 +321,7 @@ export class ShogunSDK implements IShogunSDK {
    * @param username - Nome utente
    * @returns Risultato della registrazione
    */
-  async registerWithWebAuthn(username: string): Promise<AuthResult> {
+  async signUpWithWebAuthn(username: string): Promise<AuthResult> {
     try {
       if (!username) {
         logError("Username richiesto per la registrazione con WebAuthn");
@@ -597,15 +596,6 @@ export class ShogunSDK implements IShogunSDK {
   }
 
   /**
-   * Deriva un wallet
-   * @param index - Indice del wallet da derivare
-   * @returns Wallet derivato
-   */
-  async deriveWallet(index: number): Promise<WalletInfo> {
-    return this.walletManager.deriveWallet(index);
-  }
-
-  /**
    * Firma un messaggio
    * @param wallet - Wallet per la firma
    * @param message - Messaggio da firmare
@@ -641,6 +631,88 @@ export class ShogunSDK implements IShogunSDK {
     value: string
   ): Promise<string> {
     return this.walletManager.signTransaction(wallet, toAddress, value);
+  }
+
+  /**
+   * Esporta la frase mnemonica dell'utente
+   * @param password Password opzionale per cifrare i dati esportati
+   */
+  async exportMnemonic(password?: string): Promise<string> {
+    return this.walletManager.exportMnemonic(password);
+  }
+
+  /**
+   * Esporta le chiavi private di tutti i wallet
+   * @param password Password opzionale per cifrare i dati esportati
+   */
+  async exportWalletKeys(password?: string): Promise<string> {
+    return this.walletManager.exportWalletKeys(password);
+  }
+
+  /**
+   * Esporta il pair di Gun dell'utente
+   * @param password Password opzionale per cifrare i dati esportati
+   */
+  async exportGunPair(password?: string): Promise<string> {
+    return this.walletManager.exportGunPair(password);
+  }
+
+  /**
+   * Esporta tutti i dati dell'utente in un unico file
+   * @param password Password obbligatoria per cifrare i dati esportati
+   */
+  async exportAllUserData(password: string): Promise<string> {
+    return this.walletManager.exportAllUserData(password);
+  }
+
+  /**
+   * Importa una frase mnemonica
+   * @param mnemonicData La mnemonica o il JSON cifrato da importare
+   * @param password Password opzionale per decifrare la mnemonica se cifrata
+   */
+  async importMnemonic(mnemonicData: string, password?: string): Promise<boolean> {
+    return this.walletManager.importMnemonic(mnemonicData, password);
+  }
+
+  /**
+   * Importa le chiavi private dei wallet
+   * @param walletsData JSON contenente i dati dei wallet o JSON cifrato
+   * @param password Password opzionale per decifrare i dati se cifrati
+   */
+  async importWalletKeys(walletsData: string, password?: string): Promise<number> {
+    return this.walletManager.importWalletKeys(walletsData, password);
+  }
+
+  /**
+   * Importa un pair di Gun
+   * @param pairData JSON contenente il pair di Gun o JSON cifrato
+   * @param password Password opzionale per decifrare i dati se cifrati
+   */
+  async importGunPair(pairData: string, password?: string): Promise<boolean> {
+    return this.walletManager.importGunPair(pairData, password);
+  }
+
+  /**
+   * Importa un backup completo
+   * @param backupData JSON cifrato contenente tutti i dati dell'utente
+   * @param password Password per decifrare il backup
+   * @param options Opzioni di importazione (quali dati importare)
+   */
+  async importAllUserData(
+    backupData: string, 
+    password: string,
+    options: { 
+      importMnemonic?: boolean; 
+      importWallets?: boolean; 
+      importGunPair?: boolean;
+    } = { importMnemonic: true, importWallets: true, importGunPair: true }
+  ): Promise<{ 
+    success: boolean; 
+    mnemonicImported?: boolean; 
+    walletsImported?: number; 
+    gunPairImported?: boolean;
+  }> {
+    return this.walletManager.importAllUserData(backupData, password, options);
   }
 }
 

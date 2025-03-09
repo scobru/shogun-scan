@@ -30,6 +30,8 @@ function shogunConnector({
     // Sottoconfigurazioni opzionali per Gun
     gundb: {
       peers: ["http://localhost:8765/gun"],
+      localStorage: false,
+      radisk: false
     },
     
     // Configurazione dello storage

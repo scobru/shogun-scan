@@ -71,6 +71,31 @@ declare module 'shogun-sdk' {
     // Eventi
     on: (event: string, listener: Function) => void;
     off: (event: string, listener: Function) => void;
+    
+    // Metodi di esportazione
+    exportMnemonic: (password?: string) => Promise<string>;
+    exportWalletKeys: (password?: string) => Promise<string>;
+    exportGunPair: (password?: string) => Promise<string>;
+    exportAllUserData: (password: string) => Promise<string>;
+    
+    // Metodi di importazione
+    importMnemonic: (mnemonicData: string, password?: string) => Promise<boolean>;
+    importWalletKeys: (walletsData: string, password?: string) => Promise<number>;
+    importGunPair: (pairData: string, password?: string) => Promise<boolean>;
+    importAllUserData: (
+      backupData: string, 
+      password: string,
+      options?: { 
+        importMnemonic?: boolean; 
+        importWallets?: boolean; 
+        importGunPair?: boolean;
+      }
+    ) => Promise<{ 
+      success: boolean; 
+      mnemonicImported?: boolean; 
+      walletsImported?: number; 
+      gunPairImported?: boolean;
+    }>;
   }
 
   export interface StealthKeyPair {

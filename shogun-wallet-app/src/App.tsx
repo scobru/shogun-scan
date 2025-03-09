@@ -110,6 +110,18 @@ const App: React.FC = () => {
   // Aggiunta dello state per la modalità semplificata
   const [useSimplifiedMode, setUseSimplifiedMode] = useState(false);
 
+  // Stato per la gestione del modal di password
+  const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
+  const [passwordModalAction, setPasswordModalAction] = useState<string>("");
+  const [exportPassword, setExportPassword] = useState<string>("");
+
+  // Nuovi stati per la gestione dell'importazione
+  const [showImportModal, setShowImportModal] = useState<boolean>(false);
+  const [importType, setImportType] = useState<string>("");
+  const [importData, setImportData] = useState<string>("");
+  const [importPassword, setImportPassword] = useState<string>("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+
   // Funzione per salvare i wallet nel localStorage - ottimizzata
   const saveWalletsToLocalStorage = (wallets: any[]) => {
     try {
@@ -191,16 +203,19 @@ const App: React.FC = () => {
       if (!sdk.isLoggedIn()) {
         throw new Error("Utente non autenticato. Effettua il login per creare un wallet.");
       }
+
+      // fetch id 
+      
       
       // Utilizziamo il nuovo metodo createWallet dell'SDK
-      const newWalletInfo = await sdk.createWallet();
+      const newWalletInfo = await sdk?.createWallet();
       
       // Crea un oggetto wallet compatibile con l'app
       const walletInfo: WalletInfo = {
-        wallet: newWalletInfo.wallet,
-        path: newWalletInfo.path,
-        address: newWalletInfo.wallet.address,
-        getAddressString: () => newWalletInfo.wallet.address
+        wallet: newWalletInfo?.wallet,
+        path: newWalletInfo?.path || "",
+        address: newWalletInfo?.address || "",
+        getAddressString: newWalletInfo?.getAddressString || (() => "")
       };
       
       // Aggiorna la lista dei wallet
@@ -442,11 +457,8 @@ const App: React.FC = () => {
       return;
     }
 
-    if (activeAction === "send") {
-      setActiveAction(null);
-    } else {
-      setActiveAction("send");
-    }
+    setShowSendForm(true);
+    setActiveAction("send");
   };
 
   const handleReceive = () => {
@@ -1118,6 +1130,367 @@ const App: React.FC = () => {
     }
   };
 
+  // Funzioni per gestire l'esportazione
+  const handleExportMnemonic = () => {
+    setPasswordModalAction("mnemonic");
+    setShowPasswordModal(true);
+  };
+  
+  const handleExportWallets = () => {
+    setPasswordModalAction("wallets");
+    setShowPasswordModal(true);
+  };
+  
+  const handleExportGunPair = () => {
+    setPasswordModalAction("gunpair");
+    setShowPasswordModal(true);
+  };
+  
+  const handleExportAllData = () => {
+    setPasswordModalAction("alldata");
+    setShowPasswordModal(true);
+  };
+  
+  // Funzione per eseguire l'esportazione effettiva
+  const performExport = async () => {
+    if (!sdk) {
+      setErrorMessage("SDK non inizializzato");
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      let exportData = "";
+      let fileName = "";
+      
+      switch (passwordModalAction) {
+        case "mnemonic":
+          exportData = await sdk.exportMnemonic(exportPassword || undefined);
+          fileName = "shogun-mnemonic.txt";
+          break;
+        case "wallets":
+          exportData = await sdk.exportWalletKeys(exportPassword || undefined);
+          fileName = "shogun-wallets.json";
+          break;
+        case "gunpair":
+          exportData = await sdk.exportGunPair(exportPassword || undefined);
+          fileName = "shogun-gunpair.json";
+          break;
+        case "alldata":
+          if (!exportPassword) {
+            setErrorMessage("La password è obbligatoria per il backup completo");
+            setLoading(false);
+            return;
+          }
+          exportData = await sdk.exportAllUserData(exportPassword);
+          fileName = "shogun-backup.json";
+          break;
+      }
+      
+      // Crea e scarica il file
+      const blob = new Blob([exportData], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setShowPasswordModal(false);
+      setExportPassword("");
+      setErrorMessage("Esportazione completata con successo");
+      setTimeout(() => setErrorMessage(""), 3000);
+    } catch (error: any) {
+      console.error("Errore durante l'esportazione:", error);
+      setErrorMessage(`Errore durante l'esportazione: ${error.message || String(error)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Modal per la password di esportazione
+  const renderPasswordModal = () => {
+    if (!showPasswordModal) return null;
+    
+    let title = "Inserisci Password (opzionale)";
+    let description = "Inserisci una password per proteggere i dati esportati. Se non inserisci una password, i dati saranno esportati in chiaro.";
+    let isRequired = false;
+    
+    if (passwordModalAction === "alldata") {
+      title = "Inserisci Password";
+      description = "Per il backup completo è richiesta una password. Questa password sarà necessaria per ripristinare i dati.";
+      isRequired = true;
+    }
+    
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-75 p-4">
+        <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+          <h3 className="text-xl font-bold mb-4">{title}</h3>
+          <p className="text-gray-400 mb-4">{description}</p>
+          
+          <div className="mb-4">
+            <input
+              type="password"
+              className="w-full p-3 bg-gray-700 rounded"
+              placeholder={isRequired ? "Password (obbligatoria)" : "Password (opzionale)"}
+              value={exportPassword}
+              onChange={(e) => setExportPassword(e.target.value)}
+            />
+          </div>
+          
+          {isRequired && !exportPassword && (
+            <p className="text-red-500 mb-4">La password è obbligatoria</p>
+          )}
+          
+          <div className="flex space-x-4">
+            <button
+              className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
+              onClick={performExport}
+              disabled={isRequired && !exportPassword}
+            >
+              Esporta
+            </button>
+            <button
+              className="flex-1 p-3 bg-gray-700 rounded hover:bg-gray-600"
+              onClick={() => {
+                setShowPasswordModal(false);
+                setExportPassword("");
+              }}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Funzioni per gestire l'importazione
+  const handleImportMnemonic = () => {
+    setImportType("mnemonic");
+    setShowImportModal(true);
+  };
+  
+  const handleImportWallets = () => {
+    setImportType("wallets");
+    setShowImportModal(true);
+  };
+  
+  const handleImportGunPair = () => {
+    setImportType("gunpair");
+    setShowImportModal(true);
+  };
+  
+  const handleImportAllData = () => {
+    setImportType("alldata");
+    setShowImportModal(true);
+  };
+  
+  // Gestisce il caricamento del file
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      setImportFile(files[0]);
+      
+      // Leggi il contenuto del file
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target && event.target.result) {
+          setImportData(event.target.result as string);
+        }
+      };
+      reader.readAsText(files[0]);
+    }
+  };
+  
+  // Esegue l'importazione effettiva
+  const performImport = async () => {
+    if (!sdk) {
+      setErrorMessage("SDK non inizializzato");
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Verifica se c'è un input diretto o un file
+      if (!importData && !importFile) {
+        setErrorMessage("Inserisci dati da importare o carica un file");
+        setLoading(false);
+        return;
+      }
+      
+      let result: any;
+      
+      switch (importType) {
+        case "mnemonic":
+          result = await sdk.importMnemonic(importData, importPassword || undefined);
+          setErrorMessage(result ? "Mnemonica importata con successo" : "Errore nell'importazione della mnemonica");
+          break;
+          
+        case "wallets":
+          result = await sdk.importWalletKeys(importData, importPassword || undefined);
+          setErrorMessage(`${result} wallet importati con successo`);
+          break;
+          
+        case "gunpair":
+          result = await sdk.importGunPair(importData, importPassword || undefined);
+          setErrorMessage(result ? "Pair Gun validato con successo. Effettua logout e login per applicare le modifiche." : "Errore nell'importazione del pair Gun");
+          break;
+          
+        case "alldata":
+          if (!importPassword) {
+            setErrorMessage("La password è obbligatoria per importare il backup completo");
+            setLoading(false);
+            return;
+          }
+          
+          result = await sdk.importAllUserData(importData, importPassword);
+          
+          if (result.success) {
+            let message = "Importazione completata con successo: ";
+            
+            if (result.mnemonicImported) {
+              message += "mnemonica, ";
+            }
+            
+            if (result.walletsImported && result.walletsImported > 0) {
+              message += `${result.walletsImported} wallet, `;
+            }
+            
+            if (result.gunPairImported) {
+              message += "pair Gun (richiede riavvio), ";
+            }
+            
+            setErrorMessage(message.slice(0, -2));
+          } else {
+            setErrorMessage("Errore nell'importazione del backup");
+          }
+          break;
+      }
+      
+      // Ricarica i wallet dopo l'importazione
+      setTimeout(() => {
+        loadWallets();
+      }, 1000);
+      
+      setShowImportModal(false);
+      setImportData("");
+      setImportPassword("");
+      setImportFile(null);
+    } catch (error: any) {
+      console.error("Errore durante l'importazione:", error);
+      setErrorMessage(`Errore durante l'importazione: ${error.message || String(error)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Modal per l'importazione
+  const renderImportModal = () => {
+    if (!showImportModal) return null;
+    
+    let title = "";
+    let description = "";
+    let requiresPassword = false;
+    
+    switch (importType) {
+      case "mnemonic":
+        title = "Importa Mnemonica";
+        description = "Incolla la tua mnemonica o carica un file esportato in precedenza.";
+        break;
+      case "wallets":
+        title = "Importa Wallet Keys";
+        description = "Carica un file JSON contenente le chiavi dei wallet.";
+        break;
+      case "gunpair":
+        title = "Importa Gun Pair";
+        description = "Carica un file JSON contenente il pair di Gun. Dopo l'importazione, effettua logout e login per applicare le modifiche.";
+        break;
+      case "alldata":
+        title = "Importa Backup Completo";
+        description = "Carica un backup completo cifrato e inserisci la password per decifrarlo.";
+        requiresPassword = true;
+        break;
+    }
+    
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-75 p-4">
+        <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+          <h3 className="text-xl font-bold mb-4">{title}</h3>
+          <p className="text-gray-400 mb-4">{description}</p>
+          
+          <div className="mb-4">
+            <label className="block text-gray-400 mb-2">Dati da importare</label>
+            <textarea
+              className="w-full p-3 bg-gray-700 rounded mb-2"
+              placeholder="Incolla qui i dati da importare..."
+              value={importData}
+              onChange={(e) => setImportData(e.target.value)}
+              rows={4}
+            />
+            
+            <div className="border-2 border-dashed border-gray-600 rounded p-4 text-center">
+              <label className="cursor-pointer">
+                <span className="block mb-2">oppure carica un file</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  accept=".json,.txt"
+                />
+                <button className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">
+                  Scegli file
+                </button>
+                {importFile && (
+                  <p className="mt-2 text-green-400">File selezionato: {importFile.name}</p>
+                )}
+              </label>
+            </div>
+          </div>
+          
+          {(requiresPassword || importType === "wallets" || importType === "gunpair") && (
+            <div className="mb-4">
+              <label className="block text-gray-400 mb-2">
+                Password {requiresPassword ? "(obbligatoria)" : "(opzionale)"}
+              </label>
+              <input
+                type="password"
+                className="w-full p-3 bg-gray-700 rounded"
+                placeholder={requiresPassword ? "Inserisci password" : "Password (se i dati sono cifrati)"}
+                value={importPassword}
+                onChange={(e) => setImportPassword(e.target.value)}
+              />
+            </div>
+          )}
+          
+          <div className="flex space-x-4">
+            <button
+              className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
+              onClick={performImport}
+              disabled={requiresPassword && !importPassword}
+            >
+              Importa
+            </button>
+            <button
+              className="flex-1 p-3 bg-gray-700 rounded hover:bg-gray-600"
+              onClick={() => {
+                setShowImportModal(false);
+                setImportData("");
+                setImportPassword("");
+                setImportFile(null);
+              }}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-screen bg-gray-900 text-white">
       {/* Sidebar */}
@@ -1421,18 +1794,6 @@ const App: React.FC = () => {
                     placeholder="Inserisci la chiave pubblica del destinatario..."
                   />
                 </div>
-                <div className="mb-4 flex items-center">
-                  <input
-                    type="checkbox"
-                    id="simplifiedMode"
-                    checked={useSimplifiedMode}
-                    onChange={() => setUseSimplifiedMode(!useSimplifiedMode)}
-                    className="mr-2"
-                  />
-                  <label htmlFor="simplifiedMode" className="text-gray-400">
-                    Usa modalità semplificata (consigliata per compatibilità)
-                  </label>
-                </div>
                 <button
                   className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
                   onClick={generateStealthAddress}
@@ -1517,22 +1878,6 @@ const App: React.FC = () => {
                     placeholder="Inserisci la chiave pubblica effimera..."
                   />
                 </div>
-                <label className="block text-gray-400 mb-1">Chiave Pubblica del Mittente (opzionale)</label>
-                <input
-                  type="text"
-                  value={senderPublicKeyInput}
-                  onChange={(e) => setSenderPublicKeyInput(e.target.value)}
-                  placeholder="Inserisci la chiave pubblica del mittente..."
-                  className="w-full p-2 mb-2 bg-gray-700 text-white rounded"
-                />
-                <label className="block text-gray-400 mb-1">Chiave Privata (Recupero di Emergenza)</label>
-                <input
-                  type="password"
-                  value={privateKeyOverride}
-                  onChange={(e) => setPrivateKeyOverride(e.target.value)}
-                  placeholder="SOLO PER RECUPERO: Inserisci direttamente la chiave privata..."
-                  className="w-full p-2 mb-4 bg-gray-700 text-white rounded"
-                />
                 <button
                   className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
                   onClick={openStealthAddress}
@@ -1612,21 +1957,105 @@ const App: React.FC = () => {
               </div>
             </div>
             
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-xl font-bold mb-4">Rete</h3>
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Provider RPC</label>
-                <select
-                  className="w-full p-3 bg-gray-700 rounded"
-                  value={selectedRpc}
-                  onChange={handleRpcChange}
+            {/* Sezione Esportazione e Ripristino */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <h3 className="text-xl font-bold mb-4">Esportazione Dati</h3>
+              <p className="text-gray-400 mb-4">
+                Esporta i tuoi dati per backup o migrazione. Nota che l'esportazione di chiavi private è rischiosa.
+                Assicurati di proteggere sempre i tuoi dati con una password forte.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <button
+                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
+                  onClick={handleExportMnemonic}
                 >
-                  {rpcOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  <span className="material-icons mr-2">description</span>
+                  Esporta Mnemonica
+                </button>
+                
+                <button
+                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
+                  onClick={handleExportWallets}
+                >
+                  <span className="material-icons mr-2">vpn_key</span>
+                  Esporta Wallet Keys
+                </button>
+                
+                <button
+                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
+                  onClick={handleExportGunPair}
+                >
+                  <span className="material-icons mr-2">security</span>
+                  Esporta Gun Pair
+                </button>
+                
+                <button
+                  className="p-4 bg-purple-600 hover:bg-purple-700 rounded flex items-center justify-center"
+                  onClick={handleExportAllData}
+                >
+                  <span className="material-icons mr-2">backup</span>
+                  Backup Completo
+                </button>
+              </div>
+              
+              <div className="p-4 bg-yellow-800 bg-opacity-30 rounded">
+                <p className="text-yellow-300 text-sm">
+                  <span className="material-icons align-text-bottom mr-1 text-sm">warning</span>
+                  Attenzione: Le chiavi private e la mnemonica permettono l'accesso completo ai tuoi wallet.
+                  Non condividere mai questi dati e conservali in modo sicuro.
+                </p>
+              </div>
+            </div>
+            
+            {/* Nuova Sezione Ripristino */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <h3 className="text-xl font-bold mb-4">Ripristino Dati</h3>
+              <p className="text-gray-400 mb-4">
+                Ripristina i tuoi dati da un backup precedente. Puoi importare una mnemonica, 
+                chiavi wallet, pair Gun o un backup completo.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportMnemonic}
+                >
+                  <span className="material-icons mr-2">settings_backup_restore</span>
+                  Importa Mnemonica
+                </button>
+                
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportWallets}
+                >
+                  <span className="material-icons mr-2">vpn_key</span>
+                  Importa Wallet Keys
+                </button>
+                
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportGunPair}
+                >
+                  <span className="material-icons mr-2">security</span>
+                  Importa Gun Pair
+                </button>
+                
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportAllData}
+                >
+                  <span className="material-icons mr-2">restore</span>
+                  Ripristina Backup
+                </button>
+              </div>
+              
+              <div className="p-4 bg-blue-800 bg-opacity-30 rounded">
+                <p className="text-blue-300 text-sm">
+                  <span className="material-icons align-text-bottom mr-1 text-sm">info</span>
+                  Suggerimento: Per ripristinare un backup completo, avrai bisogno della password
+                  utilizzata durante l'esportazione. Dopo il ripristino del Gun Pair, effettua logout e login.
+                </p>
               </div>
             </div>
           </div>
@@ -1640,6 +2069,12 @@ const App: React.FC = () => {
           onSignupSuccess={handleSignupSuccess}
         />
       )}
+      
+      {/* Aggiungi il modal per la password */}
+      {renderPasswordModal()}
+      
+      {/* Aggiungi il modal per l'importazione */}
+      {renderImportModal()}
     </div>
   );
 };
