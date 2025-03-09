@@ -10,4 +10,15 @@ export type ShogunConnectorOptions = {
   showWebauthn?: boolean;
   darkMode?: boolean;
   websocketSecure?: boolean; // Nuova opzione per controllare se usare wss:// o ws://
-}; 
+};
+
+// Interfaccia per le chiavi stealth
+export interface StealthKeyPair {
+  pub: string;
+  priv: string;
+  epub: string;
+  epriv: string;
+  // Campi opzionali per retrocompatibilità
+  privateKey?: string;
+  publicKey?: string;
+} 

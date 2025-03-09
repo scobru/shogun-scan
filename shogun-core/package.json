@@ -32,7 +32,6 @@
     }
   },
   "dependencies": {
-    "@audius/hedgehog": "latest",
     "base64url": "^3.0.1",
     "browserify-cipher": "1.0.1",
     "ethereumjs-wallet": "^1.0.2",
@@ -44,6 +43,7 @@
     "react": "^19.0.0",
     "react-dom": "^18.2.0",
     "solid-js": "^1.8.15",
+    "ts-minimal": "file:../ts-minimal",
     "typescript": "^5.3.3",
     "uuid": "^11.1.0"
   },

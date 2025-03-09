@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from "react";
-import Button from "./components/Button";
-import Sidebar from "./components/Sidebar";
-import { ShogunButton, ShogunButtonProvider, shogunConnector } from "@shogun/shogun-button";
+import {  shogunConnector  } from "@shogun/shogun-button";
 import "@shogun/shogun-button/styles.css";
 import ShogunLoginModal from "./components/ShogunLoginModal"; 
-import { messages, rpcOptions } from "./constants";
-import { WalletInfo, AuthMethod, AuthResult, StealthKeyPair } from "./types";
+import { rpcOptions } from "./constants";
+import { WalletInfo, AuthMethod,  StealthKeyPair } from "./types";
 import "./App.css";
 import { ethers } from "ethers";
 
-// Creazione del connettore Shogun per il pulsante
-export const { sdk, options } = shogunConnector({
+// Inizializzazione del connettore Shogun
+const connectorConfig = {
   appName: "Shogun Wallet",
   appDescription: "Wallet per criptovalute basato su Shogun",
   appUrl: "http://localhost:3000",
@@ -18,9 +16,26 @@ export const { sdk, options } = shogunConnector({
   showWebauthn: true,
   darkMode: true,
   websocketSecure: false // Usa WebSocket non sicuro
-});
+  
+};
 
-export const gun =  sdk.gun;
+// Creazione del connettore Shogun per il pulsante con controllo errori
+export const initShogunSDK = () => {
+  try {
+    const connector = shogunConnector(connectorConfig);
+    console.log("SDK inizializzato con successo");
+    return connector;
+  } catch (error) {
+    console.error("Errore nell'inizializzazione dell'SDK Shogun:", error);
+    return { 
+      sdk: null, 
+      options: {}
+    };
+  }
+};
+
+export const { sdk, options } = initShogunSDK();
+export const gun = sdk ? sdk.gun : null;
 
 const App: React.FC = () => {
   // Stati per l'autenticazione
@@ -28,9 +43,22 @@ const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [userpub, setUserpub] = useState<string>("");
+  const [userEpub, setUserEpub] = useState<string>("");
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(true);
+  const [sdkInitialized, setSdkInitialized] = useState<boolean>(!!sdk);
+
+  // Verifica inizializzazione dell'SDK
+  useEffect(() => {
+    if (!sdk || !gun) {
+      console.error("SDK non inizializzato correttamente");
+      setErrorMessage("Errore di inizializzazione SDK. Ricarica la pagina.");
+      setSdkInitialized(false);
+    } else {
+      setSdkInitialized(true);
+    }
+  }, []);
 
   // Stati per i wallet
   const [derivedWallets, setDerivedWallets] = useState<WalletInfo[]>([]);
@@ -68,31 +96,28 @@ const App: React.FC = () => {
   const [showStealthOpener, setShowStealthOpener] = useState<boolean>(false);
   const [stealthToOpen, setStealthToOpen] = useState<string>("");
   const [ephemeralKeyToOpen, setEphemeralKeyToOpen] = useState<string>("");
+  const [senderPublicKeyInput, setSenderPublicKeyInput] = useState("");
+  const [privateKeyOverride, setPrivateKeyOverride] = useState("");
   const [openedStealthWallet, setOpenedStealthWallet] = useState<any>(null);
   const [openingStealthAddress, setOpeningStealthAddress] =
     useState<boolean>(false);
-
-  // Stato per l'autenticazione
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showMnemonicModal, setShowMnemonicModal] = useState(false);
-  const [mnemonicPhrase, setMnemonicPhrase] = useState("");
 
   // Stato per l'interfaccia utente
   const [showSendModal, setShowSendModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [balance, setBalance] = useState("0");
 
-  // Funzione per salvare i wallet nel localStorage
+  // Aggiunta dello state per la modalità semplificata
+  const [useSimplifiedMode, setUseSimplifiedMode] = useState(false);
+
+  // Funzione per salvare i wallet nel localStorage - ottimizzata
   const saveWalletsToLocalStorage = (wallets: any[]) => {
     try {
       // Prepara i dati da salvare (senza le funzioni e oggetti complessi)
       const walletsToSave = wallets.map(wallet => ({
         address: wallet.address,
-        path: wallet.path,
-        // Salva la chiave privata solo se disponibile e l'utente ha dato il consenso
-        privateKey: wallet.wallet?.privateKey && localStorage.getItem('save_private_keys') === 'true' 
-          ? wallet.wallet.privateKey 
-          : undefined
+        path: wallet.path || "legacy", // Uso legacy come fallback se path non esiste
+        privateKey: wallet.wallet?.privateKey || undefined
       }));
       
       localStorage.setItem('shogun_wallets', JSON.stringify(walletsToSave));
@@ -101,6 +126,8 @@ const App: React.FC = () => {
       console.error("Errore nel salvataggio dei wallet:", error);
     }
   };
+
+
 
   // Funzione per aggiornare il saldo
   const updateBalance = async (
@@ -266,28 +293,57 @@ const App: React.FC = () => {
 
   // Funzione di logout
   const logout = () => {
-    // Utilizziamo il metodo logout dell'SDK
-    sdk.logout();
+    console.log("Tentativo di logout...");
+    
+    // Pulisci localStorage
+    localStorage.removeItem("userPub");
+    localStorage.removeItem("username");
+    localStorage.removeItem("shogun_wallets");
     
     // Resetta lo stato dell'applicazione
-    const resetState = () => {
-      setSignedIn(false);
-      setUserpub("");
-      setUsername("");
-      setPassword("");
-      setDerivedWallets([]);
-      setSelectedAddress(null);
-      setMessageToSign("");
-      setSignedMessage("");
-      setSenderBalance("");
-      setErrorMessage("");
-      setStealthAddress("");
-      setEphemeralPublicKey("");
-      setRecipientPublicKey("");
-      setStealthWallet(null);
-    };
-    
     resetState();
+    
+    // Mostra la schermata di login
+    setShowLoginModal(true);
+    
+    // Effettua logout dall'SDK solo se è attualmente loggato
+    if (sdk.isLoggedIn()) {
+      try {
+        sdk.logout();
+        console.log("Logout SDK completato");
+      } catch (error) {
+        console.error("Errore durante il logout SDK:", error);
+      }
+    } else {
+      console.log("Utente non autenticato nell'SDK, logout locale completato");
+    }
+    
+    // Tenta di forzare il logout da Gun
+    try {
+      gun.user().leave();
+      console.log("Logout Gun completato");
+    } catch (error) {
+      console.error("Errore durante il logout Gun:", error);
+    }
+  };
+
+  // Funzione per resettare lo stato dell'applicazione
+  const resetState = () => {
+    setSignedIn(false);
+    setUserpub("");
+    setUsername("");
+    setPassword("");
+    setDerivedWallets([]);
+    setSelectedAddress(null);
+    setMessageToSign("");
+    setSignedMessage("");
+    setSenderBalance("");
+    setErrorMessage("");
+    setStealthAddress("");
+    setEphemeralPublicKey("");
+    setRecipientPublicKey("");
+    setStealthWallet(null);
+    setActiveSection("wallet");
   };
 
   const handleRpcChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -339,6 +395,14 @@ const App: React.FC = () => {
       updateBalance(selectedAddress);
     }
   }, [selectedAddress, provider]);
+
+
+  useEffect(() => {
+    if (gun?.user()._) {
+      setUserEpub(gun?.user()._?.sea?.epub);
+    }
+  }, [userpub]);
+
 
   const signMessage = async () => {
     try {
@@ -408,16 +472,29 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
+        console.log("Verifica dello stato di login...");
+        
+        // Mostra login per default, verrà nascosto solo se autenticazione confermata
+        setShowLoginModal(true);
+        
+        // Verifica se l'SDK è inizializzato correttamente
+        if (!sdk || !gun) {
+          console.error("SDK non inizializzato correttamente");
+          setSdkInitialized(false);
+          return;
+        }
+        
         // Utilizziamo recall con sessionStorage per recuperare la sessione
-        const user = sdk.gun.user().recall({ sessionStorage: true });
+        const user = gun.user().recall({ sessionStorage: true });
 
         // Utilizziamo un timeout per dare tempo a Gun di recuperare la sessione
         setTimeout(async () => {
           // Verifica se l'utente è autenticato dopo il recall
-          if (user.is) {
+          if (user.is && sdk && sdk.isLoggedIn()) {
             console.log("Utente recuperato da sessione:", user.is);
             setSignedIn(true);
             setUserpub(user.is.pub);
+            setShowLoginModal(false); // Nascondi la schermata di login
 
             // Carica i dati dell'utente
             try {
@@ -431,7 +508,7 @@ const App: React.FC = () => {
                 typeof userRecord === "object" &&
                 "username" in userRecord
               ) {
-                setUsername(userRecord.username as string); // Aggiungi cast esplicito
+                setUsername(userRecord.username as string);
               }
 
               // Carica i wallet dell'utente
@@ -440,16 +517,21 @@ const App: React.FC = () => {
               console.error("Errore nel recupero dei dati utente:", error);
             }
           } else {
-            console.log("Nessuna sessione utente trovata");
+            console.log("Nessuna sessione utente trovata, necessario login");
+            setSignedIn(false);
+            setShowLoginModal(true);
           }
-        }, 300); // 300ms di ritardo per dare tempo a Gun di completare il recall
+        }, 500); // Aumento a 500ms per dare più tempo
       } catch (error) {
         console.error("Errore nel controllo dello stato di login:", error);
+        setShowLoginModal(true);
       }
     };
 
-    checkLoginStatus();
-  }, []);
+    if (sdkInitialized) {
+      checkLoginStatus();
+    }
+  }, [sdkInitialized]);
 
   // Funzione per connettere MetaMask
   const handleMetaMaskConnect = async () => {
@@ -505,7 +587,6 @@ const App: React.FC = () => {
         // Salva i dati nel localStorage
         localStorage.setItem("userPub", result.userPub || "");
         localStorage.setItem("username", `metamask_${address}`);
-        localStorage.setItem("isAuthenticated", "true");
         
         setSignedIn(true);
       } else if (result.error) {
@@ -550,7 +631,6 @@ const App: React.FC = () => {
         // Salva i dati nel localStorage
         localStorage.setItem("userPub", result.userPub || "");
         localStorage.setItem("username", username);
-        localStorage.setItem("isAuthenticated", "true");
         
         // Se c'è un credentialId, salvalo
         if (result.credentialId) {
@@ -595,7 +675,6 @@ const App: React.FC = () => {
         // Salva i dati nel localStorage
         localStorage.setItem("userPub", result.userPub || "");
         localStorage.setItem("username", username);
-        localStorage.setItem("isAuthenticated", "true");
         
         // Se c'è un credentialId, salvalo
         if (result.credentialId) {
@@ -674,8 +753,23 @@ const App: React.FC = () => {
         throw new Error("Utente non autenticato");
       }
 
-      // Genera l'indirizzo stealth usando l'SDK
-      const result = await sdk.stealth?.generateStealthAddress(recipientPublicKey);
+      // AGGIUNTA: Pulsante per modalità semplificata
+      let result: any;
+      try {
+        if (useSimplifiedMode) {
+          // Commento questa parte perché questi metodi non esistono più
+          // result = await sdk.stealth?.generateSimpleStealthAddress(recipientPublicKey);
+          // Usiamo il metodo standard anche in modalità semplificata
+          result = await sdk.stealth?.generateStealthAddress(recipientPublicKey);
+        } else {
+          // Usa il metodo standard
+          result = await sdk.stealth?.generateStealthAddress(recipientPublicKey);
+        }
+      } catch (error: any) {
+        console.error("Errore nella generazione dell'indirizzo stealth:", error);
+        setErrorMessage(error.message || "Errore nella generazione dell'indirizzo stealth");
+        return;
+      }
 
       if (!result) {
         throw new Error("Errore nella generazione dell'indirizzo stealth");
@@ -698,11 +792,11 @@ const App: React.FC = () => {
     }
   };
 
-  // Funzione per aprire un indirizzo stealth
+  // Funzione per aprire un indirizzo stealth - correzione per usare solo 2 parametri
   const openStealthAddress = async () => {
-    if (!stealthToOpen || !ephemeralKeyToOpen) {
+    if (!stealthToOpen || (!ephemeralKeyToOpen && !privateKeyOverride)) {
       setErrorMessage(
-        "Inserisci sia l'indirizzo stealth che la chiave pubblica effimera"
+        "Inserisci l'indirizzo stealth e almeno uno tra chiave pubblica effimera o chiave privata diretta"
       );
       return;
     }
@@ -711,14 +805,54 @@ const App: React.FC = () => {
     setErrorMessage("");
 
     try {
-      // Verifica che l'SDK stealth sia disponibile
-      if (!sdk.stealth) {
+      // Controlla se è stata fornita una chiave privata diretta (metodo di recupero)
+      if (privateKeyOverride) {
+        try {
+          console.log("Tentativo di apertura con chiave privata diretta");
+          
+          // Prova a creare un wallet con la chiave privata fornita
+          let privateKey = privateKeyOverride;
+          
+          // Assicurati che la chiave privata abbia un formato valido
+          if (!privateKey.startsWith('0x')) {
+            privateKey = '0x' + privateKey;
+          }
+          
+          // Crea il wallet
+          const wallet = new ethers.Wallet(privateKey);
+          console.log("Wallet creato da chiave privata:", wallet.address);
+          
+          // Verifica se l'indirizzo del wallet corrisponde all'indirizzo stealth
+          if (wallet.address.toLowerCase() === stealthToOpen.toLowerCase()) {
+            console.log("SUCCESSO con chiave privata fornita manualmente!");
+            setOpenedStealthWallet(wallet);
+            setErrorMessage("Indirizzo stealth aperto con successo tramite chiave privata!");
+            setPrivateKeyOverride(""); // Pulisci il campo per sicurezza
+            setTimeout(() => setErrorMessage(""), 3000);
+            setOpeningStealthAddress(false);
+            return;
+          } else {
+            console.log("La chiave privata fornita non corrisponde all'indirizzo stealth");
+            setErrorMessage("La chiave privata fornita non genera l'indirizzo stealth richiesto");
+            setOpeningStealthAddress(false);
+            return;
+          }
+        } catch (e) {
+          console.error("Errore nell'utilizzo della chiave privata diretta:", e);
+          setErrorMessage("Chiave privata non valida. Verifica il formato e riprova.");
+          setOpeningStealthAddress(false);
+          return;
+        }
+      }
+
+      // Verifica che l'SDK sia inizializzato correttamente
+      if (!sdk || !sdk.stealth) {
         throw new Error("Il modulo stealth non è disponibile");
       }
       
       // Ottieni le chiavi dell'utente per creare un oggetto StealthKeyPair
       const user = sdk.gun.user();
-      if (!user.is) {
+      if (!user || !user.is) {
         throw new Error("Utente non autenticato");
       }
       
@@ -727,27 +861,43 @@ const App: React.FC = () => {
       if (!userSea) {
         throw new Error("Chiavi dell'utente non disponibili");
       }
+
+      console.log("Tentativi di apertura indirizzo stealth:", {
+        indirizzo: stealthToOpen,
+        ephemeralKey: ephemeralKeyToOpen && ephemeralKeyToOpen.substring(0, 15) + "..."
+      });
       
-      // Crea un oggetto StealthKeyPair con le chiavi dell'utente
+      // Crea un oggetto StealthKeyPair completo con le chiavi dell'utente
       const userKeyPair: StealthKeyPair = {
         pub: userSea.pub,
         priv: userSea.priv,
         epub: userSea.epub,
-        epriv: userSea.epriv,
-        privateKey: userSea.priv,
-        publicKey: userSea.pub
+        epriv: userSea.epriv
       };
       
-      // Ottieni il wallet stealth usando l'SDK con i tre parametri richiesti
-      const result = await sdk.stealth.openStealthAddress(
+      // Mostra le chiavi disponibili (solo parte iniziale per sicurezza)
+      console.log("Chiavi disponibili:", {
+        pub: userKeyPair.pub && userKeyPair.pub.substring(0, 10) + "...",
+        epub: userKeyPair.epub && userKeyPair.epub.substring(0, 10) + "...",
+        priv: !!userKeyPair.priv, // Solo conferma che esiste, non mostrare
+        epriv: !!userKeyPair.epriv // Solo conferma che esiste, non mostrare
+      });
+      
+      // Tentativo di apertura dell'indirizzo stealth con il keychain
+      const result = await sdk.stealth?.openStealthAddress(
         stealthToOpen,
         ephemeralKeyToOpen,
-        userKeyPair // Passiamo l'oggetto StealthKeyPair completo
+        userKeyPair
       );
 
       if (!result) {
         throw new Error("Impossibile aprire l'indirizzo stealth");
       }
+
+      console.log("Indirizzo stealth aperto con successo:", {
+        indirizzo: result.address,
+        privateKey: result.privateKey?.substring(0, 5) + "..." // non mostrare tutta la privateKey per sicurezza
+      });
 
       setOpenedStealthWallet(result);
       setErrorMessage("Indirizzo stealth aperto con successo!");
@@ -906,163 +1056,590 @@ const App: React.FC = () => {
     }
   };
 
-  return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 p-4 shadow-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold">Shogun Wallet</h1>
-          {signedIn && (
-            <Button 
-              onClick={logout} 
-              variant="secondary" 
-              size="sm"
-              text="Logout"
-            />
-          )}
-        </div>
-      </header>
+  // Funzione per impostare la sezione attiva
+  const setSection = (section: string) => {
+    setActiveSection(section);
+  };
 
-      <main className="flex-grow container mx-auto p-4">
-        {!signedIn ? (
-          <div className="max-w-md mx-auto">
-            {showLoginModal ? (
-              <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
-                <ShogunButtonProvider
-                  sdk={sdk}
-                  options={{
-                    appName: "Shogun Wallet",
-                    appDescription: "Wallet per criptovalute basato su Shogun",
-                    appUrl: "http://localhost:3000",
-                    showMetamask: true,
-                    showWebauthn: true,
-                    darkMode: true
-                  }}
+  useEffect(() => {
+    // Resetta gli stati specifici di sezione quando cambia la sezione attiva
+    if (activeSection === "wallet") {
+      setShowSignBox(false);
+      setShowSendForm(false);
+      setShowReceiveModal(false);
+    } else if (activeSection === "stealth") {
+      setShowStealthBox(false);
+      setShowStealthOpener(false);
+    }
+  }, [activeSection]);
+
+  // Funzione per inviare una transazione
+  const sendTransaction = async () => {
+    if (!selectedAddress || !recipientAddress || !amount) {
+      setErrorMessage("Inserisci un indirizzo destinatario e un importo valido");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMessage("");
+
+      // Trova il wallet corrispondente all'indirizzo selezionato
+      const wallet = derivedWallets.find(w => w.address === selectedAddress)?.wallet;
+      if (!wallet) {
+        throw new Error("Wallet non trovato");
+      }
+
+      // Crea e invia la transazione
+      const tx = await sdk.signTransaction(
+        wallet,
+        recipientAddress,
+        ethers.parseEther(amount).toString()
+      );
+
+      // Mostra un messaggio di successo
+      setErrorMessage(`Transazione inviata con successo: ${tx.substring(0, 20)}...`);
+      setTimeout(() => setErrorMessage(""), 5000);
+
+      // Resetta i campi
+      setRecipientAddress("");
+      setAmount("");
+      setShowSendForm(false);
+
+      // Aggiorna il saldo dopo la transazione
+      setTimeout(() => {
+        updateBalance(selectedAddress);
+      }, 2000);
+    } catch (error: any) {
+      console.error("Errore nell'invio della transazione:", error);
+      setErrorMessage(`Errore nell'invio della transazione: ${error.message || String(error)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-900 text-white">
+      {/* Sidebar */}
+      <aside className="w-1/4 bg-gray-800 p-4 border-r border-gray-700 flex flex-col">
+        <h1 className="text-xl font-bold mb-8">Shogun Wallet</h1>
+        
+        {/* Menu di navigazione */}
+        <nav className="flex flex-col space-y-2 mb-6">
+          <button 
+            className={`p-3 rounded flex items-center ${
+              activeSection === "wallet" ? "bg-blue-600" : "hover:bg-gray-700"
+            }`}
+            onClick={() => setSection("wallet")}
+          >
+            <span className="material-icons mr-2">💲</span> 
+            Wallet
+          </button>
+          
+          <button 
+            className={`p-3 rounded flex items-center ${
+              activeSection === "stealth" ? "bg-blue-600" : "hover:bg-gray-700"
+            }`}
+            onClick={() => setSection("stealth")}
+          >
+            <span className="material-icons mr-2">🥷</span> 
+            Stealth
+          </button>
+          
+          <button 
+            className={`p-3 rounded flex items-center ${
+              activeSection === "settings" ? "bg-blue-600" : "hover:bg-gray-700"
+            }`}
+            onClick={() => setSection("settings")}
+          >
+            <span className="material-icons mr-2">⚙️</span> 
+            Impostazioni
+          </button>
+        </nav>
+        
+        {/* Wallet list solo nella sezione wallet */}
+        {activeSection === "wallet" && (
+          <>
+            <h2 className="text-md font-semibold mt-4 mb-2">I tuoi wallet</h2>
+            <div className="space-y-2 mb-4 overflow-y-auto flex-grow">
+              {derivedWallets.map((wallet, index) => (
+                <button
+                  key={wallet.address}
+                  className={`w-full p-2 text-left rounded ${
+                    selectedAddress === wallet.address
+                      ? "bg-blue-700"
+                      : "bg-gray-700"
+                  }`}
+                  onClick={() => selectAddress(wallet.address)}
                 >
-                  <div className="flex flex-col items-center">
-                    <div className="mb-4 w-full flex justify-end">
-                      <button 
-                        className="text-gray-400 hover:text-white"
-                        onClick={() => setShowLoginModal(false)}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    <ShogunLoginModal 
-                      onLoginSuccess={handleLoginSuccess}
-                      onSignupSuccess={handleSignupSuccess}
-                    />
+                  <div>Wallet {index + 1}</div>
+                  <div className="text-xs text-gray-300 truncate">
+                    {wallet.address.substring(0, 10)}...{wallet.address.substring(38)}
                   </div>
-                </ShogunButtonProvider>
+                </button>
+              ))}
+            </div>
+            <button
+              className="w-full mt-2 p-3 bg-blue-600 rounded hover:bg-blue-700"
+              onClick={createNewWallet}
+            >
+              Nuovo Wallet
+            </button>
+          </>
+        )}
+        
+        {/* Rete selection */}
+        <div className="mt-auto">
+          <h2 className="text-md font-semibold mb-2">Rete</h2>
+          <select
+            className="w-full p-2 bg-gray-700 rounded mb-4"
+            value={selectedRpc}
+            onChange={handleRpcChange}
+          >
+            {rpcOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          
+          <button
+            className="w-full p-3 bg-red-600 rounded hover:bg-red-700"
+            onClick={logout}
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* Main content area */}
+      <main className="flex-1 p-6 overflow-y-auto">
+        {errorMessage && (
+          <div className="w-full bg-red-700 p-3 rounded mb-4">
+            {errorMessage}
+          </div>
+        )}
+
+        {/* Sezione Wallet */}
+        {activeSection === "wallet" && (
+          <>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-2">Il tuo wallet</h2>
+              {selectedAddress && (
+                <div className="bg-gray-800 rounded-lg p-6 mb-4">
+                  <div className="mb-2">
+                    <div className="text-gray-400 mb-1">Indirizzo</div>
+                    <div className="font-mono">{selectedAddress}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 mb-1">Saldo</div>
+                    <div className="text-2xl">{senderBalance} ETH</div>
+                  </div>
+                  <div className="flex space-x-4 mt-4">
+                    <button
+                      className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
+                      onClick={handleSend}
+                    >
+                      Invia
+                    </button>
+                    <button
+                      className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
+                      onClick={handleReceive}
+                    >
+                      Ricevi
+                    </button>
+                    <button
+                      className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
+                      onClick={() => setShowSignBox(true)}
+                    >
+                      Firma Messaggio
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Form di invio */}
+            {showSendForm && (
+              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+                <h3 className="text-xl font-bold mb-4">Invia ETH</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Destinatario</label>
+                  <input
+                    className="w-full p-3 bg-gray-700 rounded"
+                    value={recipientAddress}
+                    onChange={(e) => setRecipientAddress(e.target.value)}
+                    placeholder="0x..."
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Importo (ETH)</label>
+                  <input
+                    className="w-full p-3 bg-gray-700 rounded"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    type="number"
+                    step="0.0001"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="flex space-x-4">
+                  <button
+                    className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
+                    onClick={sendTransaction}
+                  >
+                    Invia
+                  </button>
+                  <button
+                    className="flex-1 p-3 bg-gray-700 rounded hover:bg-gray-600"
+                    onClick={() => setShowSendForm(false)}
+                  >
+                    Annulla
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div className="bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <h2 className="text-2xl font-bold mb-6">Benvenuto in Shogun Wallet</h2>
-                <p className="mb-6 text-gray-300">Accedi o registrati per gestire i tuoi asset crypto in modo sicuro.</p>
-                
-                <button 
-                  onClick={() => setShowLoginModal(true)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-300"
+            )}
+            
+            {/* Form di firma */}
+            {showSignBox && (
+              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+                <h3 className="text-xl font-bold mb-4">Firma Messaggio</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Messaggio</label>
+                  <textarea
+                    className="w-full p-3 bg-gray-700 rounded"
+                    value={messageToSign}
+                    onChange={(e) => setMessageToSign(e.target.value)}
+                    rows={3}
+                    placeholder="Scrivi un messaggio da firmare..."
+                  />
+                </div>
+                <div className="mb-4">
+                  <button
+                    className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700"
+                    onClick={signMessage}
+                  >
+                    Firma
+                  </button>
+                </div>
+                {signedMessage && (
+                  <div className="mt-4">
+                    <label className="block text-gray-400 mb-2">Firma</label>
+                    <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
+                      {signedMessage}
+                    </div>
+                  </div>
+                )}
+                <button
+                  className="w-full p-3 bg-gray-700 rounded hover:bg-gray-600 mt-4"
+                  onClick={() => setShowSignBox(false)}
                 >
-                  Accedi o Registrati
+                  Chiudi
                 </button>
               </div>
             )}
+            
+            {/* Modal di ricezione */}
+            {showReceiveModal && (
+              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+                <h3 className="text-xl font-bold mb-4">Ricevi ETH</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Il tuo indirizzo</label>
+                  <div className="flex">
+                    <input
+                      className="flex-1 p-3 bg-gray-700 rounded-l"
+                      value={selectedAddress || ""}
+                      readOnly
+                    />
+                    <button
+                      className="p-3 bg-blue-600 rounded-r"
+                      onClick={() => {
+                        if (selectedAddress) {
+                          navigator.clipboard.writeText(selectedAddress);
+                          setErrorMessage("Indirizzo copiato negli appunti!");
+                          setTimeout(() => setErrorMessage(""), 3000);
+                        }
+                      }}
+                    >
+                      Copia
+                    </button>
+                  </div>
+                </div>
+                <button
+                  className="w-full p-3 bg-gray-700 rounded hover:bg-gray-600"
+                  onClick={() => setShowReceiveModal(false)}
+                >
+                  Chiudi
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        
+        {/* Sezione Stealth */}
+        {activeSection === "stealth" && (
+          <div>
+            <h2 className="text-2xl font-bold mb-6">Indirizzi Stealth</h2>
+            
+            <div className="flex space-x-4 mb-6">
+              <button
+                className={`flex-1 p-3 rounded ${
+                  showStealthBox ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
+                }`}
+                onClick={() => {
+                  setShowStealthBox(true);
+                  setShowStealthOpener(false);
+                }}
+              >
+                Genera Indirizzo
+              </button>
+              <button
+                className={`flex-1 p-3 rounded ${
+                  showStealthOpener ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
+                }`}
+                onClick={() => {
+                  setShowStealthOpener(true);
+                  setShowStealthBox(false);
+                }}
+              >
+                Apri Indirizzo
+              </button>
+            </div>
+            
+            {/* Panel per generare un indirizzo stealth */}
+            {showStealthBox && (
+              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+                <h3 className="text-xl font-bold mb-4">Genera un indirizzo stealth</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">
+                    Chiave pubblica del destinatario
+                  </label>
+                  <input
+                    className="w-full p-3 bg-gray-700 rounded"
+                    value={recipientPublicKey}
+                    onChange={(e) => setRecipientPublicKey(e.target.value)}
+                    placeholder="Inserisci la chiave pubblica del destinatario..."
+                  />
+                </div>
+                <div className="mb-4 flex items-center">
+                  <input
+                    type="checkbox"
+                    id="simplifiedMode"
+                    checked={useSimplifiedMode}
+                    onChange={() => setUseSimplifiedMode(!useSimplifiedMode)}
+                    className="mr-2"
+                  />
+                  <label htmlFor="simplifiedMode" className="text-gray-400">
+                    Usa modalità semplificata (consigliata per compatibilità)
+                  </label>
+                </div>
+                <button
+                  className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
+                  onClick={generateStealthAddress}
+                  disabled={stealthGenerating}
+                >
+                  {stealthGenerating ? "Generazione in corso..." : "Genera Indirizzo Stealth"}
+                </button>
+                
+                {stealthAddress && (
+                  <div className="mt-4">
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Indirizzo Stealth</label>
+                      <div className="flex">
+                        <input
+                          className="flex-1 p-3 bg-gray-700 rounded-l"
+                          value={stealthAddress}
+                          readOnly
+                        />
+                        <button
+                          className="p-3 bg-blue-600 rounded-r"
+                          onClick={() => {
+                            navigator.clipboard.writeText(stealthAddress);
+                            setErrorMessage("Indirizzo stealth copiato negli appunti!");
+                            setTimeout(() => setErrorMessage(""), 3000);
+                          }}
+                        >
+                          Copia
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Chiave Pubblica Effimera</label>
+                      <div className="flex">
+                        <input
+                          className="flex-1 p-3 bg-gray-700 rounded-l"
+                          value={ephemeralPublicKey}
+                          readOnly
+                        />
+                        <button
+                          className="p-3 bg-blue-600 rounded-r"
+                          onClick={() => {
+                            navigator.clipboard.writeText(ephemeralPublicKey);
+                            setErrorMessage("Chiave pubblica effimera copiata negli appunti!");
+                            setTimeout(() => setErrorMessage(""), 3000);
+                          }}
+                        >
+                          Copia
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-yellow-800 rounded mt-4">
+                      <p className="font-bold mb-2">Importante:</p>
+                      <p>
+                        Condividi sia l'indirizzo stealth che la chiave pubblica effimera con il destinatario.
+                        Entrambi sono necessari per aprire l'indirizzo stealth.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Panel per aprire un indirizzo stealth */}
+            {showStealthOpener && (
+              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+                <h3 className="text-xl font-bold mb-4">Apri un indirizzo stealth</h3>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Indirizzo Stealth</label>
+                  <input
+                    className="w-full p-3 bg-gray-700 rounded"
+                    value={stealthToOpen}
+                    onChange={(e) => setStealthToOpen(e.target.value)}
+                    placeholder="0x..."
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Chiave Pubblica Effimera</label>
+                  <input
+                    className="w-full p-3 bg-gray-700 rounded"
+                    value={ephemeralKeyToOpen}
+                    onChange={(e) => setEphemeralKeyToOpen(e.target.value)}
+                    placeholder="Inserisci la chiave pubblica effimera..."
+                  />
+                </div>
+                <label className="block text-gray-400 mb-1">Chiave Pubblica del Mittente (opzionale)</label>
+                <input
+                  type="text"
+                  value={senderPublicKeyInput}
+                  onChange={(e) => setSenderPublicKeyInput(e.target.value)}
+                  placeholder="Inserisci la chiave pubblica del mittente..."
+                  className="w-full p-2 mb-2 bg-gray-700 text-white rounded"
+                />
+                <label className="block text-gray-400 mb-1">Chiave Privata (Recupero di Emergenza)</label>
+                <input
+                  type="password"
+                  value={privateKeyOverride}
+                  onChange={(e) => setPrivateKeyOverride(e.target.value)}
+                  placeholder="SOLO PER RECUPERO: Inserisci direttamente la chiave privata..."
+                  className="w-full p-2 mb-4 bg-gray-700 text-white rounded"
+                />
+                <button
+                  className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
+                  onClick={openStealthAddress}
+                  disabled={openingStealthAddress}
+                >
+                  {openingStealthAddress ? "Apertura in corso..." : "Apri Indirizzo Stealth"}
+                </button>
+                
+                {openedStealthWallet && (
+                  <div className="mt-4">
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Chiave Privata Recuperata</label>
+                      <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
+                        {openedStealthWallet.privateKey}
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Indirizzo Wallet</label>
+                      <div className="p-3 bg-gray-700 rounded font-mono">
+                        {openedStealthWallet.address}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-red-800 rounded mt-4">
+                      <p className="font-bold mb-2">Attenzione:</p>
+                      <p>
+                        La chiave privata è visualizzata in chiaro. Assicurati di essere in un ambiente sicuro
+                        e di non condividere mai la chiave privata.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="bg-blue-800 rounded-lg p-6 mt-6">
+              <h3 className="text-xl font-bold mb-2">Le tue chiavi stealth</h3>
+              <div className="mb-4">
+                <label className="block text-gray-300 mb-1">Chiave pubblica (pub)</label>
+                <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs relative">
+                  {userEpub}
+                  <button 
+                    className="absolute top-2 right-2 p-1 bg-gray-600 rounded hover:bg-gray-500"
+                    onClick={() => navigator.clipboard.writeText(userEpub)}
+                  >
+                    Copia
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="min-h-screen flex">
-            <Sidebar
-              selectedRpc={selectedRpc}
-              onRpcChange={handleRpcChange}
-              wallets={derivedWallets}
-              selectedAddress={selectedAddress}
-              onSelectAddress={selectAddress}
-              onCreateWallet={createNewWallet}
-              onLogout={logout}
-            />
-            <div className="flex-1 p-4">
-              {/* Contenuto principale */}
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4">Il tuo wallet</h2>
-                {errorMessage && (
-                  <div className="bg-red-900/20 border border-red-500/30 text-red-500 p-3 rounded-lg mb-4">
-                    {errorMessage}
-                  </div>
-                )}
-                {selectedAddress && (
-                  <div className="bg-gray-800 rounded-lg p-6 mb-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-300">
-                          Indirizzo
-                        </h3>
-                        <p className="text-sm font-mono break-all">
-                          {selectedAddress}
-                        </p>
-                      </div>
-                      <div className="mt-4 md:mt-0">
-                        <h3 className="text-lg font-medium text-gray-300">
-                          Saldo
-                        </h3>
-                        <p className="text-xl font-bold">
-                          {senderBalance ? `${senderBalance} ETH` : "Caricamento..."}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={handleSend}
-                        text="Invia"
-                        variant={activeAction === "send" ? "primary" : "secondary"}
-                      />
-                      <Button
-                        onClick={handleReceive}
-                        text="Ricevi"
-                        variant="secondary"
-                      />
-                      <Button
-                        onClick={() => setActiveAction(activeAction === "sign" ? null : "sign")}
-                        text="Firma Messaggio"
-                        variant={activeAction === "sign" ? "primary" : "secondary"}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Form di firma messaggio */}
-                {activeAction === "sign" && (
-                  <div className="bg-white/5 p-6 rounded-lg">
-                    <h4 className="text-gray-400 mb-4">
-                      Firma Messaggio
-                    </h4>
-                    <textarea
-                      className="w-full min-h-[80px] p-3 bg-black/20 border border-white/10 rounded-lg text-white focus:border-primary outline-none resize-y mb-4"
-                      placeholder="Inserisci il messaggio da firmare..."
-                      value={messageToSign}
-                      onChange={(e) => setMessageToSign(e.target.value)}
-                    />
-                    <Button
-                      onClick={signMessage}
-                      loading={loading}
-                      text="Firma"
-                      fullWidth
-                    />
-                    {signedMessage && (
-                      <div className="mt-4">
-                        <h5 className="text-gray-400 mb-2">Firma:</h5>
-                        <div className="bg-black/20 p-3 rounded-lg border border-white/10 break-all font-mono text-xs">
-                          {signedMessage}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+        )}
+        
+        {/* Sezione Impostazioni - semplificata senza mnemonic */}
+        {activeSection === "settings" && (
+          <div>
+            <h2 className="text-2xl font-bold mb-6">Impostazioni</h2>
+            
+            <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <h3 className="text-xl font-bold mb-4">Informazioni Utente</h3>
+              <div className="mb-4">
+                <label className="block text-gray-400 mb-2">Username</label>
+                <div className="p-3 bg-gray-700 rounded">
+                  {username || "Non disponibile"}
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-400 mb-2">Chiave Pubblica</label>
+                <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
+                  {userpub || "Non disponibile"}
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-400 mb-2">Metodo di Autenticazione</label>
+                <div className="p-3 bg-gray-700 rounded">
+                  Standard
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-xl font-bold mb-4">Rete</h3>
+              <div className="mb-4">
+                <label className="block text-gray-400 mb-2">Provider RPC</label>
+                <select
+                  className="w-full p-3 bg-gray-700 rounded"
+                  value={selectedRpc}
+                  onChange={handleRpcChange}
+                >
+                  {rpcOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
         )}
       </main>
+      
+      {/* Modal di login se non autenticato */}
+      {showLoginModal && (
+        <ShogunLoginModal
+          onLoginSuccess={handleLoginSuccess}
+          onSignupSuccess={handleSignupSuccess}
+        />
+      )}
     </div>
   );
 };

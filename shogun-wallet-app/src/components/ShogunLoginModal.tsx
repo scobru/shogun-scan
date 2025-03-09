@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useShogun } from '@shogun/shogun-button';
+import React, { useState, useEffect } from 'react';
+import { sdk } from '../App';
 import { AuthMethod, AuthResult, AutoLoginResult } from '../types';
 import { ethers } from 'ethers';
 
@@ -36,17 +36,17 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [sdkReady, setSdkReady] = useState<boolean>(!!sdk);
 
-  const { 
-    login, 
-    signUp, 
-    loginWithMetaMask, 
-    signUpWithMetaMask,
-    loginWithWebAuthn,
-    signUpWithWebAuthn,
-    isLoggedIn,
-    sdk
-  } = useShogun();
+  useEffect(() => {
+    if (!sdk) {
+      console.error("SDK non disponibile nel componente di login");
+      setError("SDK non inizializzato. Ricarica la pagina.");
+      setSdkReady(false);
+    } else {
+      setSdkReady(true);
+    }
+  }, []);
 
   const isWebAuthnSupported = sdk?.isWebAuthnSupported?.() || false;
 
@@ -63,7 +63,6 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
       if (mode === FormMode.SIGNUP) {
         console.log(`Tentativo di registrazione per ${username}`);
         
-        // Utilizziamo il nuovo metodo signUpWithAutoLogin invece di signUp
         const result = await sdk.signUp(username, password) as AutoLoginResult;
         
         if (result && result.success) {
@@ -79,7 +78,6 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
         }
       } else {
         console.log(`Tentativo di login per ${username}`);
-        // Login rimane invariato
         const result = await sdk.login(username, password);
         
         if (result && result.success) {
@@ -109,11 +107,10 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
     try {
       if (mode === FormMode.LOGIN) {
         console.log("Tentativo di login con MetaMask");
-        const result = await loginWithMetaMask();
+        const result = await sdk.loginWithMetaMask();
         
         if (result.success) {
           console.log("Login con MetaMask completato con successo:", result);
-          // Chiamata esplicita al callback di successo
           onLoginSuccess && onLoginSuccess({
             userPub: result.userPub || "",
             username: result.username || "",
@@ -125,11 +122,10 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
         }
       } else {
         console.log("Tentativo di registrazione con MetaMask");
-        const result = await signUpWithMetaMask();
+        const result = await sdk.signUpWithMetaMask();
         
         if (result.success) {
           console.log("Registrazione con MetaMask completata con successo:", result);
-          // Chiamata esplicita al callback di successo
           onSignupSuccess && onSignupSuccess({
             userPub: result.userPub || "",
             username: result.username || "",
@@ -168,10 +164,9 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
         }
         
         console.log("Tentativo di login con WebAuthn per", username);
-        const result = await loginWithWebAuthn(username);
+        const result = await sdk.loginWithWebAuthn(username);
         if (result.success) {
           console.log("Login con WebAuthn completato con successo:", result);
-          // Chiamata esplicita al callback di successo
           onLoginSuccess && onLoginSuccess({
             userPub: result.userPub || "",
             username,
@@ -189,25 +184,21 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
         }
         
         console.log("Tentativo di registrazione con WebAuthn per", username);
-        const result = await signUpWithWebAuthn(username);
+        const result = await sdk.signUpWithWebAuthn(username);
         if (result.success) {
           console.log("Registrazione con WebAuthn completata con successo:", result);
-          // Chiamata esplicita al callback di successo
           onSignupSuccess && onSignupSuccess({
             userPub: result.userPub || "",
             username,
             authMethod: "webauthn"
           });
         } else {
-          // Messaggio personalizzato per il caso "User already exists"
           if (result.error === 'User already exists') {
             setError('Questo username è già registrato. Se sei tu, per favore utilizza il login invece della registrazione.');
             setDebugInfo('Utente già esistente nel sistema. Prova ad effettuare il login invece della registrazione.');
           } 
-          // Caso in cui l'utente esiste già ma siamo riusciti a fare login
           else if (result.error && result.error.includes('Utente già esistente, login effettuato con successo')) {
             console.log("Login automatico effettuato per utente esistente:", username);
-            // Trattiamo questo come un successo di login anche se era una registrazione
             onLoginSuccess && onLoginSuccess({
               userPub: result.userPub || "",
               username,
@@ -234,10 +225,6 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ onLoginSuccess, onS
     setError('');
     setDebugInfo('');
   };
-
-  if (isLoggedIn) {
-    return null;
-  }
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-lg">

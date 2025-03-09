@@ -1,5 +1,5 @@
 {
-  "name": "@shogun/wallet",
+  "name": "@shogun/shogun-wallet-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,7 +13,6 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.6.0",
     "ethers": "^6.13.5",
-    "jose": "^6.0.8",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "react": "^19.0.0",
@@ -22,8 +21,8 @@
     "react-redux": "^9.2.0",
     "redux-persist": "^6.0.0",
     "safe-buffer": "^5.2.1",
-    "@shogun/shogun-core": "link:../shogun-core/",
-    "@shogun/shogun-button": "link:../shogun-button/"
+    "@shogun/shogun-core": "file:../shogun-core/",
+    "@shogun/shogun-button": "file:../shogun-button/"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",

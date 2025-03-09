@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import { IGunInstance, ISEAPair } from "gun";
-import { log, logError } from "../utils/logger";
+import { ISEAPair } from "gun";
+import { log } from "../utils/logger";
 import { GunDB } from "../gun/gun";
 import { Storage } from "../storage/storage";
 import { WalletInfo } from "../types/shogun";
@@ -34,73 +34,90 @@ export class WalletManager {
     try {
       // Reset dei path esistenti
       this.walletPaths = {};
-      
+
       // 1. Prima tentiamo di caricare da GUN se l'utente è autenticato
       const user = this.gun.user();
       if (user && user.is) {
         log(`Caricamento wallet paths da GUN per l'utente: ${user.is.alias}`);
-        
+
         // Carica i paths dal profilo dell'utente
-        const walletPaths = await new Promise<Record<string, any>>((resolve) => {
-          user.get('wallet_paths').once((data: any) => {
-            if (!data) {
-              log("Nessun wallet path trovato in GUN");
-              resolve({});
-            } else {
-              log(`Trovati wallet paths in GUN: ${Object.keys(data).length - 1} wallet`); // -1 per il campo _
-              resolve(data || {});
-            }
-          });
-        });
-        
+        const walletPaths = await new Promise<Record<string, any>>(
+          (resolve) => {
+            user.get("wallet_paths").once((data: any) => {
+              if (!data) {
+                log("Nessun wallet path trovato in GUN");
+                resolve({});
+              } else {
+                log(
+                  `Trovati wallet paths in GUN: ${Object.keys(data).length - 1} wallet`
+                ); // -1 per il campo _
+                resolve(data || {});
+              }
+            });
+          }
+        );
+
         // Converti i dati ricevuti da GUN in walletPaths
         for (const [address, pathData] of Object.entries(walletPaths)) {
-          if (address !== '_' && pathData) {
+          if (address !== "_" && pathData) {
             // Verifica che pathData sia un oggetto con i campi richiesti
             const data = pathData as any;
             if (data.path) {
               this.walletPaths[address] = {
                 path: data.path,
-                created: data.created || Date.now()
+                created: data.created || Date.now(),
               };
               log(`Caricato path per wallet: ${address} -> ${data.path}`);
             }
           }
         }
       }
-      
+
       // 2. Poi carichiamo anche da localStorage come fallback
       const storageKey = `shogun_wallet_paths_${this.getStorageUserIdentifier()}`;
       const storedPaths = this.storage.getItem(storageKey);
-      
+
       if (storedPaths) {
         try {
           log("Trovati wallet paths in localStorage");
           const parsedPaths = JSON.parse(storedPaths);
-          
+
           // Aggiunge i paths da localStorage se non sono già presenti in GUN
           for (const [address, pathData] of Object.entries(parsedPaths)) {
             if (!this.walletPaths[address]) {
-              this.walletPaths[address] = pathData as { path: string; created: number };
+              this.walletPaths[address] = pathData as {
+                path: string;
+                created: number;
+              };
               log(`Caricato path da localStorage per wallet: ${address}`);
             }
           }
         } catch (error) {
-          console.error("Errore nel parsing dei wallet paths da localStorage:", error);
+          console.error(
+            "Errore nel parsing dei wallet paths da localStorage:",
+            error
+          );
         }
       }
 
       // Se non sono stati trovati wallet paths né in GUN né in localStorage
       if (Object.keys(this.walletPaths).length === 0) {
-        log("Nessun wallet path trovato, verranno creati nuovi wallet quando necessario");
+        log(
+          "Nessun wallet path trovato, verranno creati nuovi wallet quando necessario"
+        );
       } else {
-        log(`Inizializzati ${Object.keys(this.walletPaths).length} wallet paths`);
+        log(
+          `Inizializzati ${Object.keys(this.walletPaths).length} wallet paths`
+        );
       }
     } catch (error) {
-      console.error("Errore durante l'inizializzazione dei wallet paths:", error);
+      console.error(
+        "Errore durante l'inizializzazione dei wallet paths:",
+        error
+      );
     }
   }
-  
+
   /**
    * Ottiene un identificatore univoco per l'utente corrente per lo storage
    * @private
@@ -110,7 +127,7 @@ export class WalletManager {
     if (user && user.is && user.is.pub) {
       return user.is.pub.substring(0, 12); // Usa una parte della chiave pubblica
     }
-    return 'guest'; // Identificatore per utenti non autenticati
+    return "guest"; // Identificatore per utenti non autenticati
   }
 
   /**
@@ -122,9 +139,14 @@ export class WalletManager {
       const storageKey = `shogun_wallet_paths_${this.getStorageUserIdentifier()}`;
       const pathsToSave = JSON.stringify(this.walletPaths);
       this.storage.setItem(storageKey, pathsToSave);
-      log(`Salvati ${Object.keys(this.walletPaths).length} wallet paths in localStorage`);
+      log(
+        `Salvati ${Object.keys(this.walletPaths).length} wallet paths in localStorage`
+      );
     } catch (error) {
-      console.error("Errore nel salvataggio dei wallet paths in localStorage:", error);
+      console.error(
+        "Errore nel salvataggio dei wallet paths in localStorage:",
+        error
+      );
     }
   }
 
@@ -138,12 +160,13 @@ export class WalletManager {
       // Utilizziamo SHA-256 per generare un valore hash deterministico
       const encoder = new TextEncoder();
       const data = encoder.encode(input);
-      
+
       // Utilizziamo crypto.subtle.digest in modo sincrono con un bypass
       const digestSync = (data: Uint8Array): Uint8Array => {
         // Versione semplificata per ambiente senza crypto.subtle
         // Non è crittograficamente sicura ma è deterministca
-        let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+        let h1 = 0xdeadbeef,
+          h2 = 0x41c6ce57;
         for (let i = 0; i < data.length; i++) {
           h1 = Math.imul(h1 ^ data[i], 2654435761);
           h2 = Math.imul(h2 ^ data[i], 1597334677);
@@ -152,7 +175,7 @@ export class WalletManager {
         h1 = Math.imul(h1 ^ (h1 >>> 13), 3266489909);
         h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
         h2 = Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-        
+
         // Creiamo un array di 32 byte
         const out = new Uint8Array(32);
         for (let i = 0; i < 4; i++) {
@@ -167,24 +190,30 @@ export class WalletManager {
         }
         return out;
       };
-      
+
       // Utilizziamo la versione sincrona del digest
       const hashArray = digestSync(data);
-      
+
       // Convertiamo in hex string
-      return '0x' + Array.from(hashArray)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
+      return (
+        "0x" +
+        Array.from(hashArray)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("")
+      );
     } catch (error) {
       console.error("Errore nella generazione della chiave privata:", error);
       // Fallback: creiamo un valore hex valido dai primi 32 byte della stringa
-      const fallbackHex = '0x' + Array.from(input.slice(0, 64))
-        .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join('').slice(0, 64);
-      
+      const fallbackHex =
+        "0x" +
+        Array.from(input.slice(0, 64))
+          .map((c) => c.charCodeAt(0).toString(16).padStart(2, "0"))
+          .join("")
+          .slice(0, 64);
+
       if (fallbackHex.length < 66) {
         // Se non è abbastanza lungo, aggiungiamo padding
-        return fallbackHex.padEnd(66, '0');
+        return fallbackHex.padEnd(66, "0");
       }
       return fallbackHex;
     }
@@ -204,16 +233,21 @@ export class WalletManager {
 
         // Verifica se abbiamo accesso alle proprietà necessarie
         if (!user._ || !user._.sea || !user._.sea.priv || !user._.sea.pub) {
-          log("getMainWallet: Dati utente insufficienti", JSON.stringify({
-            hasUserData: !!user._,
-            hasSea: !!(user._ && user._.sea),
-            hasPriv: !!(user._ && user._.sea && user._.sea.priv),
-            hasPub: !!(user._ && user._.sea && user._.sea.pub)
-          }));
-          
+          log(
+            "getMainWallet: Dati utente insufficienti",
+            JSON.stringify({
+              hasUserData: !!user._,
+              hasSea: !!(user._ && user._.sea),
+              hasPriv: !!(user._ && user._.sea && user._.sea.priv),
+              hasPub: !!(user._ && user._.sea && user._.sea.pub),
+            })
+          );
+
           // Verifica se è un utente MetaMask e utilizziamo un approccio alternativo
-          if (user.is.alias && user.is.alias.startsWith('0x')) {
-            log("getMainWallet: Utente MetaMask rilevato, utilizzo approccio alternativo");
+          if (user.is.alias && user.is.alias.startsWith("0x")) {
+            log(
+              "getMainWallet: Utente MetaMask rilevato, utilizzo approccio alternativo"
+            );
             // Per MetaMask, usiamo l'indirizzo come seed
             const address = user.is.alias;
             const seed = `metamask-${address}-${Date.now()}`;
@@ -221,7 +255,7 @@ export class WalletManager {
             this.mainWallet = new ethers.Wallet(privateKey);
             return this.mainWallet;
           }
-          
+
           return null;
         }
 
@@ -232,7 +266,7 @@ export class WalletManager {
 
         // Creiamo un seed univoco per questo utente
         const seed = `${userSeed}|${userPub}|${userAlias}`;
-        
+
         // Usiamo il nuovo metodo sicuro per generare la chiave privata
         const privateKey = this.generatePrivateKeyFromString(seed);
         this.mainWallet = new ethers.Wallet(privateKey);
@@ -258,7 +292,7 @@ export class WalletManager {
       // Determina il prossimo indice disponibile
       const existingWallets = Object.values(this.walletPaths).length;
       const nextIndex = existingWallets;
-      
+
       // Usa il formato standard Ethereum per i path
       const path = `m/44'/60'/0'/0/${nextIndex}`;
 
@@ -270,16 +304,26 @@ export class WalletManager {
 
       // Creiamo un seed univoco per questo utente
       const uniqueUserSeed = `${userSeed}|${userPub}|${userAlias}`;
-      
+
       const encoder = new TextEncoder();
       const seedData = encoder.encode(uniqueUserSeed + path);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', seedData);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", seedData);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      
+
+      const seaPair = await SEA.pair(
+        (data: ISEAPair) => {
+          console.log("seaPair", data);
+        },
+        { seed: hashArray.toString() }
+      );
+
+      const hex = this.generatePrivateKeyFromString(seaPair.priv);
+
       // Creiamo una chiave privata valida per Ethereum
       // Assicuriamoci che sia esattamente 32 byte (64 caratteri hex)
-      const privateKey = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
+      // const privateKey = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const privateKey = hex;
+
       // Creiamo il wallet con la chiave privata generata
       const wallet = new ethers.Wallet(privateKey);
 
@@ -287,15 +331,15 @@ export class WalletManager {
       const timestamp = Date.now();
       this.walletPaths[wallet.address] = {
         path,
-        created: timestamp
+        created: timestamp,
       };
 
       // Salva nel contesto dell'utente in GUN
-      await user.get('wallet_paths').get(wallet.address).put({
+      await user.get("wallet_paths").get(wallet.address).put({
         path,
-        created: timestamp
+        created: timestamp,
       });
-      
+
       // Salva anche in localStorage
       this.saveWalletPathsToLocalStorage();
 
@@ -303,7 +347,7 @@ export class WalletManager {
         wallet,
         path,
         address: wallet.address,
-        getAddressString: () => wallet.address
+        getAddressString: () => wallet.address,
       };
     } catch (error) {
       console.error("Errore durante la creazione del wallet:", error);
@@ -318,13 +362,13 @@ export class WalletManager {
   async loadWallets(): Promise<WalletInfo[]> {
     try {
       const user = this.gun.user();
-      
+
       // Verifica più completa dell'autenticazione
       if (!user) {
         log("loadWallets: Nessun utente Gun disponibile");
         throw new Error("Utente Gun non disponibile");
       }
-      
+
       // Controllo dettagliato dello stato di autenticazione
       const userDetails = {
         userExists: !!user,
@@ -334,52 +378,63 @@ export class WalletManager {
         hasSea: !!user._ && !!user._.sea,
       };
       log("Stato utente durante loadWallets:", JSON.stringify(userDetails));
-      
+
       // Verifica se esiste almeno un metodo di autenticazione
       // Siamo più tolleranti qui, se c'è il sea possiamo procedere anche se is non è disponibile
-      const hasAuthentication = userDetails.isAuthenticated || userDetails.hasSea;
-      
+      const hasAuthentication =
+        userDetails.isAuthenticated || userDetails.hasSea;
+
       if (!hasAuthentication) {
         log("loadWallets: Nessun metodo di autenticazione disponibile");
-        
+
         // Prova a verificare se ci sono credenziali in localStorage
         // @ts-ignore - Usiamo una proprietà di Gun non completamente tipizzata
         if (!user._.sea && window.sessionStorage) {
-          const localPair = window.sessionStorage.getItem('pair');
+          const localPair = window.sessionStorage.getItem("pair");
           if (localPair) {
-            log("Trovate credenziali in sessionStorage, tentativo di recupero...");
+            log(
+              "Trovate credenziali in sessionStorage, tentativo di recupero..."
+            );
             try {
               // Tentativo di ripristino manuale di pair da localStorage
               user.auth(JSON.parse(localPair));
               // Aspettiamo un attimo che l'autenticazione si propaghi
-              await new Promise(resolve => setTimeout(resolve, 100));
+              await new Promise((resolve) => setTimeout(resolve, 100));
             } catch (e) {
-              console.error("Errore nel tentativo di ripristino delle credenziali:", e);
+              console.error(
+                "Errore nel tentativo di ripristino delle credenziali:",
+                e
+              );
             }
           }
         }
-        
+
         // Verifica di nuovo se ora siamo autenticati
         // @ts-ignore - Accesso a proprietà interna di Gun
         if (!user.is && !user._.sea) {
-          throw new Error("L'utente non è autenticato e non è stato possibile recuperare le credenziali");
+          throw new Error(
+            "L'utente non è autenticato e non è stato possibile recuperare le credenziali"
+          );
         }
       }
-      
+
       // Log per debug
       // @ts-ignore - Accesso a proprietà interna di Gun
-      const pubKey = user.is?.pub || (user._.sea?.pub ? user._.sea.pub : "unknown");
+      const pubKey =
+        user.is?.pub || (user._.sea?.pub ? user._.sea.pub : "unknown");
       const alias = user.is?.alias || "unknown";
       log(`loadWallets: Utente autenticato ${alias}, pub: ${pubKey}`);
-      
+
       // Assicurati che i paths siano inizializzati
       await this.initializeWalletPaths();
 
       const wallets: WalletInfo[] = [];
 
       // Verifica che ci siano wallet paths salvati
-      log(`loadWallets: Wallet paths disponibili: ${Object.keys(this.walletPaths).length}`);
-      
+      log(
+        `loadWallets: Wallet paths disponibili: ${Object.keys(this.walletPaths).length}`
+      );
+
       // Se non ci sono wallet paths, proviamo a crearne uno predefinito
       if (Object.keys(this.walletPaths).length === 0) {
         log("Nessun wallet trovato, creazione del wallet predefinito...");
@@ -397,37 +452,54 @@ export class WalletManager {
           const userAlias = user.is?.alias || alias;
 
           // Log per debug
-          log(`Derivazione wallet per indirizzo: ${address} con path: ${data.path}`);
+          log(
+            `Derivazione wallet per indirizzo: ${address} con path: ${data.path}`
+          );
 
           // Creiamo un seed univoco per questo utente
           const uniqueUserSeed = `${userSeed}|${userPub}|${userAlias}`;
-          
+
           const encoder = new TextEncoder();
           const seedData = encoder.encode(uniqueUserSeed + data.path);
-          const hashBuffer = await crypto.subtle.digest('SHA-256', seedData);
+          const hashBuffer = await crypto.subtle.digest("SHA-256", seedData);
           const hashArray = Array.from(new Uint8Array(hashBuffer));
-          
+
+          const seaPair = await SEA.pair(
+            (data: ISEAPair) => {
+              console.log("seaPair", data);
+            },
+            { seed: hashArray.toString() }
+          );
+
+          const hex = this.generatePrivateKeyFromString(seaPair.priv);
+
           // Creiamo una chiave privata valida per Ethereum
           // Assicuriamoci che sia esattamente 32 byte (64 caratteri hex)
-          const privateKey = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-          
+          // const privateKey = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          const privateKey = hex;
+
           // Creiamo il wallet con la chiave privata generata
           const wallet = new ethers.Wallet(privateKey);
-          
+
           // Verifica che l'indirizzo generato corrisponda a quello salvato
           if (wallet.address.toLowerCase() !== address.toLowerCase()) {
-            log(`Attenzione: Indirizzo generato (${wallet.address}) non corrisponde a quello salvato (${address})`);
+            log(
+              `Attenzione: Indirizzo generato (${wallet.address}) non corrisponde a quello salvato (${address})`
+            );
           }
 
           wallets.push({
             wallet,
             path: data.path,
             address: wallet.address,
-            getAddressString: () => wallet.address
+            getAddressString: () => wallet.address,
           });
         } catch (innerError) {
           // Log ma continua con gli altri wallet
-          console.error(`Errore nella derivazione del wallet ${address}:`, innerError);
+          console.error(
+            `Errore nella derivazione del wallet ${address}:`,
+            innerError
+          );
         }
       }
 
@@ -463,16 +535,26 @@ export class WalletManager {
 
       // Creiamo un seed univoco per questo utente
       const uniqueUserSeed = `${userSeed}|${userPub}|${userAlias}`;
-      
+
       const encoder = new TextEncoder();
       const data = encoder.encode(uniqueUserSeed + path);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      
+
+      const seaPair = await SEA.pair(
+        (data: ISEAPair) => {
+          console.log("seaPair", data);
+        },
+        { seed: hashArray.toString() }
+      );
+
+      const hex = this.generatePrivateKeyFromString(seaPair.priv);
+
       // Creiamo una chiave privata valida per Ethereum
       // Assicuriamoci che sia esattamente 32 byte (64 caratteri hex)
-      const privateKey = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
+      // const privateKey = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const privateKey = hex;
+
       // Creiamo il wallet con la chiave privata generata
       const wallet = new ethers.Wallet(privateKey);
 
@@ -480,15 +562,15 @@ export class WalletManager {
       const timestamp = Date.now();
       this.walletPaths[wallet.address] = {
         path,
-        created: timestamp
+        created: timestamp,
       };
 
       // Salva nel contesto dell'utente in GUN
-      await user.get('wallet_paths').get(wallet.address).put({
+      await user.get("wallet_paths").get(wallet.address).put({
         path,
-        created: timestamp
+        created: timestamp,
       });
-      
+
       // Salva anche in localStorage
       this.saveWalletPathsToLocalStorage();
 
@@ -496,12 +578,42 @@ export class WalletManager {
         wallet,
         path,
         address: wallet.address,
-        getAddressString: () => wallet.address
+        getAddressString: () => wallet.address,
       };
     } catch (error) {
       console.error("Errore durante la derivazione del wallet:", error);
       throw error;
     }
+  }
+
+  // BASIC WALLET FUNCTIONS
+
+  async getBalance(wallet: ethers.Wallet): Promise<string> {
+    const provider = new ethers.JsonRpcProvider();
+    const balance = await provider.getBalance(wallet.address);
+    return ethers.formatEther(balance);
+  }
+
+  async getNonce(wallet: ethers.Wallet): Promise<number> {
+    const provider = new ethers.JsonRpcProvider();
+    const nonce = await provider.getTransactionCount(wallet.address);
+    return nonce;
+  }
+
+  async sendTransaction(
+    wallet: ethers.Wallet,
+    toAddress: string,
+    value: string
+  ): Promise<string> {
+    const provider = new ethers.JsonRpcProvider();
+
+    wallet.connect(provider);
+
+    const tx = await wallet.sendTransaction({
+      to: toAddress,
+      value: ethers.parseEther(value),
+    });
+    return tx.hash;
   }
 
   /**
@@ -562,34 +674,6 @@ export class WalletManager {
   }
 
   /**
-   * Cripta un wallet con una password
-   */
-  async encryptWallet(
-    wallet: ethers.Wallet,
-    password: string
-  ): Promise<string> {
-    try {
-      return await wallet.encrypt(password);
-    } catch (error) {
-      console.error("Errore durante la cifratura del wallet:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Decripta un wallet
-   */
-  async decryptWallet(json: string, password: string): Promise<ethers.Wallet> {
-    try {
-      const wallet = await ethers.Wallet.fromEncryptedJson(json, password);
-      return new ethers.Wallet(wallet.privateKey);
-    } catch (error) {
-      console.error("Errore durante la decifratura del wallet:", error);
-      throw error;
-    }
-  }
-
-  /**
    * Resetta il wallet principale
    * Utile quando vogliamo forzare la rigenerazione del wallet
    */
@@ -598,4 +682,3 @@ export class WalletManager {
     this.mainWallet = null;
   }
 }
-

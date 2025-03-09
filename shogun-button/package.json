@@ -36,8 +36,9 @@
     "postinstall": "yarn link @shogun/shogun-core"
   },
   "dependencies": {
+    "@shogun/shogun-core": "file:../shogun-core",
     "prettier": "^3.5.3",
-    "@shogun/shogun-core": "link:../shogun-core"
+    "typescript": "^5.8.2"
   },
   "peerDependencies": {
     "ethers": "^6.0.0",
