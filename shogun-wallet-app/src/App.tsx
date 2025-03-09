@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {  shogunConnector  } from "@shogun/shogun-button";
 import "@shogun/shogun-button/styles.css";
 import ShogunLoginModal from "./components/ShogunLoginModal"; 
@@ -121,6 +121,16 @@ const App: React.FC = () => {
   const [importData, setImportData] = useState<string>("");
   const [importPassword, setImportPassword] = useState<string>("");
   const [importFile, setImportFile] = useState<File | null>(null);
+
+  // Aggiungo una referenza all'input file
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Funzione per attivare l'input file
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
 
   // Funzione per salvare i wallet nel localStorage - ottimizzata
   const saveWalletsToLocalStorage = (wallets: any[]) => {
@@ -1292,16 +1302,76 @@ const App: React.FC = () => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      setImportFile(files[0]);
+      const selectedFile = files[0];
+      setImportFile(selectedFile);
+      
+      // Log informativo
+      console.log(`File selezionato: ${selectedFile.name}, tipo: ${selectedFile.type}, dimensione: ${selectedFile.size} bytes`);
+      
+      // Verifica che il file non sia troppo grande
+      if (selectedFile.size > 5 * 1024 * 1024) { // 5MB
+        setErrorMessage("Il file è troppo grande (limite 5MB)");
+        return;
+      }
+      
+      // Verifica estensione del file
+      const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
+      if (fileExt !== 'json' && fileExt !== 'txt') {
+        setErrorMessage("Formato file non supportato. Usa .json o .txt");
+        return; // Aggiungiamo un return per evitare di procedere con file non supportati
+      }
       
       // Leggi il contenuto del file
       const reader = new FileReader();
+      
       reader.onload = (event) => {
         if (event.target && event.target.result) {
-          setImportData(event.target.result as string);
+          // Converti in string e rimuovi BOM e altri caratteri problematici
+          let fileContent = event.target.result as string;
+          
+          // Log la lunghezza del contenuto
+          console.log(`Contenuto letto: ${fileContent.length} caratteri`);
+          
+          // Rimuovi BOM (Byte Order Mark) che può interferire con il parsing JSON
+          if (fileContent.charCodeAt(0) === 0xFEFF) {
+            console.log("BOM rilevato e rimosso");
+            fileContent = fileContent.slice(1);
+          }
+          
+          // Pulizia generale
+          fileContent = fileContent.trim();
+          
+          console.log(`Contenuto letto (primi 100 caratteri): ${fileContent.substring(0, 100)}...`);
+          
+          // Verifica se è JSON valido
+          try {
+            if (fileContent.startsWith('{') || fileContent.startsWith('[')) {
+              const jsonData = JSON.parse(fileContent);
+              console.log("Il file contiene JSON valido", jsonData.type || "Tipo non specificato");
+              
+              // Log specifico per il tipo di backup
+              if (jsonData.type === "encrypted-shogun-backup") {
+                console.log("File identificato come backup cifrato Shogun");
+              }
+            } else {
+              console.log("Il contenuto non inizia con { o [, potrebbe non essere JSON");
+            }
+          } catch (error) {
+            console.warn(`Il file non contiene JSON valido: ${error}`);
+            // Non bloccare il processo, potrebbe essere una mnemonica o altro testo
+          }
+          
+          setImportData(fileContent);
         }
       };
-      reader.readAsText(files[0]);
+      
+      reader.onerror = (error) => {
+        console.error("Errore nella lettura del file:", error);
+        setErrorMessage("Errore nella lettura del file");
+      };
+      
+      // Leggi come testo per tutti i tipi di file
+      reader.readAsText(selectedFile);
     }
   };
   
@@ -1314,6 +1384,7 @@ const App: React.FC = () => {
     
     try {
       setLoading(true);
+      setErrorMessage(""); // Reset messaggi di errore precedenti
       
       // Verifica se c'è un input diretto o un file
       if (!importData && !importFile) {
@@ -1322,22 +1393,40 @@ const App: React.FC = () => {
         return;
       }
       
+      console.log(`Inizio importazione tipo: ${importType}, lunghezza dati: ${importData.length}`);
+      console.log(`Password fornita: ${importPassword ? "Sì" : "No"}`);
+      
       let result: any;
       
       switch (importType) {
         case "mnemonic":
-          result = await sdk.importMnemonic(importData, importPassword || undefined);
-          setErrorMessage(result ? "Mnemonica importata con successo" : "Errore nell'importazione della mnemonica");
+          try {
+            result = await sdk.importMnemonic(importData, importPassword || undefined);
+            setErrorMessage(result ? "Mnemonica importata con successo" : "Errore nell'importazione della mnemonica");
+          } catch (error: any) {
+            console.error("Errore nell'importazione della mnemonica:", error);
+            setErrorMessage(`Errore nell'importazione della mnemonica: ${error.message}`);
+          }
           break;
           
         case "wallets":
-          result = await sdk.importWalletKeys(importData, importPassword || undefined);
-          setErrorMessage(`${result} wallet importati con successo`);
+          try {
+            result = await sdk.importWalletKeys(importData, importPassword || undefined);
+            setErrorMessage(`${result} wallet importati con successo`);
+          } catch (error: any) {
+            console.error("Errore nell'importazione dei wallet:", error);
+            setErrorMessage(`Errore nell'importazione dei wallet: ${error.message}`);
+          }
           break;
           
         case "gunpair":
-          result = await sdk.importGunPair(importData, importPassword || undefined);
-          setErrorMessage(result ? "Pair Gun validato con successo. Effettua logout e login per applicare le modifiche." : "Errore nell'importazione del pair Gun");
+          try {
+            result = await sdk.importGunPair(importData, importPassword || undefined);
+            setErrorMessage(result ? "Pair Gun validato con successo. Effettua logout e login per applicare le modifiche." : "Errore nell'importazione del pair Gun");
+          } catch (error: any) {
+            console.error("Errore nell'importazione del pair Gun:", error);
+            setErrorMessage(`Errore nell'importazione del pair Gun: ${error.message}`);
+          }
           break;
           
         case "alldata":
@@ -1347,28 +1436,37 @@ const App: React.FC = () => {
             return;
           }
           
-          result = await sdk.importAllUserData(importData, importPassword);
-          
-          if (result.success) {
-            let message = "Importazione completata con successo: ";
+          try {
+            console.log("Tentativo di importazione backup completo...");
+            result = await sdk.importAllUserData(importData, importPassword);
             
-            if (result.mnemonicImported) {
-              message += "mnemonica, ";
+            if (result.success) {
+              let message = "Importazione completata con successo: ";
+              
+              if (result.mnemonicImported) {
+                message += "mnemonica, ";
+              }
+              
+              if (result.walletsImported && result.walletsImported > 0) {
+                message += `${result.walletsImported} wallet, `;
+              }
+              
+              if (result.gunPairImported) {
+                message += "pair Gun (richiede riavvio), ";
+              }
+              
+              setErrorMessage(message.slice(0, -2));
+            } else {
+              setErrorMessage("Errore nell'importazione del backup: nessun elemento importato");
             }
-            
-            if (result.walletsImported && result.walletsImported > 0) {
-              message += `${result.walletsImported} wallet, `;
-            }
-            
-            if (result.gunPairImported) {
-              message += "pair Gun (richiede riavvio), ";
-            }
-            
-            setErrorMessage(message.slice(0, -2));
-          } else {
-            setErrorMessage("Errore nell'importazione del backup");
+          } catch (error: any) {
+            console.error("Errore nell'importazione del backup:", error);
+            setErrorMessage(`Errore durante l'importazione: ${error.message}`);
           }
           break;
+          
+        default:
+          setErrorMessage(`Tipo di importazione non valido: ${importType}`);
       }
       
       // Ricarica i wallet dopo l'importazione
@@ -1376,14 +1474,18 @@ const App: React.FC = () => {
         loadWallets();
       }, 1000);
       
-      setShowImportModal(false);
-      setImportData("");
-      setImportPassword("");
-      setImportFile(null);
+      setLoading(false);
+      
+      // Chiudi il modal solo se non ci sono errori
+      if (!errorMessage.includes("Errore")) {
+        setShowImportModal(false);
+        setImportData("");
+        setImportPassword("");
+        setImportFile(null);
+      }
     } catch (error: any) {
       console.error("Errore durante l'importazione:", error);
-      setErrorMessage(`Errore durante l'importazione: ${error.message || String(error)}`);
-    } finally {
+      setErrorMessage(`Errore durante l'importazione: ${error.message}`);
       setLoading(false);
     }
   };
@@ -1394,96 +1496,107 @@ const App: React.FC = () => {
     
     let title = "";
     let description = "";
-    let requiresPassword = false;
+    let formatInfo = "";
     
+    // Personalizza il titolo e la descrizione in base al tipo di importazione
     switch (importType) {
       case "mnemonic":
         title = "Importa Mnemonica";
-        description = "Incolla la tua mnemonica o carica un file esportato in precedenza.";
+        description = "Inserisci la tua frase mnemonica per recuperare i tuoi wallet.";
+        formatInfo = "La mnemonica deve essere composta da 12 o più parole separate da spazi.";
         break;
       case "wallets":
-        title = "Importa Wallet Keys";
-        description = "Carica un file JSON contenente le chiavi dei wallet.";
+        title = "Importa Wallet";
+        description = "Importa uno o più wallet dal backup.";
+        formatInfo = "Il file deve contenere un JSON con un array di wallet, ciascuno con un campo 'privateKey'. " +
+                    "Formato: { \"wallets\": [{ \"address\": \"0x...\", \"privateKey\": \"0x...\", \"path\": \"m/44'/60'/0'/0/0\" }] }";
         break;
       case "gunpair":
-        title = "Importa Gun Pair";
-        description = "Carica un file JSON contenente il pair di Gun. Dopo l'importazione, effettua logout e login per applicare le modifiche.";
+        title = "Importa Pair Gun";
+        description = "Importa il pair Gun per accedere ai tuoi dati cifrati.";
+        formatInfo = "Il file deve contenere un JSON con i campi 'pub', 'priv', 'epub' e 'epriv'.";
         break;
       case "alldata":
         title = "Importa Backup Completo";
-        description = "Carica un backup completo cifrato e inserisci la password per decifrarlo.";
-        requiresPassword = true;
+        description = "Importa un backup completo dei tuoi dati (mnemonica, wallet e pair Gun).";
+        formatInfo = "Il file deve essere nel formato cifrato esportato da Shogun Wallet. È richiesta la password utilizzata per cifrare il backup.";
         break;
     }
     
     return (
-      <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-75 p-4">
-        <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
-          <h3 className="text-xl font-bold mb-4">{title}</h3>
-          <p className="text-gray-400 mb-4">{description}</p>
+      <div className="modal">
+        <div className="modal-content">
+          <h2>{title}</h2>
+          <p>{description}</p>
           
-          <div className="mb-4">
-            <label className="block text-gray-400 mb-2">Dati da importare</label>
-            <textarea
-              className="w-full p-3 bg-gray-700 rounded mb-2"
-              placeholder="Incolla qui i dati da importare..."
-              value={importData}
-              onChange={(e) => setImportData(e.target.value)}
-              rows={4}
-            />
-            
-            <div className="border-2 border-dashed border-gray-600 rounded p-4 text-center">
-              <label className="cursor-pointer">
-                <span className="block mb-2">oppure carica un file</span>
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  accept=".json,.txt"
-                />
-                <button className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">
-                  Scegli file
-                </button>
-                {importFile && (
-                  <p className="mt-2 text-green-400">File selezionato: {importFile.name}</p>
-                )}
-              </label>
-            </div>
+          <div className="format-info">
+            <h4>Formato richiesto:</h4>
+            <p>{formatInfo}</p>
           </div>
           
-          {(requiresPassword || importType === "wallets" || importType === "gunpair") && (
-            <div className="mb-4">
-              <label className="block text-gray-400 mb-2">
-                Password {requiresPassword ? "(obbligatoria)" : "(opzionale)"}
+          {/* Area per l'input diretto */}
+          <textarea
+            placeholder={`Incolla qui i dati da importare${importType === "mnemonic" ? " (12 o più parole)" : " o carica un file"}`}
+            value={importData}
+            onChange={(e) => setImportData(e.target.value)}
+            style={{ width: "100%", minHeight: "100px", marginBottom: "10px" }}
+          />
+          
+          {/* Opzione per caricare un file */}
+          <div style={{ marginBottom: "10px" }}>
+            <button onClick={() => document.getElementById("import-file-input")?.click()}>
+              Carica file
+            </button>
+            <input
+              id="import-file-input"
+              type="file"
+              accept=".json,.txt"
+              style={{ display: "none" }}
+              onChange={handleFileUpload}
+            />
+            {importFile && (
+              <span style={{ marginLeft: "10px" }}>
+                File selezionato: {importFile.name} ({Math.round(importFile.size / 1024)} KB)
+              </span>
+            )}
+          </div>
+          
+          {/* Campo password se necessario */}
+          {(importType === "alldata" || importType === "mnemonic" || importType === "wallets" || importType === "gunpair") && (
+            <div style={{ marginBottom: "10px" }}>
+              <label>
+                Password (opzionale{importType === "alldata" ? ", ma richiesta per backup cifrati" : ""}):
+                <input
+                  type="password"
+                  value={importPassword}
+                  onChange={(e) => setImportPassword(e.target.value)}
+                  style={{ width: "100%", marginTop: "5px" }}
+                  required={importType === "alldata"}
+                />
               </label>
-              <input
-                type="password"
-                className="w-full p-3 bg-gray-700 rounded"
-                placeholder={requiresPassword ? "Inserisci password" : "Password (se i dati sono cifrati)"}
-                value={importPassword}
-                onChange={(e) => setImportPassword(e.target.value)}
-              />
             </div>
           )}
           
-          <div className="flex space-x-4">
-            <button
-              className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
-              onClick={performImport}
-              disabled={requiresPassword && !importPassword}
-            >
-              Importa
-            </button>
-            <button
-              className="flex-1 p-3 bg-gray-700 rounded hover:bg-gray-600"
-              onClick={() => {
-                setShowImportModal(false);
-                setImportData("");
-                setImportPassword("");
-                setImportFile(null);
-              }}
-            >
+          {/* Messaggio di errore */}
+          {errorMessage && (
+            <div className="error-message" style={{ color: errorMessage.includes("successo") ? "green" : "red", marginBottom: "10px" }}>
+              {errorMessage}
+            </div>
+          )}
+          
+          {/* Pulsanti */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+            <button onClick={() => {
+              setShowImportModal(false);
+              setImportData("");
+              setImportPassword("");
+              setImportFile(null);
+              setErrorMessage("");
+            }}>
               Annulla
+            </button>
+            <button onClick={performImport} disabled={loading || (!importData && !importFile)}>
+              {loading ? "Importazione in corso..." : "Importa"}
             </button>
           </div>
         </div>

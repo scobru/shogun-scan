@@ -995,34 +995,128 @@ export class WalletManager {
    */
   async importWalletKeys(walletsData: string, password?: string): Promise<number> {
     try {
-      let wallets;
+      let wallets: any[] = [];
+      
+      // Log per debug
+      console.log(`[importWalletKeys] Tentativo di importazione wallet, lunghezza dati: ${walletsData.length} caratteri`);
+      if (walletsData.length > 100) {
+        console.log(`[importWalletKeys] Primi 100 caratteri: ${walletsData.substring(0, 100)}...`);
+      } else {
+        console.log(`[importWalletKeys] Dati completi: ${walletsData}`);
+      }
+      
+      // Pulizia dei dati: rimuovi BOM e altri caratteri speciali
+      walletsData = walletsData.replace(/^\uFEFF/, ''); // Rimuovi BOM
+      walletsData = walletsData.trim(); // Rimuovi spazi all'inizio e alla fine
       
       // Verifica se i dati sono in formato JSON cifrato
       try {
-        const jsonData = JSON.parse(walletsData);
-        
-        // Se i dati sono cifrati, decifriamoli
-        if (jsonData.type === "encrypted-wallets" && jsonData.data && password) {
-          const decryptedData = await SEA.decrypt(jsonData.data, password);
+        // Verifica che sia un JSON valido
+        if (!walletsData.startsWith('{') && !walletsData.startsWith('[')) {
+          console.log("[importWalletKeys] Il formato non sembra essere JSON valido");
           
-          if (!decryptedData) {
-            throw new Error("Password non valida o dati corrotti");
+          // Tenta di interpretare come mnemonic o chiave privata singola
+          if (walletsData.split(' ').length >= 12) {
+            console.log("[importWalletKeys] Potrebbe essere una mnemonic");
+            throw new Error("I dati sembrano essere una mnemonic, usa 'Importa Mnemonica' invece");
           }
           
-          wallets = JSON.parse(decryptedData as string).wallets;
-        } else if (jsonData.wallets) {
-          // Se i dati sono in formato JSON non cifrato con campo wallets
-          wallets = jsonData.wallets;
+          if (walletsData.startsWith('0x') && walletsData.length === 66) {
+            console.log("[importWalletKeys] Potrebbe essere una chiave privata singola");
+            // Crea un wallet manuale da chiave privata
+            try {
+              const wallet = new ethers.Wallet(walletsData);
+              const path = "m/44'/60'/0'/0/0"; // Path predefinito
+              
+              // Crea un oggetto wallet compatibile
+              wallets = [{
+                address: wallet.address,
+                privateKey: wallet.privateKey,
+                path: path,
+                created: Date.now()
+              }];
+              
+              console.log(`[importWalletKeys] Creato wallet singolo da chiave privata: ${wallet.address}`);
+            } catch (walletError) {
+              console.error("[importWalletKeys] Errore nella creazione del wallet da chiave privata:", walletError);
+              throw new Error(`Chiave privata non valida: ${walletError.message}`);
+            }
+          } else {
+            throw new Error("Formato non riconosciuto. Fornisci un file JSON valido.");
+          }
         } else {
-          throw new Error("Formato JSON non valido: manca il campo 'wallets'");
+          // Tenta di parsificare il JSON
+          const jsonData = JSON.parse(walletsData);
+          console.log(`[importWalletKeys] JSON parsificato con successo, tipo: ${typeof jsonData}, chiavi: ${Object.keys(jsonData).join(', ')}`);
+          
+          // Se i dati sono cifrati, decifriamoli
+          if (jsonData.type === "encrypted-wallets" && jsonData.data && password) {
+            console.log("[importWalletKeys] Trovati dati cifrati, tentativo di decifratura...");
+            try {
+              const decryptedData = await SEA.decrypt(jsonData.data, password);
+              
+              if (!decryptedData) {
+                console.error("[importWalletKeys] Decifratura fallita: risultato null");
+                throw new Error("Password non valida o dati corrotti");
+              }
+              
+              console.log("[importWalletKeys] Decifratura riuscita, tentativo di parsing...");
+              console.log("[importWalletKeys] Tipo dei dati decifrati:", typeof decryptedData);
+              if (typeof decryptedData === 'string' && decryptedData.length > 50) {
+                console.log("[importWalletKeys] Primi 50 caratteri decifrati:", decryptedData.substring(0, 50));
+              }
+              
+              try {
+                const decryptedJson = JSON.parse(decryptedData as string);
+                console.log("[importWalletKeys] Parsing riuscito, struttura:", Object.keys(decryptedJson).join(', '));
+                
+                if (decryptedJson.wallets && Array.isArray(decryptedJson.wallets)) {
+                  wallets = decryptedJson.wallets;
+                  console.log(`[importWalletKeys] Trovati ${wallets.length} wallet nei dati decifrati`);
+                } else if (Array.isArray(decryptedJson)) {
+                  wallets = decryptedJson;
+                  console.log(`[importWalletKeys] Trovato array diretto di ${wallets.length} wallet nei dati decifrati`);
+                } else {
+                  console.error("[importWalletKeys] Formato JSON decifrato non valido:", decryptedJson);
+                  throw new Error("Formato JSON decifrato non valido: manca il campo 'wallets'");
+                }
+              } catch (parseError) {
+                console.error(`[importWalletKeys] Errore nel parsing dei dati decifrati: ${parseError}`);
+                throw new Error("Formato JSON decifrato non valido");
+              }
+            } catch (decryptError: any) {
+              console.error("[importWalletKeys] Errore durante la decifratura:", decryptError);
+              throw new Error(`Errore durante la decifratura: ${decryptError.message || String(decryptError)}`);
+            }
+          } else if (jsonData.wallets) {
+            // Se i dati sono in formato JSON non cifrato con campo wallets
+            if (Array.isArray(jsonData.wallets)) {
+              wallets = jsonData.wallets;
+              console.log(`[importWalletKeys] Trovati ${wallets.length} wallet nel JSON non cifrato`);
+            } else {
+              console.error("[importWalletKeys] Il campo wallets non è un array:", jsonData.wallets);
+              throw new Error("Formato JSON non valido: il campo 'wallets' non è un array");
+            }
+          } else if (Array.isArray(jsonData)) {
+            // Se è un array diretto di wallet
+            wallets = jsonData;
+            console.log(`[importWalletKeys] Trovato array diretto di ${wallets.length} wallet`);
+          } else {
+            console.error("[importWalletKeys] Formato JSON non valido:", jsonData);
+            throw new Error("Formato JSON non valido: manca il campo 'wallets'");
+          }
         }
       } catch (error) {
-        throw new Error("Formato JSON non valido o password errata");
+        console.error(`[importWalletKeys] Errore nel parsing JSON: ${error}`);
+        throw new Error(`Formato JSON non valido o password errata: ${error.message || String(error)}`);
       }
       
       if (!Array.isArray(wallets) || wallets.length === 0) {
+        console.error("[importWalletKeys] Nessun wallet valido trovato nei dati forniti");
         throw new Error("Nessun wallet valido trovato nei dati forniti");
       }
+      
+      console.log(`[importWalletKeys] Inizio importazione di ${wallets.length} wallet...`);
       
       // Crea un contatore per i wallet importati con successo
       let successCount = 0;
@@ -1030,52 +1124,58 @@ export class WalletManager {
       // Per ogni wallet nei dati importati
       for (const walletData of wallets) {
         try {
-          if (!walletData.privateKey || !walletData.path) {
+          console.log(`[importWalletKeys] Tentativo di importazione wallet: ${JSON.stringify(walletData).substring(0, 100)}...`);
+          
+          if (!walletData.privateKey) {
+            console.log("[importWalletKeys] Manca la chiave privata, salto questo wallet");
             continue; // Salta wallet incompleti
           }
           
-          // Crea un nuovo wallet con la chiave privata fornita
-          const wallet = new ethers.Wallet(walletData.privateKey);
+          // Se manca il path, usa un path predefinito
+          const path = walletData.path || "m/44'/60'/0'/0/0";
           
-          // Verifica che l'indirizzo sia corretto
-          if (walletData.address && wallet.address.toLowerCase() !== walletData.address.toLowerCase()) {
-            log(`Avviso: l'indirizzo nel backup (${walletData.address}) non corrisponde alla chiave privata (${wallet.address})`);
+          // Crea un wallet da chiave privata
+          try {
+            const wallet = new ethers.Wallet(walletData.privateKey);
+            
+            // Verifica che la chiave privata corrisponda all'indirizzo fornito (se presente)
+            if (walletData.address && wallet.address.toLowerCase() !== walletData.address.toLowerCase()) {
+              console.warn(`[importWalletKeys] L'indirizzo generato ${wallet.address} non corrisponde all'indirizzo fornito ${walletData.address}`);
+            }
+            
+            // Memorizza nel dizionario dei percorsi
+            this.walletPaths[wallet.address] = {
+              path: path,
+              created: walletData.created || Date.now()
+            };
+            
+            // Salva i percorsi aggiornati
+            this.saveWalletPathsToLocalStorage();
+            
+            // Incrementa il contatore
+            successCount++;
+            
+            console.log(`[importWalletKeys] Wallet importato con successo: ${wallet.address}`);
+          } catch (walletError: any) {
+            console.error(`[importWalletKeys] Errore nella creazione del wallet: ${walletError.message || String(walletError)}`);
+            // Continua con il prossimo wallet
           }
-          
-          // Salva il path del wallet
-          const address = wallet.address;
-          const timestamp = walletData.created || Date.now();
-          this.walletPaths[address] = { 
-            path: walletData.path, 
-            created: timestamp 
-          };
-          
-          // Salva nel contesto dell'utente in Gun
-          const user = this.gun.user();
-          if (user && user.is) {
-            await user
-              .get("wallet_paths")
-              .get(address)
-              .put({ path: walletData.path, created: timestamp });
-          }
-          
-          successCount++;
-        } catch (error) {
-          console.error(`Errore nell'importazione del wallet: ${error}`);
-          // Continua con il prossimo wallet anche se questo fallisce
+        } catch (walletImportError: any) {
+          console.error(`[importWalletKeys] Errore nell'importazione del wallet: ${walletImportError.message || String(walletImportError)}`);
+          // Continua con il prossimo wallet
         }
       }
       
-      // Salva i path dei wallet in localStorage
-      this.saveWalletPathsToLocalStorage();
-      
-      // Se almeno un wallet è stato importato con successo
-      if (successCount > 0) {
-        log(`${successCount} wallet importati con successo`);
-        return successCount;
-      } else {
+      // Verifica che almeno un wallet sia stato importato con successo
+      if (successCount === 0) {
         throw new Error("Nessun wallet è stato importato con successo");
       }
+      
+      // Resetta il wallet principale per forzare la riderivazione
+      this.resetMainWallet();
+      
+      console.log(`[importWalletKeys] Importazione completata: ${successCount} wallet importati su ${wallets.length}`);
+      return successCount;
     } catch (error) {
       console.error("Errore nell'importazione dei wallet:", error);
       throw error;
@@ -1164,26 +1264,68 @@ export class WalletManager {
         throw new Error("La password è obbligatoria per importare il backup");
       }
       
+      // Log per debug
+      console.log(`[importAllUserData] Tentativo di importazione backup, lunghezza: ${backupData.length} caratteri`);
+      if (backupData.length > 100) {
+        console.log(`[importAllUserData] Primi 100 caratteri: ${backupData.substring(0, 100)}...`);
+      } else {
+        console.log(`[importAllUserData] Dati completi: ${backupData}`);
+      }
+      
+      // Pulizia dei dati: rimuovi BOM e altri caratteri speciali
+      backupData = backupData.replace(/^\uFEFF/, ''); // Rimuovi BOM
+      backupData = backupData.trim(); // Rimuovi spazi all'inizio e alla fine
+      
       let decryptedData;
       
       // Verifica se i dati sono nel formato corretto
       try {
+        console.log("[importAllUserData] Tentativo di parsing JSON...");
+        
+        // Verifica che sia un JSON valido
+        if (!backupData.startsWith('{') && !backupData.startsWith('[')) {
+          console.error("[importAllUserData] Il formato non sembra essere JSON valido");
+          throw new Error("Il backup deve essere in formato JSON valido");
+        }
+        
         const jsonData = JSON.parse(backupData);
+        console.log(`[importAllUserData] JSON parsificato con successo, tipo: ${jsonData.type || "non specificato"}`);
         
         if (jsonData.type !== "encrypted-shogun-backup" || !jsonData.data) {
-          throw new Error("Formato del backup non valido");
+          console.error("[importAllUserData] Formato del backup non valido:", jsonData);
+          throw new Error("Formato del backup non valido: manca il tipo o i dati");
         }
         
         // Decifra i dati
-        decryptedData = await SEA.decrypt(jsonData.data, password);
+        console.log("[importAllUserData] Tentativo di decifratura...");
+        try {
+          decryptedData = await SEA.decrypt(jsonData.data, password);
+        } catch (decryptError) {
+          console.error("[importAllUserData] Errore nella decifratura:", decryptError);
+          throw new Error(`Errore nella decifratura: ${decryptError}`);
+        }
         
         if (!decryptedData) {
+          console.error("[importAllUserData] Decifratura fallita: null o undefined");
           throw new Error("Password non valida o dati corrotti");
         }
         
-        decryptedData = JSON.parse(decryptedData as string);
+        console.log("[importAllUserData] Decifratura riuscita, tentativo di parsing del contenuto...");
+        console.log("[importAllUserData] Tipo di dati decifrati:", typeof decryptedData);
+        if (typeof decryptedData === 'string' && decryptedData.length > 50) {
+          console.log("[importAllUserData] Primi 50 caratteri decifrati:", decryptedData.substring(0, 50));
+        }
+        
+        try {
+          decryptedData = JSON.parse(decryptedData as string);
+          console.log("[importAllUserData] Parsing del contenuto decifrato riuscito");
+        } catch (parseError) {
+          console.error("[importAllUserData] Errore nel parsing del contenuto decifrato:", parseError);
+          throw new Error(`Errore nel parsing del contenuto decifrato: ${parseError}`);
+        }
       } catch (error) {
-        throw new Error("Formato JSON non valido o password errata");
+        console.error("[importAllUserData] Errore generale:", error);
+        throw new Error(`Formato JSON non valido o password errata: ${error}`);
       }
       
       // Risultati dell'importazione
@@ -1197,50 +1339,66 @@ export class WalletManager {
       // Importa la mnemonic se richiesto
       if (options.importMnemonic && decryptedData.mnemonic) {
         try {
+          console.log("[importAllUserData] Tentativo di importazione mnemonica...");
           await this.saveUserMasterMnemonic(decryptedData.mnemonic);
           result.mnemonicImported = true;
+          console.log("[importAllUserData] Mnemonica importata con successo");
         } catch (error) {
-          console.error("Errore nell'importazione della mnemonica:", error);
+          console.error("[importAllUserData] Errore nell'importazione della mnemonica:", error);
           result.mnemonicImported = false;
         }
+      } else {
+        console.log("[importAllUserData] Importazione mnemonica non richiesta o mnemonica non trovata");
       }
       
       // Importa i wallet se richiesto
       if (options.importWallets && decryptedData.wallets && Array.isArray(decryptedData.wallets)) {
         try {
+          console.log(`[importAllUserData] Tentativo di importazione di ${decryptedData.wallets.length} wallet...`);
           // Prepara i dati nel formato richiesto da importWalletKeys
           const walletsData = JSON.stringify({ wallets: decryptedData.wallets });
           result.walletsImported = await this.importWalletKeys(walletsData);
+          console.log(`[importAllUserData] ${result.walletsImported} wallet importati con successo`);
         } catch (error) {
-          console.error("Errore nell'importazione dei wallet:", error);
+          console.error("[importAllUserData] Errore nell'importazione dei wallet:", error);
           result.walletsImported = 0;
+        }
+      } else {
+        console.log("[importAllUserData] Importazione wallet non richiesta o wallet non trovati");
+        if (options.importWallets) {
+          console.log("[importAllUserData] Dettagli wallets:", decryptedData.wallets);
         }
       }
       
       // Importa il pair di Gun se richiesto
       if (options.importGunPair && decryptedData.user && decryptedData.user.pair) {
         try {
+          console.log("[importAllUserData] Tentativo di importazione pair Gun...");
           // Il pair di Gun viene validato ma non applicato automaticamente
           // (richiede logout e login che deve essere gestito dall'app)
           const pairData = JSON.stringify(decryptedData.user.pair);
           await this.importGunPair(pairData);
           result.gunPairImported = true;
+          console.log("[importAllUserData] Pair Gun importato con successo");
         } catch (error) {
-          console.error("Errore nell'importazione del pair di Gun:", error);
+          console.error("[importAllUserData] Errore nell'importazione del pair di Gun:", error);
           result.gunPairImported = false;
+        }
+      } else {
+        console.log("[importAllUserData] Importazione pair Gun non richiesta o pair non trovato");
+        if (options.importGunPair) {
+          console.log("[importAllUserData] Dettagli user:", decryptedData.user);
         }
       }
       
-      // Verifica se almeno un'importazione è riuscita
-      result.success = (result.mnemonicImported === true || 
-                        (result.walletsImported || 0) > 0 || 
-                        result.gunPairImported === true);
+      // Imposta il risultato finale
+      result.success = !!(
+        (options.importMnemonic && result.mnemonicImported) || 
+        (options.importWallets && result.walletsImported && result.walletsImported > 0) || 
+        (options.importGunPair && result.gunPairImported)
+      );
       
-      // Reset del wallet principale per forzare la riderivazione
-      if (result.success) {
-        this.resetMainWallet();
-      }
-      
+      console.log("[importAllUserData] Risultato finale:", result);
       return result;
     } catch (error) {
       console.error("Errore nell'importazione del backup:", error);
