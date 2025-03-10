@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { sdk } from '../App';
-import { AuthMethod, AuthResult, AutoLoginResult } from '../types';
-import { ethers } from 'ethers';
+import { AuthMethod, AuthResult } from '../types';
+import { log, logError } from '../utils/logger';
 
 enum FormMode {
   LOGIN = 'login',
@@ -11,25 +11,14 @@ enum FormMode {
 interface LoginData {
   userPub: string;
   username: string;
-  password?: string;
-  authMethod?: AuthMethod;
+  authMethod: AuthMethod;
 }
 
-interface SignupData {
-  userPub: string;
-  username: string;
-  password?: string;
-  wallet?: ethers.Wallet;
-  authMethod?: AuthMethod;
-}
-
-interface ShogunLoginModalProps {
+const ShogunLoginModal: React.FC<{
   onLoginSuccess?: (data: LoginData) => void;
-  onSignupSuccess?: (data: SignupData) => void;
+  onSignupSuccess?: (data: LoginData) => void;
   onError?: (error: string) => void;
-}
-
-const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({ 
+}> = ({ 
   onLoginSuccess, 
   onSignupSuccess,
   onError
@@ -40,199 +29,148 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({
   const [mode, setMode] = useState<FormMode>(FormMode.LOGIN);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>('');
-  const [sdkReady, setSdkReady] = useState<boolean>(!!sdk);
 
-  useEffect(() => {
-    if (!sdk) {
-      console.error("SDK non disponibile nel componente di login");
-      setError("SDK non inizializzato. Ricarica la pagina.");
-      setSdkReady(false);
-    } else {
-      setSdkReady(true);
-    }
-  }, []);
+  // Verifica la disponibilità dell'SDK
+  const sdkInstance = sdk;
+  if (!sdkInstance) {
+    return (
+      <div className="bg-red-600 text-white p-4 rounded">
+        SDK non inizializzato. Ricarica la pagina.
+      </div>
+    );
+  }
 
-  const isWebAuthnSupported = sdk?.isWebAuthnSupported?.() || false;
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleStandardAuth = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError("");
+    setError('');
     setLoading(true);
 
     try {
-      if (!sdk) {
-        throw new Error("SDK non inizializzato");
+      if (mode === FormMode.SIGNUP && password !== confirmPassword) {
+        throw new Error('Le password non coincidono');
       }
 
-      if (mode === FormMode.SIGNUP) {
-        console.log(`Tentativo di registrazione per ${username}`);
-        
-        const result = await sdk.signUp(username, password) as AutoLoginResult;
-        
-        if (result && result.success) {
-          onSignupSuccess && onSignupSuccess({
-            userPub: result.userPub || "",
-            username,
-            password,
-            authMethod: "standard_signup"
-          });
-        } else {
-          setError((result && result.error) || "Errore durante la registrazione");
-          console.error("Errore di registrazione:", result && result.error);
-        }
-      } else {
-        console.log(`Tentativo di login per ${username}`);
-        const result = await sdk.login(username, password);
-        
-        if (result && result.success) {
-          onLoginSuccess && onLoginSuccess({
-            userPub: result.userPub || "",
-            username,
-            password,
-            authMethod: "standard"
-          });
-        } else {
-          setError((result && result.error) || "Credenziali non valide");
-        }
+      console.log(`Tentativo di ${mode === FormMode.LOGIN ? 'login' : 'registrazione'} per: ${username}`);
+
+      const result = mode === FormMode.LOGIN 
+        ? await sdkInstance.login(username, password)
+        : await sdkInstance.signUp(username, password);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Autenticazione fallita');
       }
-    } catch (error: any) {
-      console.error(`Errore durante ${mode === FormMode.LOGIN ? 'il login' : 'la registrazione'}:`, error);
-      setError(error.message || 'Si è verificato un errore');
+
+      console.log("Autenticazione completata con successo");
+
+      const authData: LoginData = {
+        userPub: result.userPub || '',
+            username,
+        authMethod: mode === FormMode.LOGIN ? 'standard' : 'standard_signup'
+      };
+
+      // Verifica che l'utente sia effettivamente autenticato
+      if (!sdkInstance.isLoggedIn()) {
+        throw new Error('Autenticazione non riuscita: sessione non valida');
+      }
+
+      if (mode === FormMode.LOGIN) {
+        onLoginSuccess?.(authData);
+        } else {
+        onSignupSuccess?.(authData);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Si è verificato un errore';
+      console.error("Errore di autenticazione:", errorMessage);
+      setError(errorMessage);
+      onError?.(errorMessage);
+    } finally {
       setLoading(false);
-      if (onError) {
-        onError(error.message || 'Si è verificato un errore');
-      }
     }
   };
 
   const handleMetaMask = async () => {
     setError('');
     setLoading(true);
-    setDebugInfo('');
 
     try {
+      // Prima connetti MetaMask
+      const metamaskResult = await sdkInstance.metamask.connectMetaMask();
+      if (!metamaskResult.success || !metamaskResult.address) {
+        throw new Error(metamaskResult.error || 'Errore nella connessione a MetaMask');
+      }
+
+      // Usa l'indirizzo ottenuto dalla connessione
+      const result = mode === FormMode.LOGIN 
+        ? await sdkInstance.loginWithMetaMask(metamaskResult.address)
+        : await sdkInstance.signUpWithMetaMask(metamaskResult.address);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Autenticazione con MetaMask fallita');
+      }
+
+      const authData: LoginData = {
+        userPub: result.userPub || '',
+        username: metamaskResult.username || `mm_${metamaskResult.address.toLowerCase()}`,
+        authMethod: mode === FormMode.LOGIN ? 'metamask_direct' : 'metamask_signup'
+      };
+
       if (mode === FormMode.LOGIN) {
-        console.log("Tentativo di login con MetaMask");
-        const result = await sdk.loginWithMetaMask();
-        
-        if (result.success) {
-          console.log("Login con MetaMask completato con successo:", result);
-          onLoginSuccess && onLoginSuccess({
-            userPub: result.userPub || "",
-            username: result.username || "",
-            authMethod: "metamask_direct"
-          });
+        onLoginSuccess?.(authData);
         } else {
-          setError(result.error || 'Login con MetaMask fallito');
-          setDebugInfo(JSON.stringify(result, null, 2));
-        }
-      } else {
-        console.log("Tentativo di registrazione con MetaMask");
-        const result = await sdk.signUpWithMetaMask();
-        
-        if (result.success) {
-          console.log("Registrazione con MetaMask completata con successo:", result);
-          onSignupSuccess && onSignupSuccess({
-            userPub: result.userPub || "",
-            username: result.username || "",
-            authMethod: "metamask_signup"
-          });
-        } else {
-          setError(result.error || 'Registrazione con MetaMask fallita');
-          setDebugInfo(JSON.stringify(result, null, 2));
-        }
+        onSignupSuccess?.(authData);
       }
-    } catch (error: any) {
-      console.error("Errore durante il login con MetaMask:", error);
-      setError(error.message || 'Errore durante il login con MetaMask');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Errore con MetaMask';
+      setError(errorMessage);
+      onError?.(errorMessage);
+    } finally {
       setLoading(false);
-      if (onError) {
-        onError(error.message || 'Errore durante il login con MetaMask');
-      }
     }
   };
 
   const handleWebAuthn = async () => {
-    if (!isWebAuthnSupported) {
+    if (!sdkInstance.isWebAuthnSupported?.()) {
       setError('WebAuthn non è supportato dal tuo browser');
       return;
     }
 
+        if (!username) {
+          setError('Username richiesto per WebAuthn');
+          return;
+        }
+        
     setError('');
     setLoading(true);
-    setDebugInfo('');
 
     try {
-      if (mode === FormMode.LOGIN) {
-        if (!username) {
-          setError('Username richiesto per WebAuthn');
-          setLoading(false);
-          return;
-        }
-        
-        console.log("Tentativo di login con WebAuthn per", username);
-        const result = await sdk.loginWithWebAuthn(username);
-        if (result.success) {
-          console.log("Login con WebAuthn completato con successo:", result);
-          onLoginSuccess && onLoginSuccess({
-            userPub: result.userPub || "",
-            username,
-            authMethod: "webauthn"
-          });
-        } else {
-          setError(result.error || 'Login con WebAuthn fallito');
-          setDebugInfo(JSON.stringify(result, null, 2));
-        }
-      } else {
-        if (!username) {
-          setError('Username richiesto per WebAuthn');
-          setLoading(false);
-          return;
-        }
-        
-        console.log("Tentativo di registrazione con WebAuthn per", username);
-        const result = await sdk.signUpWithWebAuthn(username);
-        if (result.success) {
-          console.log("Registrazione con WebAuthn completata con successo:", result);
-          onSignupSuccess && onSignupSuccess({
-            userPub: result.userPub || "",
-            username,
-            authMethod: "webauthn"
-          });
-        } else {
-          if (result.error === 'User already exists') {
-            setError('Questo username è già registrato. Se sei tu, per favore utilizza il login invece della registrazione.');
-            setDebugInfo('Utente già esistente nel sistema. Prova ad effettuare il login invece della registrazione.');
-          } 
-          else if (result.error && result.error.includes('Utente già esistente, login effettuato con successo')) {
-            console.log("Login automatico effettuato per utente esistente:", username);
-            onLoginSuccess && onLoginSuccess({
-              userPub: result.userPub || "",
-              username,
-              authMethod: "webauthn"
-            });
-          }
-          else {
-            setError(result.error || 'Registrazione con WebAuthn fallita');
-            setDebugInfo(JSON.stringify(result, null, 2));
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error("Errore durante l'autenticazione WebAuthn:", error);
-      setError(error.message || "Errore durante l'autenticazione WebAuthn");
-      setLoading(false);
-      if (onError) {
-        onError(error.message || "Errore durante l'autenticazione WebAuthn");
-      }
-    }
-  };
+      const result = mode === FormMode.LOGIN 
+        ? await sdkInstance.loginWithWebAuthn(username)
+        : await sdkInstance.signUpWithWebAuthn(username);
 
-  const toggleMode = () => {
-    setMode(mode === FormMode.LOGIN ? FormMode.SIGNUP : FormMode.LOGIN);
-    setError('');
-    setDebugInfo('');
+      if (!result.success) {
+        throw new Error(result.error || 'Autenticazione WebAuthn fallita');
+      }
+
+      const authData: LoginData = {
+        userPub: result.userPub || '',
+        username: result.username || username,
+        authMethod: 'webauthn'
+      };
+
+      if (mode === FormMode.LOGIN) {
+        onLoginSuccess?.(authData);
+        } else {
+        onSignupSuccess?.(authData);
+        setError('Registrazione completata con successo');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Errore con WebAuthn';
+      setError(errorMessage);
+      onError?.(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -247,7 +185,7 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleStandardAuth} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">Username</label>
           <input
@@ -301,7 +239,7 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({
           {mode === FormMode.LOGIN ? 'Accedi con MetaMask' : 'Registrati con MetaMask'}
         </button>
 
-        {isWebAuthnSupported && (
+        {sdkInstance.isWebAuthnSupported?.() && (
           <button
             onClick={handleWebAuthn}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none transition duration-300"
@@ -315,7 +253,10 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({
       <div className="mt-4 text-center">
         <button
           type="button"
-          onClick={toggleMode}
+          onClick={() => {
+            setMode(mode === FormMode.LOGIN ? FormMode.SIGNUP : FormMode.LOGIN);
+            setError('');
+          }}
           className="text-blue-400 hover:text-blue-300 focus:outline-none"
         >
           {mode === FormMode.LOGIN
@@ -323,13 +264,6 @@ const ShogunLoginModal: React.FC<ShogunLoginModalProps> = ({
             : 'Hai già un account? Accedi'}
         </button>
       </div>
-
-      {debugInfo && (
-        <div className="mt-4 p-3 bg-gray-700 rounded text-xs font-mono overflow-auto max-h-40">
-          <p className="text-gray-400 mb-1">Informazioni di debug:</p>
-          <pre className="text-gray-300">{debugInfo}</pre>
-        </div>
-      )}
     </div>
   );
 };

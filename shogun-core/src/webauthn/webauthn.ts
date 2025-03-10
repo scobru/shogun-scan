@@ -144,20 +144,14 @@ const generateCredentialsFromSalt = (
 
 class Webauthn {
   private rpId: string;
+  private gunInstance: any;
+  private credential: any;
 
-  constructor() {
-    this.rpId = this.getRpId();
-  }
-
-  private getRpId(): string {
-    if (typeof window === "undefined") {
-      return "";
-    }
-
-    if (window.location.hostname === "localhost") {
-      return "localhost";
-    }
-    return window.location.hostname.split(".").slice(-2).join(".");
+  constructor(gunInstance?: any) {
+    // Usa il dominio senza porta per rpId
+    this.rpId = window.location.hostname.split(':')[0];
+    this.gunInstance = gunInstance;
+    this.credential = null;
   }
 
   validateUsername(username: string): void {
@@ -183,13 +177,11 @@ class Webauthn {
     username: string,
     credentials: WebAuthnCredentials | null,
     isNewDevice = false,
-    deviceName?: string
   ): Promise<CredentialResult> {
     const result = await this.generateCredentials(
       username,
       credentials,
-      isNewDevice,
-      deviceName
+      isNewDevice
     );
     if (!result.success) {
       throw new Error(
@@ -199,131 +191,149 @@ class Webauthn {
     return result;
   }
 
-  async generateCredentials(
-    username: string,
-    existingCreds: WebAuthnCredentials | null,
-    isNewDevice = false,
-    deviceName?: string
-  ): Promise<CredentialResult> {
+  isSupported(): boolean {
+    return typeof window !== 'undefined' && 
+           window.PublicKeyCredential !== undefined;
+  }
+
+  private async createCredential(username: string): Promise<any> {
     try {
-      this.validateUsername(username);
-
-      if (!this.isSupported()) {
-        throw new Error("WebAuthn non è supportato su questo browser");
-      }
-
-      if (!this.rpId || this.rpId.includes(":")) {
-        throw new Error(
-          "Dominio non valido per WebAuthn. Usa HTTPS e un dominio registrato"
-        );
-      }
-
-      // Caso 1: È un nuovo dispositivo ma dobbiamo avere credenziali esistenti
-      if (isNewDevice) {
-        if (!existingCreds) {
-          throw new Error(
-            "Per aggiungere un nuovo dispositivo, devi prima accedere con un dispositivo già registrato"
-          );
-        }
-      }
+      // Genera un challenge casuale
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
       
-      // Nota: rimuoviamo il controllo che impedisce la registrazione quando existingCreds esiste
-      // Questo permette di registrare un utente anche se è già presente nella WebAuthn store locale
-      // ma non è ancora registrato in GunDB (risolve il problema "User already exists" ma nessuna credenziale trovata)
+      // Crea l'ID utente
+      const userId = new TextEncoder().encode(username);
 
-      const challenge = generateChallenge(username);
-
-      const createCredentialOptions: PublicKeyCredentialCreationOptions = {
+      const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge,
         rp: {
           name: "Shogun Wallet",
-          id: this.rpId,
+          // Non includere rpId se stai testando su localhost
+          ...(this.rpId !== 'localhost' && { id: this.rpId })
         },
         user: {
-          id: new TextEncoder().encode(username),
+          id: userId,
           name: username,
-          displayName: username,
+          displayName: username
         },
         pubKeyCredParams: [
-          {
-            type: "public-key",
-            alg: -7, // ES256
-          },
-          {
-            type: "public-key",
-            alg: -257, // RS256
-          },
+          { type: "public-key", alg: -7 }  // ES256
         ],
-        timeout: TIMEOUT_MS,
-        attestation: "direct" as AttestationConveyancePreference,
+        timeout: 60000,
+        attestation: "none",
         authenticatorSelection: {
           authenticatorAttachment: "platform",
-          userVerification: "required",
-          requireResidentKey: true,
-        },
-        extensions: {
-          credProps: true,
-        },
+          userVerification: "preferred",
+          requireResidentKey: false
+        }
       };
 
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_MS);
+      console.log("Tentativo di creazione credenziali con opzioni:", publicKeyCredentialCreationOptions);
 
-      try {
-        const credential = (await navigator.credentials.create({
-          publicKey: createCredentialOptions,
-          signal: abortController.signal,
-        })) as PublicKeyCredential;
+      const credential = await navigator.credentials.create({
+        publicKey: publicKeyCredentialCreationOptions
+      });
 
-        const salt = existingCreds?.salt || uint8ArrayToHex(getRandomBytes(32));
-        const { password } = generateCredentialsFromSalt(username, salt);
-        const { name: defaultDeviceName, platform } = getPlatformInfo();
-        const deviceId = generateDeviceId();
+      if (!credential) {
+        throw new Error("Creazione credenziali fallita");
+      }
 
-        const credentialId = bufferToBase64(credential.rawId);
-        const newCredential: DeviceInfo = {
-          deviceId,
-          timestamp: Date.now(),
-          name: deviceName || defaultDeviceName,
-          platform,
-        };
+      console.log("Credenziali create con successo:", credential);
+      this.credential = credential;
+      return credential;
 
-        const updatedCreds: WebAuthnCredentials = {
-          salt,
-          timestamp: Date.now(),
-          credentials: {
-            ...(existingCreds?.credentials || {}),
-            [credentialId]: newCredential,
-          },
-        };
+    } catch (error: any) {
+      console.error("Errore dettagliato nella creazione delle credenziali:", error);
+      throw new Error(`Errore nella creazione delle credenziali: ${error.message}`);
+    }
+  }
+
+  async generateCredentials(username: string, existingCredential?: any, isLogin = false): Promise<any> {
+    try {
+      if (isLogin) {
+        // Login: verifica credenziali esistenti
+        return this.verifyCredential(username);
+      } else {
+        // Registrazione: crea nuove credenziali
+        const credential = await this.createCredential(username);
+        const credentialId = (credential as PublicKeyCredential).id;
+        
+        // Estrai la chiave pubblica se disponibile
+        let publicKey = null;
+        if (credential && (credential as any).response?.getPublicKey) {
+          publicKey = (credential as any).response.getPublicKey();
+        }
 
         return {
           success: true,
-          username,
-          password,
           credentialId,
-          deviceInfo: newCredential,
-          // Restituisci le credenziali aggiornate per il salvataggio esterno
-          webAuthnCredentials: updatedCreds,
+          publicKey
         };
-      } finally {
-        clearTimeout(timeoutId);
       }
-    } catch (error: unknown) {
-      console.error("Errore generazione credenziali WebAuthn:", error);
-      let errorMessage = "Errore sconosciuto";
+    } catch (error: any) {
+      console.error("Errore in generateCredentials:", error);
+      return {
+        success: false,
+        error: error.message || "Errore durante l'operazione WebAuthn"
+      };
+    }
+  }
 
-      if (error instanceof Error && error.name === "SecurityError") {
-        errorMessage = `Configurazione di sicurezza non valida: 
-          1. Assicurati di usare HTTPS
-          2. Il dominio deve essere registrato (no IP/porta)
-          3. Sottodomini devono usare il dominio principale`;
+  private async verifyCredential(username: string): Promise<any> {
+    try {
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+
+      const options: PublicKeyCredentialRequestOptions = {
+        challenge,
+        timeout: 60000,
+        userVerification: "preferred",
+        // Non includere rpId se stai testando su localhost
+        ...(this.rpId !== 'localhost' && { rpId: this.rpId })
+      };
+
+      if (this.credential?.rawId) {
+        options.allowCredentials = [{
+          id: this.credential.rawId,
+          type: 'public-key'
+        }];
+      }
+
+      const assertion = await navigator.credentials.get({
+        publicKey: options
+      });
+
+      if (!assertion) {
+        return {
+          success: false,
+          error: "Verifica delle credenziali fallita"
+        };
       }
 
       return {
-        success: false,
-        error: errorMessage,
+        success: true,
+        credentialId: (assertion as PublicKeyCredential).id
       };
+
+    } catch (error: any) {
+      console.error("Errore nella verifica delle credenziali:", error);
+      return {
+        success: false,
+        error: error.message || "Errore nella verifica delle credenziali"
+      };
+    }
+  }
+
+  private async saveToGun(username: string, credential: any): Promise<void> {
+    if (this.gunInstance) {
+      try {
+        await this.gunInstance.get(`webauthn_${username}`).put({
+          credentialId: credential.id,
+          type: credential.type,
+          timestamp: Date.now()
+        });
+      } catch (error: any) {
+        console.error("Errore nel salvataggio delle credenziali su Gun:", error);
+      }
     }
   }
 
@@ -399,16 +409,6 @@ class Webauthn {
         error: error instanceof Error ? error.message : "Errore sconosciuto",
       };
     }
-  }
-
-  isSupported(): boolean {
-    return (
-      typeof window !== "undefined" &&
-      window.PublicKeyCredential !== undefined &&
-      typeof window.PublicKeyCredential === "function" &&
-      typeof window.crypto !== "undefined" &&
-      typeof window.crypto.subtle !== "undefined"
-    );
   }
 
   async sign(data: any) {

@@ -85,26 +85,24 @@ class MetaMask {
    * @param address Indirizzo da validare
    * @throws Error se l'indirizzo non è valido
    */
-  private validateAddress(address: string): void {
-    // Normalizza l'indirizzo: assicurati che sia una stringa, rimuovi spazi, converti a minuscolo
-    let normalizedAddress = String(address || "").trim().toLowerCase();
-    
-    // Aggiungi il prefisso 0x se mancante
-    if (!normalizedAddress.startsWith("0x")) {
-      normalizedAddress = "0x" + normalizedAddress;
+  private validateAddress(address: string | null | undefined): string {
+    if (!address) {
+      throw new Error("Indirizzo non fornito");
     }
+
+    // Normalizza l'indirizzo
+    let normalizedAddress = String(address).trim().toLowerCase();
     
-    // Verifica lunghezza e formato
-    if (!normalizedAddress || normalizedAddress.length !== 42) {
-      // Prova a verificare se è un indirizzo valido con ethers
-      try {
-        const isValid = ethers.isAddress(normalizedAddress);
-        if (!isValid) {
-          throw new Error("Indirizzo Ethereum non valido");
-        }
-      } catch (e) {
-        throw new Error("Indirizzo Ethereum non valido");
+    try {
+      // Verifica se è un indirizzo valido con ethers
+      if (!ethers.isAddress(normalizedAddress)) {
+        throw new Error("Formato indirizzo non valido");
       }
+      
+      // Formatta l'indirizzo in modo corretto
+      return ethers.getAddress(normalizedAddress);
+    } catch (e) {
+      throw new Error("Indirizzo Ethereum non valido");
     }
   }
 
@@ -150,11 +148,9 @@ class MetaMask {
           };
         }
 
-        const address = accounts[0];
-        this.validateAddress(address);
-
-        // Normalizza l'indirizzo
-        const metamaskUsername = address.toLowerCase();
+        // Valida e normalizza l'indirizzo
+        const address = this.validateAddress(accounts[0]);
+        const metamaskUsername = `mm_${address.toLowerCase()}`;
 
         return {
           success: true,
@@ -172,9 +168,7 @@ class MetaMask {
       logError("Errore generale in connectMetaMask:", error);
       return {
         success: false,
-        error:
-          error.message ||
-          "Errore sconosciuto durante la connessione a MetaMask",
+        error: error.message || "Errore sconosciuto durante la connessione a MetaMask",
       };
     }
   }
@@ -202,38 +196,26 @@ class MetaMask {
     address: string
   ): Promise<MetaMaskCredentials> {
     try {
-      this.validateAddress(address);
-
-      // Il messaggio da firmare dovrebbe includere l'indirizzo per sicurezza
-      const messageToSign = this.MESSAGE_TO_SIGN;
-
-      log(`Richiesta firma per autenticazione: ${address}`);
-
-      // Ottieni il provider Ethereum
-      if (!MetaMask.isMetaMaskAvailable()) {
-        throw new Error("MetaMask non disponibile");
+      // Prima connetti a MetaMask
+      const connection = await this.connectMetaMask();
+      if (!connection.success) {
+        throw new Error(connection.error || "Errore di connessione a MetaMask");
       }
+
+      // Verifica che l'indirizzo connesso corrisponda
+      const connectedAddress = this.validateAddress(connection.address);
+      if (connectedAddress.toLowerCase() !== address.toLowerCase()) {
+        throw new Error("L'account selezionato non corrisponde all'indirizzo fornito");
+      }
+
+      // Il messaggio da firmare
+      const messageToSign = this.MESSAGE_TO_SIGN;
+      log(`Richiesta firma del messaggio: "${messageToSign}"`);
 
       const ethereum = window.ethereum as EthereumProvider;
-      const accounts = await ethereum.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (
-        !accounts ||
-        accounts.length === 0 ||
-        accounts[0].toLowerCase() !== address.toLowerCase()
-      ) {
-        throw new Error(
-          "L'account selezionato non corrisponde all'indirizzo fornito"
-        );
-      }
-
-      // Richiedi la firma del messaggio
-      log(`Richiesta firma del messaggio: "${messageToSign}"`);
       const signature = await ethereum.request({
         method: "personal_sign",
-        params: [messageToSign, address],
+        params: [messageToSign, connectedAddress],
       });
 
       if (!signature) {
@@ -245,8 +227,8 @@ class MetaMask {
       // Genera la password usando il metodo dedicato
       const password = await this.generatePassword(signature);
 
-      // Crea il nome utente deterministico
-      const username = address.toLowerCase();
+      // Usa l'username generato durante la connessione
+      const username = connection.username || `mm_${connectedAddress.toLowerCase()}`;
 
       return {
         username,

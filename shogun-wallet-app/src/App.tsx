@@ -7,6 +7,8 @@ import { rpcOptions } from "./constants";
 import { WalletInfo, AuthMethod,  StealthKeyPair } from "./types";
 import "./App.css";
 import { ethers } from "ethers";
+import { TokenService } from "./services/TokenService";
+import { TokenManager } from "./components/TokenManager";
 
 // Inizializzazione del connettore Shogun
 const connectorConfig = {
@@ -434,14 +436,30 @@ const App: React.FC = () => {
       setProvider(newProvider);
       console.log(`Provider inizializzato per la rete: ${selectedRpc} (${rpcData.url})`);
       
-      // Aggiorna il provider anche nel MOMClient
+      // Aggiorna il provider anche nel MOMClient - RIMUOVI O MODIFICA QUESTA PARTE
       if (sdk) {
         try {
-          // Corretto da setMOMProvider a setProvider
-          sdk.setProvider(newProvider);
-          console.log("Provider MOM aggiornato con successo");
-        } catch (momError) {
-          console.error("Errore nell'aggiornamento del provider:", momError);
+          // RIMUOVI o COMMENTA questa riga che genera l'errore
+          // sdk.setProvider(newProvider);
+          
+          // Invece, puoi fare questo solo se l'SDK ha un'interfaccia per modificare il provider
+          // ad esempio, se esistono metodi specifici per aggiornare i componenti che usano il provider
+          if (sdk.metamask && typeof sdk.metamask.setCustomProvider === 'function') {
+            // Ottieni la chiave privata dal wallet selezionato
+            const selectedWallet = derivedWallets.find(w => w.address === selectedAddress);
+            const privateKey = selectedWallet?.wallet?.privateKey || "";
+            
+            if (privateKey) {
+              sdk.metamask.setCustomProvider(rpcData.url, privateKey);
+              console.log("Provider MetaMask aggiornato con successo");
+            } else {
+              console.log("Nessuna chiave privata disponibile per aggiornare MetaMask");
+            }
+          }
+          
+          console.log("Provider aggiornato dove possibile");
+        } catch (providerError) {
+          console.error("Errore nell'aggiornamento del provider:", providerError);
           // Continuiamo anche se questo fallisce
         }
       }
@@ -1761,6 +1779,17 @@ const App: React.FC = () => {
               </p>
             </div>
             
+            {/* Aggiungi il TokenManager qui */}
+            {selectedAddress && provider && (
+              <div className="mt-4">
+                <TokenManager 
+                  address={selectedAddress} 
+                  provider={provider}
+                  networkId={selectedRpc} // Passa la rete selezionata
+                />
+              </div>
+            )}
+            
             {/* Form di invio */}
             {showSendForm && (
               <div className="bg-gray-800 rounded-lg p-6 mt-4">
@@ -2247,6 +2276,32 @@ const App: React.FC = () => {
       return null;
     }
   };
+
+  const initTokenService = (provider: ethers.JsonRpcProvider) => {
+    // Usa il servizio importato a livello superiore
+    return new TokenService(provider);
+  };
+
+  // All'interno del componente App
+  useEffect(() => {
+    // Verifica lo stato di autenticazione all'avvio dell'app
+    const checkAuth = async () => {
+      if (sdk && sdk.isLoggedIn()) {
+        console.log("Sessione utente trovata");
+        const user = sdk.gundb.getUser();
+        if (user && user.is) {
+          setUserAuthenticated(true);
+          setUserPub(user.is.pub);
+          // Altri stati da impostare
+        }
+      } else {
+        console.log("Nessuna sessione utente trovata, necessario login");
+        setUserAuthenticated(false);
+      }
+    };
+    
+    checkAuth();
+  }, [sdk]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex">

@@ -32,8 +32,7 @@ class GunDB {
    */
   constructor(options: GunDBOptions = {}) {
     log("Inizializzazione GunDB");
-    log("Opzioni:", options);
-
+    
     // Configura GunDB con le opzioni fornite
     this.gun = Gun({
       peers: options.peers || CONFIG.PEERS,
@@ -52,7 +51,12 @@ class GunDB {
    */
   private subscribeToAuthEvents() {
     this.gun.on("auth", (ack: any) => {
-      this.notifyAuthListeners(ack.sea?.pub || "");
+      log("Evento auth ricevuto:", ack);
+      if (ack.err) {
+        logError("Errore di autenticazione:", ack.err);
+      } else {
+        this.notifyAuthListeners(ack.sea?.pub || "");
+      }
     });
   }
 
@@ -134,124 +138,40 @@ class GunDB {
   }
 
   /**
-   * Verifica se un nome utente è disponibile
-   * @param username - Nome utente da verificare
-   * @returns Promise che risolve a true se il nome utente è disponibile, false altrimenti
-   */
-  async isUsernameAvailable(username: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.gun.get(`~@${username}`).once((data: any) => {
-        // Se data è null o undefined, l'utente non esiste
-        resolve(data === null || data === undefined);
-      });
-    });
-  }
-
-  /**
    * Registra un nuovo utente
    * @param username - Nome utente
    * @param password - Password
    * @returns Promise che risolve con la chiave pubblica dell'utente
    */
   async signUp(username: string, password: string): Promise<any> {
-    log("signUp", username, password);
-
     try {
-      // Verifica se l'utente esiste già
-      const isAvailable = await this.isUsernameAvailable(username);
-      if (!isAvailable) {
-        log(`L'utente ${username} esiste già`);
-        return {
-          success: false,
-          error: "User already exists",
-        };
-      }
+      log("Tentativo di registrazione utente:", username);
+      
+      return new Promise((resolve) => {
+        this.gun.user().create(username, password, async (ack: any) => {
+          if (ack.err) {
+            logError(`Errore registrazione: ${ack.err}`);
+            resolve({ success: false, error: ack.err });
+            return;
+          }
 
-      log("create user", username, password);
-
-      // Utilizziamo il metodo create di Gun con un timeout
-      return new Promise((resolve, reject) => {
-        // Imposta un timeout per evitare blocchi indefiniti
-        const timeout = setTimeout(() => {
-          log(`Timeout raggiunto durante la creazione dell'utente: ${username}`);
-          resolve({
-            success: false,
-            error: "Timeout durante la creazione dell'utente",
-          });
-        }, 10000); // 10 secondi di timeout
-        
-        try {
-          this.gun.user().create(username, password, (ack: any) => {
-            log("create user ack", ack);
-            
-            if (ack.err) {
-              clearTimeout(timeout);
-              log(`Errore durante la creazione dell'utente: ${ack.err}`);
-              resolve({
-                success: false,
-                error: ack.err,
-              });
-            } else {
-              log(`Utente ${username} creato con successo, tentativo di login...`);
-              
-              // Imposta un nuovo timeout per l'operazione di login
-              const loginTimeout = setTimeout(() => {
-                clearTimeout(timeout); // Cancella il timeout precedente
-                log(`Timeout raggiunto durante il login post-registrazione: ${username}`);
-                resolve({
-                  success: false,
-                  error: "Timeout durante il login post-registrazione",
-                });
-              }, 10000); // 10 secondi di timeout
-              
-              // Dopo la creazione, eseguiamo il login
-              try {
-                this.gun.user().auth(username, password, (loginAck: any) => {
-                  clearTimeout(loginTimeout);
-                  clearTimeout(timeout);
-                  
-                  if (loginAck.err) {
-                    log(`Errore durante il login post-registrazione: ${loginAck.err}`);
-                    resolve({
-                      success: false,
-                      error: loginAck.err,
-                    });
-                  } else {
-                    log("signUp success", loginAck.sea?.pub);
-                    resolve({
-                      success: true,
-                      userPub: loginAck.sea?.pub,
-                    });
-                  }
-                });
-              } catch (authError) {
-                clearTimeout(loginTimeout);
-                clearTimeout(timeout);
-                log(`Eccezione durante il login post-registrazione: ${authError}`);
-                resolve({
-                  success: false,
-                  error: authError instanceof Error ? authError.message : "Errore durante il login post-registrazione",
-                });
-              }
-            }
-          });
-        } catch (createError) {
-          clearTimeout(timeout);
-          log(`Eccezione durante la creazione dell'utente: ${createError}`);
-          resolve({
-            success: false,
-            error: createError instanceof Error ? createError.message : "Errore durante la creazione dell'utente",
-          });
-        }
+          // Effettua il login automatico dopo la registrazione
+          const loginResult = await this.login(username, password);
+          
+          if (loginResult.success) {
+            log("Registrazione e login completati con successo");
+          } else {
+            logError("Registrazione completata ma login fallito");
+          }
+          
+          resolve(loginResult);
+        });
       });
     } catch (error) {
-      console.error("Errore durante la registrazione:", error);
+      logError("Errore durante la registrazione:", error);
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Errore sconosciuto durante la registrazione",
+        error: error instanceof Error ? error.message : "Errore sconosciuto"
       };
     }
   }
@@ -264,63 +184,41 @@ class GunDB {
    */
   async login(username: string, password: string): Promise<any> {
     try {
-      // Utilizziamo un approccio basato su promise per gestire correttamente l'autenticazione
+      log("Tentativo di login per:", username);
+      
       return new Promise((resolve) => {
-        // Pulisci eventuali sessioni precedenti
-        this.gun.user().leave();
-        
-        // Esegui l'autenticazione
         this.gun.user().auth(username, password, (ack: any) => {
           if (ack.err) {
-            log(`Errore di autenticazione per ${username}: ${ack.err}`);
+            logError(`Errore login: ${ack.err}`);
+            resolve({ 
+              success: false, 
+              error: ack.err 
+            });
+            return;
+          }
+
+          const user = this.gun.user();
+          if (!user.is) {
             resolve({
               success: false,
-              error: ack.err,
+              error: "Login fallito: utente non autenticato"
             });
-          } else {
-            // Verifica che l'autenticazione sia effettivamente avvenuta
-            const isAuth = this.isLoggedIn();
-            log(`Login completato per ${username}, stato autenticazione: ${isAuth ? 'autenticato' : 'non autenticato'}`);
-            
-            if (!isAuth) {
-              // Se non siamo autenticati nonostante il callback positivo, c'è un problema
-              log("Login apparentemente riuscito ma utente non autenticato, tentativo di recupero...");
-              
-              // Aspetta un momento e riprova a verificare lo stato
-              setTimeout(() => {
-                const isAuthRetry = this.isLoggedIn();
-                log(`Verifica autenticazione dopo recupero: ${isAuthRetry ? 'autenticato' : 'non autenticato'}`);
-                
-                if (isAuthRetry) {
-                  resolve({
-                    success: true,
-                    userPub: this.gun.user().is?.pub,
-                  });
-                } else {
-                  resolve({
-                    success: false,
-                    error: "Autenticazione non riuscita: gun.user().is non disponibile dopo il login",
-                  });
-                }
-              }, 500); // Attendi 500ms per dare tempo a Gun di aggiornare lo stato
-            } else {
-              // Autenticazione riuscita normalmente
-              resolve({
-                success: true,
-                userPub: ack.sea?.pub || this.gun.user().is?.pub,
-              });
-            }
+            return;
           }
+
+          log("Login completato con successo");
+          resolve({
+            success: true,
+            userPub: user.is.pub,
+            username
+          });
         });
       });
     } catch (error) {
-      console.error("Errore durante il login:", error);
+      logError("Errore durante il login:", error);
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Errore sconosciuto durante il login",
+        error: error instanceof Error ? error.message : "Errore sconosciuto"
       };
     }
   }
@@ -329,7 +227,13 @@ class GunDB {
    * Effettua il logout dell'utente corrente
    */
   logout(): void {
-    this.gun.user()?.leave();
+    try {
+      log("Tentativo di logout");
+      this.gun.user().leave();
+      log("Logout completato");
+    } catch (error) {
+      logError("Errore durante il logout:", error);
+    }
   }
 
   /**
@@ -337,7 +241,8 @@ class GunDB {
    * @returns true se un utente è autenticato
    */
   isLoggedIn(): boolean {
-    return !!this.gun.user()?.is?.pub;
+    const user = this.gun.user();
+    return !!(user && user.is && user.is.pub);
   }
 
   /**
