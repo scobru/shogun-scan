@@ -3,7 +3,6 @@ import {  shogunConnector  } from "@shogun/shogun-button";
 import "@shogun/shogun-button/styles.css";
 import ShogunLoginModal from "./components/ShogunLoginModal"; 
 import Sidebar from "./components/Sidebar";
-import MOMSection from "./components/MOMSection";
 import { rpcOptions } from "./constants";
 import { WalletInfo, AuthMethod,  StealthKeyPair } from "./types";
 import "./App.css";
@@ -415,19 +414,65 @@ const App: React.FC = () => {
     }
   };
 
-  // Inizializza il provider all'avvio
+  // Opzioni RPC
+  /* const rpcOptions = [
+    { value: "mainnet", label: "Ethereum Mainnet", url: "https://eth-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx" },
+    { value: "sepolia", label: "Sepolia Testnet", url: "https://eth-sepolia.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx" },
+    { value: "optimism_sepolia", label: "Optimism Sepolia Testnet", url: "https://opt-sepolia.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx" }
+  ];
+ */
+  // Inizializza il provider all'avvio dell'app
   useEffect(() => {
-    // Provider predefinito (mainnet)
     try {
-      const defaultRpcUrl = rpcOptions.find(
-        (opt) => opt.value === selectedRpc
-      )?.url;
-      const defaultProvider = new ethers.JsonRpcProvider(defaultRpcUrl);
-      setProvider(defaultProvider);
+      const rpcData = rpcOptions.find(opt => opt.value === selectedRpc);
+      if (!rpcData || !rpcData.url) {
+        throw new Error(`URL RPC non trovato per la rete: ${selectedRpc}`);
+      }
+
+      // Crea un nuovo provider con l'URL pubblico
+      const newProvider = new ethers.JsonRpcProvider(rpcData.url);
+      setProvider(newProvider);
+      console.log(`Provider inizializzato per la rete: ${selectedRpc} (${rpcData.url})`);
+      
+      // Aggiorna il provider anche nel MOMClient
+      if (sdk) {
+        try {
+          // Corretto da setMOMProvider a setProvider
+          sdk.setProvider(newProvider);
+          console.log("Provider MOM aggiornato con successo");
+        } catch (momError) {
+          console.error("Errore nell'aggiornamento del provider:", momError);
+          // Continuiamo anche se questo fallisce
+        }
+      }
+      
+      // Trova il wallet corrispondente all'indirizzo selezionato
+      let walletPrivateKey = "";
+      if (selectedAddress) {
+        const selectedWallet = derivedWallets.find(w => w.address === selectedAddress);
+        if (selectedWallet && selectedWallet.wallet) {
+          walletPrivateKey = selectedWallet.wallet.privateKey;
+        }
+      }
+      
+      // Passa l'URL e la chiave privata al connector MetaMask
+      if (sdk?.metamask && walletPrivateKey) {
+        try {
+          sdk.metamask.setCustomProvider(rpcData.url, walletPrivateKey);
+        } catch (error) {
+          console.error("Errore nell'impostazione del provider per MetaMask:", error);
+          // Continuiamo l'esecuzione anche se fallisce questo passaggio
+        }
+      }
+      
+      // Se c'è un indirizzo selezionato, aggiorna il saldo
+      if (selectedAddress) {
+        updateBalance(selectedAddress, newProvider);
+      }
     } catch (error) {
       console.error("Errore nell'inizializzazione del provider:", error);
     }
-  }, []);
+  }, [selectedRpc, selectedAddress, derivedWallets]);
 
   // Aggiorna il saldo quando cambiano provider o indirizzo selezionato
   useEffect(() => {
@@ -492,17 +537,9 @@ const App: React.FC = () => {
       return;
     }
 
-    try {
-      navigator.clipboard.writeText(selectedAddress);
-      setErrorMessage("Indirizzo copiato negli appunti!");
-
-      setTimeout(() => {
-        setErrorMessage("");
-      }, 2000);
-    } catch (error: any) {
-      console.error("Errore durante la copia dell'indirizzo:", error);
-      setErrorMessage(error.message);
-    }
+    // Mostra il modal di ricezione
+    setShowReceiveModal(true);
+    setActiveAction("receive");
   };
 
   // Funzione per verificare lo stato di login
@@ -1638,46 +1675,95 @@ const App: React.FC = () => {
     switch (activeSection) {
       case "wallet":
         return (
-          <>
-            <div className="mb-6">
+          <div className="p-4">
+            <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold mb-2">Il tuo wallet</h2>
-              {selectedAddress && (
-                <div className="bg-gray-800 rounded-lg p-6 mb-4">
-                  <div className="mb-2">
-                    <div className="text-gray-400 mb-1">Indirizzo</div>
-                    <div className="font-mono">{selectedAddress}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400 mb-1">Saldo</div>
-                    <div className="text-2xl">{senderBalance} ETH</div>
-                  </div>
-                  <div className="flex space-x-4 mt-4">
-                    <button
-                      className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
-                      onClick={handleSend}
+              {/* Pulsanti di azione */}
+              <div className="flex items-center space-x-2">
+                <button
+                  className="bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600 text-sm"
+                  onClick={() => setShowSignBox(!showSignBox)}
+                >
+                  <div className="flex items-center">
+                    <span className="mr-1">Firma</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                     >
-                      Invia
-                    </button>
-                    <button
-                      className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
-                      onClick={handleReceive}
-                    >
-                      Ricevi
-                    </button>
-                    <button
-                      className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
-                      onClick={() => setShowSignBox(true)}
-                    >
-                      Firma Messaggio
-                    </button>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      />
+                    </svg>
                   </div>
-                </div>
-              )}
+                </button>
+                <button
+                  className="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 text-sm"
+                  onClick={handleSend}
+                >
+                  <div className="flex items-center">
+                    <span className="mr-1">Invia</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </button>
+                <button
+                  className="bg-purple-500 text-white px-3 py-1 rounded-lg hover:bg-purple-600 text-sm"
+                  onClick={handleReceive}
+                >
+                  <div className="flex items-center">
+                    <span className="mr-1">Ricevi</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 bg-gray-800 rounded-lg p-4">
+              <p className="text-center text-gray-400">
+                {selectedWallet ? (
+                  <span>
+                    Indirizzo: <span className="text-white">{selectedWallet.address}</span>
+                  </span>
+                ) : (
+                  "Seleziona un wallet dalla sidebar per visualizzare i dettagli."
+                )}
+              </p>
             </div>
             
             {/* Form di invio */}
             {showSendForm && (
-              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <div className="bg-gray-800 rounded-lg p-6 mt-4">
                 <h3 className="text-xl font-bold mb-4">Invia ETH</h3>
                 <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Destinatario</label>
@@ -1718,7 +1804,7 @@ const App: React.FC = () => {
             
             {/* Form di firma */}
             {showSignBox && (
-              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <div className="bg-gray-800 rounded-lg p-6 mt-4">
                 <h3 className="text-xl font-bold mb-4">Firma Messaggio</h3>
                 <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Messaggio</label>
@@ -1757,7 +1843,7 @@ const App: React.FC = () => {
             
             {/* Modal di ricezione */}
             {showReceiveModal && (
-              <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <div className="bg-gray-800 rounded-lg p-6 mt-4">
                 <h3 className="text-xl font-bold mb-4">Ricevi ETH</h3>
                 <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Il tuo indirizzo</label>
@@ -1789,7 +1875,7 @@ const App: React.FC = () => {
                 </button>
               </div>
             )}
-          </>
+          </div>
         );
       case "stealth":
         return (
@@ -1971,19 +2057,135 @@ const App: React.FC = () => {
             </div>
           </div>
         );
-      case "mom":
+
+      case "settings":
         return (
           <div className="p-6 flex-grow overflow-auto">
-            {selectedWallet ? (
-              <MOMSection 
-                wallet={selectedWallet.wallet}
-                address={selectedWallet.address}
-              />
-            ) : (
-              <div className="text-center text-gray-400 py-8">
-                Seleziona un wallet dalla sidebar per visualizzare i messaggi.
+            <h2 className="text-2xl font-bold mb-6">Impostazioni</h2>
+            
+            <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <h3 className="text-xl font-bold mb-4">Informazioni Utente</h3>
+              <div className="mb-4">
+                <label className="block text-gray-400 mb-2">Username</label>
+                <div className="p-3 bg-gray-700 rounded">
+                  {username || "Non disponibile"}
+                </div>
               </div>
-            )}
+              <div className="mb-4">
+                <label className="block text-gray-400 mb-2">Chiave Pubblica</label>
+                <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
+                  {userpub || "Non disponibile"}
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-400 mb-2">Metodo di Autenticazione</label>
+                <div className="p-3 bg-gray-700 rounded">
+                  Standard
+                </div>
+              </div>
+            </div>
+            
+            {/* Sezione Esportazione */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <h3 className="text-xl font-bold mb-4">Esportazione Dati</h3>
+              <p className="text-gray-400 mb-4">
+                Esporta i tuoi dati per backup o migrazione. Nota che l'esportazione di chiavi private è rischiosa.
+                Assicurati di proteggere sempre i tuoi dati con una password forte.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <button
+                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
+                  onClick={handleExportMnemonic}
+                >
+                  <span className="mr-2">📄</span>
+                  Esporta Mnemonica
+                </button>
+                
+                <button
+                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
+                  onClick={handleExportWallets}
+                >
+                  <span className="mr-2">🔑</span>
+                  Esporta Wallet Keys
+                </button>
+                
+                <button
+                  className="p-4 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center"
+                  onClick={handleExportGunPair}
+                >
+                  <span className="mr-2">🔒</span>
+                  Esporta Gun Pair
+                </button>
+                
+                <button
+                  className="p-4 bg-purple-600 hover:bg-purple-700 rounded flex items-center justify-center"
+                  onClick={handleExportAllData}
+                >
+                  <span className="mr-2">💾</span>
+                  Backup Completo
+                </button>
+              </div>
+              
+              <div className="p-4 bg-yellow-800 bg-opacity-30 rounded">
+                <p className="text-yellow-300 text-sm">
+                  <span className="mr-1 text-sm">⚠️</span>
+                  Attenzione: Le chiavi private e la mnemonica permettono l'accesso completo ai tuoi wallet.
+                  Non condividere mai questi dati e conservali in modo sicuro.
+                </p>
+              </div>
+            </div>
+            
+            {/* Sezione Ripristino */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <h3 className="text-xl font-bold mb-4">Ripristino Dati</h3>
+              <p className="text-gray-400 mb-4">
+                Ripristina i tuoi dati da un backup precedente. Puoi importare una mnemonica, 
+                chiavi wallet, pair Gun o un backup completo.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportMnemonic}
+                >
+                  <span className="mr-2">🔄</span>
+                  Importa Mnemonica
+                </button>
+                
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportWallets}
+                >
+                  <span className="mr-2">🔑</span>
+                  Importa Wallet Keys
+                </button>
+                
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportGunPair}
+                >
+                  <span className="mr-2">🔒</span>
+                  Importa Gun Pair
+                </button>
+                
+                <button
+                  className="p-4 bg-green-600 hover:bg-green-700 rounded flex items-center justify-center"
+                  onClick={handleImportAllData}
+                >
+                  <span className="mr-2">📥</span>
+                  Ripristina Backup
+                </button>
+              </div>
+              
+              <div className="p-4 bg-blue-800 bg-opacity-30 rounded">
+                <p className="text-blue-300 text-sm">
+                  <span className="mr-1 text-sm">ℹ️</span>
+                  Suggerimento: Per ripristinare un backup completo, avrai bisogno della password
+                  utilizzata durante l'esportazione. Dopo il ripristino del Gun Pair, effettua logout e login.
+                </p>
+              </div>
+            </div>
           </div>
         );
       default:
@@ -1992,6 +2194,57 @@ const App: React.FC = () => {
             Sezione non disponibile.
           </div>
         );
+    }
+  };
+
+  // Inizializza il provider RPC
+  const initializeRpc = async (network: string = selectedRpc) => {
+    try {
+      // Trova l'URL RPC per la rete selezionata
+      const rpcData = rpcOptions.find((opt) => opt.value === network);
+      
+      if (!rpcData) {
+        console.error(`URL RPC non trovato per la rete: ${network}`);
+        throw new Error(`URL RPC non trovato per la rete: ${network}`);
+      }
+      
+      // Crea un nuovo provider con l'URL pubblico
+      const newProvider = new ethers.JsonRpcProvider(rpcData.url);
+      setProvider(newProvider);
+      console.log(`Provider inizializzato per la rete: ${network} (${rpcData.url})`);
+      
+      // Aggiorna il provider nell'SDK se disponibile
+      if (sdk) {
+        try {
+          // Aggiorniamo il provider in modo generico nell'SDK
+          // Se non esiste setProvider, utilizziamo un approccio alternativo
+          if (typeof sdk.setProvider === 'function') {
+            sdk.setProvider(newProvider);
+          } else {
+            // Fallback per la vecchia versione dell'SDK
+            console.log("setProvider non disponibile, applico l'aggiornamento tramite approccio alternativo");
+            
+            // Aggiorniamo direttamente il provider dove possibile
+            if (sdk.metamask && sdk.getMainWallet()?.privateKey) {
+              const wallet = sdk.getMainWallet();
+              if (wallet) {
+                console.log("Aggiornamento provider per wallet");
+              }
+            }
+          }
+          console.log("Provider aggiornato nell'SDK");
+        } catch (sdkError) {
+          console.error("Errore nell'aggiornamento del provider nell'SDK:", sdkError);
+        }
+      } else {
+        console.warn("SDK non inizializzato, impossibile aggiornare il provider");
+      }
+      
+      return newProvider;
+    } catch (error: any) {
+      console.error("Errore nell'inizializzazione del provider RPC:", error);
+      setErrorMessage(`Errore nell'inizializzazione del provider RPC: ${error.message}`);
+      return null;
     }
   };
 

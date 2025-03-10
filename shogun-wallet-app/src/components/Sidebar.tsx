@@ -2,6 +2,13 @@ import React from 'react';
 import Button from './Button';
 import { WalletInfo } from '../types';
 
+// Opzioni RPC
+const rpcOptions = [
+  { value: "mainnet", label: "Ethereum Mainnet" },
+  { value: "sepolia", label: "Sepolia Testnet" },
+  { value: "optimism_sepolia", label: "Optimism Sepolia Testnet" },
+];
+
 interface SidebarProps {
   selectedRpc: string;
   onRpcChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
@@ -29,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const sections = [
     { id: "wallet", name: "Wallet", icon: "💰" },
     { id: "stealth", name: "Stealth", icon: "🕶️" },
-    { id: "mom", name: "Messaggi", icon: "💬" } // Nuova sezione MOM
+    { id: "settings", name: "Impostazioni", icon: "⚙️" }
   ];
 
   return (
@@ -97,9 +104,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             value={selectedRpc}
             onChange={onRpcChange}
           >
-            <option value="mainnet">Ethereum Mainnet</option>
-            <option value="sepolia">Sepolia Testnet</option>
-            <option value="goerli">Goerli Testnet</option>
+            {rpcOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
         </div>
         

@@ -86,8 +86,25 @@ class MetaMask {
    * @throws Error se l'indirizzo non è valido
    */
   private validateAddress(address: string): void {
-    if (!address || !address.startsWith("0x") || address.length !== 42) {
-      throw new Error("Indirizzo Ethereum non valido");
+    // Normalizza l'indirizzo: assicurati che sia una stringa, rimuovi spazi, converti a minuscolo
+    let normalizedAddress = String(address || "").trim().toLowerCase();
+    
+    // Aggiungi il prefisso 0x se mancante
+    if (!normalizedAddress.startsWith("0x")) {
+      normalizedAddress = "0x" + normalizedAddress;
+    }
+    
+    // Verifica lunghezza e formato
+    if (!normalizedAddress || normalizedAddress.length !== 42) {
+      // Prova a verificare se è un indirizzo valido con ethers
+      try {
+        const isValid = ethers.isAddress(normalizedAddress);
+        if (!isValid) {
+          throw new Error("Indirizzo Ethereum non valido");
+        }
+      } catch (e) {
+        throw new Error("Indirizzo Ethereum non valido");
+      }
     }
   }
 

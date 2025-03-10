@@ -16,11 +16,15 @@ export const CONFIG = {
   },
   GUN_TABLES: {
     USERS: "users",
-    WALLET_PATHS: "WalletPaths",
-    AUTHENTICATIONS: "Authentications",
-    WEBAUTHN: "WebAuthn",
-    STEALTH: "Stealth",
+    WALLET_PATHS: "walletPathsV2",
+    AUTHENTICATIONS: "authenticationsV2",
+    WEBAUTHN: "webauthn",
+    STEALTH: "stealth",
     MOM_MESSAGES: "MOMMessages",
+    MOM_MESSAGE_BLOCKS: "MOMMessageBlocks",
+    MOM_MESSAGE_REPLIES: "MOMMessageReplies",
+    MOM_MESSAGE_UPDATES: "MOMMessageUpdates",
+    MOM_MESSAGE_DELETIONS: "MOMMessageDeletions"
   },
   AUTH: {
     MIN_PASSWORD_LENGTH: 8,
@@ -31,11 +35,6 @@ export const CONFIG = {
   PEERS: ["http://localhost:8765/gun"],
   MESSAGE_TO_SIGN: "Access With Shogun",
   DEFAULT_RPC_URL: "https://eth-mainnet.g.alchemy.com/v2/demo",
-  MOM: {
-    DEFAULT_STORAGE: "gun" as "gun" | "ipfs",
-    IPFS_GATEWAY: "https://ipfs.io/ipfs/",
-    IPFS_SERVICE: "https://ipfs.infura.io:5001/api/v0/add"
-  }
 };
 
 export default CONFIG;
