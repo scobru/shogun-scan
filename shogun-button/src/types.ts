@@ -1,5 +1,5 @@
 import { ShogunSDK } from "@shogun/shogun-core";
-import type { HDNodeWallet } from "ethers";
+import  { HDNodeWallet } from "ethers";
 
 // Estendi i tipi dall'SDK di Shogun per risolvere i problemi di compatibilità
 

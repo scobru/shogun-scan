@@ -7,7 +7,6 @@ import { IGunInstance } from "gun/types";
 import CONFIG from "../config";
 import { log, logError } from "../utils/logger";
 
-// Configurazione di base per GunDB
 interface GunDBOptions {
   peers?: string[];
   localStorage?: boolean;
@@ -28,11 +27,11 @@ class GunDB {
   private onAuthCallbacks: Array<(user: any) => void> = [];
 
   /**
-   * Inizializza GunDB con le opzioni specificate
+   * @param options - GunDBOptions
    */
   constructor(options: GunDBOptions = {}) {
     log("Inizializzazione GunDB");
-    
+
     // Configura GunDB con le opzioni fornite
     this.gun = Gun({
       peers: options.peers || CONFIG.PEERS,
@@ -146,7 +145,7 @@ class GunDB {
   async signUp(username: string, password: string): Promise<any> {
     try {
       log("Tentativo di registrazione utente:", username);
-      
+
       return new Promise((resolve) => {
         this.gun.user().create(username, password, async (ack: any) => {
           if (ack.err) {
@@ -157,13 +156,13 @@ class GunDB {
 
           // Effettua il login automatico dopo la registrazione
           const loginResult = await this.login(username, password);
-          
+
           if (loginResult.success) {
             log("Registrazione e login completati con successo");
           } else {
             logError("Registrazione completata ma login fallito");
           }
-          
+
           resolve(loginResult);
         });
       });
@@ -171,7 +170,7 @@ class GunDB {
       logError("Errore durante la registrazione:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto"
+        error: error instanceof Error ? error.message : "Errore sconosciuto",
       };
     }
   }
@@ -185,14 +184,14 @@ class GunDB {
   async login(username: string, password: string): Promise<any> {
     try {
       log("Tentativo di login per:", username);
-      
+
       return new Promise((resolve) => {
         this.gun.user().auth(username, password, (ack: any) => {
           if (ack.err) {
             logError(`Errore login: ${ack.err}`);
-            resolve({ 
-              success: false, 
-              error: ack.err 
+            resolve({
+              success: false,
+              error: ack.err,
             });
             return;
           }
@@ -201,7 +200,7 @@ class GunDB {
           if (!user.is) {
             resolve({
               success: false,
-              error: "Login fallito: utente non autenticato"
+              error: "Login fallito: utente non autenticato",
             });
             return;
           }
@@ -210,7 +209,7 @@ class GunDB {
           resolve({
             success: true,
             userPub: user.is.pub,
-            username
+            username,
           });
         });
       });
@@ -218,7 +217,7 @@ class GunDB {
       logError("Errore durante il login:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto"
+        error: error instanceof Error ? error.message : "Errore sconosciuto",
       };
     }
   }

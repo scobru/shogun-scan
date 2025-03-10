@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { sdk } from '../App';
-import { AuthMethod, AuthResult } from '../types';
-import { log, logError } from '../utils/logger';
+import { AuthMethod } from '../types';
+import { useShogun } from '@shogun/shogun-button';
 
 enum FormMode {
   LOGIN = 'login',
@@ -40,6 +40,9 @@ const ShogunLoginModal: React.FC<{
     );
   }
 
+  // Utilizza l'hook useShogun per accedere alle funzionalità di autenticazione
+  const shogun = useShogun();
+
   const handleStandardAuth = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -52,30 +55,49 @@ const ShogunLoginModal: React.FC<{
 
       console.log(`Tentativo di ${mode === FormMode.LOGIN ? 'login' : 'registrazione'} per: ${username}`);
 
-      const result = mode === FormMode.LOGIN 
-        ? await sdkInstance.login(username, password)
-        : await sdkInstance.signUp(username, password);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Autenticazione fallita');
-      }
-
-      console.log("Autenticazione completata con successo");
-
-      const authData: LoginData = {
-        userPub: result.userPub || '',
-            username,
-        authMethod: mode === FormMode.LOGIN ? 'standard' : 'standard_signup'
-      };
-
-      // Verifica che l'utente sia effettivamente autenticato
-      if (!sdkInstance.isLoggedIn()) {
-        throw new Error('Autenticazione non riuscita: sessione non valida');
-      }
-
       if (mode === FormMode.LOGIN) {
+        // Usa shogun.login invece dell'implementazione diretta
+        const result = await shogun.login(username, password);
+
+        if (!result.success) {
+          throw new Error(result.error || 'Autenticazione fallita');
+        }
+
+        console.log("Autenticazione completata con successo");
+
+        const authData: LoginData = {
+          userPub: result.userPub || '',
+          username,
+          authMethod: 'standard'
+        };
+
+        // Verifica che l'utente sia effettivamente autenticato
+        if (!sdkInstance.isLoggedIn()) {
+          throw new Error('Autenticazione non riuscita: sessione non valida');
+        }
+
         onLoginSuccess?.(authData);
-        } else {
+      } else {
+        // Usa shogun.signUp invece dell'implementazione diretta
+        const result = await shogun.signUp(username, password, confirmPassword);
+
+        if (!result.success) {
+          throw new Error(result.error || 'Autenticazione fallita');
+        }
+
+        console.log("Autenticazione completata con successo");
+
+        const authData: LoginData = {
+          userPub: result.userPub || '',
+          username,
+          authMethod: 'standard_signup'
+        };
+
+        // Verifica che l'utente sia effettivamente autenticato
+        if (!sdkInstance.isLoggedIn()) {
+          throw new Error('Autenticazione non riuscita: sessione non valida');
+        }
+
         onSignupSuccess?.(authData);
       }
     } catch (err) {
@@ -99,10 +121,10 @@ const ShogunLoginModal: React.FC<{
         throw new Error(metamaskResult.error || 'Errore nella connessione a MetaMask');
       }
 
-      // Usa l'indirizzo ottenuto dalla connessione
+      // Usa shogun.loginWithMetaMask o shogun.signUpWithMetaMask
       const result = mode === FormMode.LOGIN 
-        ? await sdkInstance.loginWithMetaMask(metamaskResult.address)
-        : await sdkInstance.signUpWithMetaMask(metamaskResult.address);
+        ? await shogun.loginWithMetaMask()
+        : await shogun.signUpWithMetaMask();
 
       if (!result.success) {
         throw new Error(result.error || 'Autenticazione con MetaMask fallita');
@@ -143,9 +165,10 @@ const ShogunLoginModal: React.FC<{
     setLoading(true);
 
     try {
+      // Usa shogun.loginWithWebAuthn o shogun.signUpWithWebAuthn
       const result = mode === FormMode.LOGIN 
-        ? await sdkInstance.loginWithWebAuthn(username)
-        : await sdkInstance.signUpWithWebAuthn(username);
+        ? await shogun.loginWithWebAuthn(username)
+        : await shogun.signUpWithWebAuthn(username);
 
       if (!result.success) {
         throw new Error(result.error || 'Autenticazione WebAuthn fallita');

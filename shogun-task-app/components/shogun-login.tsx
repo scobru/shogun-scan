@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShogunSDK } from '@shogun/sdk';
+import { ShogunSDK } from '@shogun/shogun-core';
 import { Button } from "@/components/ui/button";
 import Link from "@/components/ui/link";
 

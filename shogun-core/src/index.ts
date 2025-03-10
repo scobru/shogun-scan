@@ -19,24 +19,6 @@ import { ethers } from "ethers";
 
 let gun: any;
 
-/**
- * Shogun SDK - Decentralized Authentication Protocol
- *
- * This SDK implements a 3-layer authentication protocol:
- *
- * 1. Credential Generation Layer
- *    - User/Password: Standard username and password credentials
- *    - MetaMask: Ethereum wallet-based authentication using digital signatures
- *    - WebAuthn: Biometric and hardware security key authentication (FIDO2)
- *
- * 2. Authentication Layer
- *    - GunDB: Decentralized graph database for user authentication
- *    - Hedgehog: Ethereum wallet-based authentication
- *
- * 3. Wallet Management Layer
- *    - HD Wallet: Hierarchical deterministic wallet for Ethereum
- *    - Stealth Addresses: Privacy-enhancing technology for Ethereum
- */
 export class ShogunSDK implements IShogunSDK {
   public gun: IGunInstance<any>;
   public gundb: GunDB;
@@ -123,11 +105,10 @@ export class ShogunSDK implements IShogunSDK {
   }
 
   /**
-   * Effettua il login con le credenziali fornite
+   * Autentica un utente con username e password
    * @param username - Nome utente
-   * @param password - Password
-   * @param useRetryIfNeeded - Se utilizzare il meccanismo di retry in caso di fallimento
-   * @returns Risultato del login
+   * @param password - Password dell'utente
+   * @returns Promise con il risultato dell'autenticazione
    */
   async login(username: string, password: string): Promise<AuthResult> {
     try {
@@ -577,5 +558,17 @@ export class ShogunSDK implements IShogunSDK {
   }
 }
 
-// Esporta la classe principale
-export default ShogunSDK;
+// Esporta tutti i tipi
+export * from './types/auth';
+export * from './types/gun';
+export * from './types/shogun';
+export * from './types/token';
+
+// Esporta le classi
+export { GunDB } from './gun/gun';
+export { MetaMask } from './connector/metamask';
+export { Stealth, StealthKeyPair, StealthAddressResult } from './stealth/stealth';
+export { Webauthn } from './webauthn/webauthn';
+export { Storage } from './storage/storage';
+export { ShogunEventEmitter } from './events';
+

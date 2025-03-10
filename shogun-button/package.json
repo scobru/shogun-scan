@@ -1,6 +1,7 @@
 {
   "name": "@shogun/shogun-button",
   "description": "Shogun connector button",
+  "private": true,
   "version": "0.1.0",
   "files": [
     "dist",
@@ -25,15 +26,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "node build.js",
-    "build:watch": "node build.js --watch",
-    "dev": "pnpm build:watch & pnpm typegen:watch",
-    "prepare": "pnpm build",
-    "prebuild": "pnpm typegen",
-    "typecheck": "pnpm tsc --noEmit",
+    "build": "npx tsc && cp src/styles dist/",
     "typegen": "tsc --emitDeclarationOnly || true",
-    "typegen:watch": "tsc --emitDeclarationOnly --watch",
-    "postinstall": "yarn link @shogun/shogun-core"
+    "typegen:watch": "tsc --emitDeclarationOnly --watch"
   },
   "dependencies": {
     "@shogun/shogun-core": "file:../shogun-core",

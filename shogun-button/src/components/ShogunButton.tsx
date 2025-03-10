@@ -1,9 +1,10 @@
 import React, { useContext, useState, createContext } from 'react';
 import { ethers } from 'ethers';
 import { ShogunSDK } from '@shogun/shogun-core';
-import '../types'; // Importa il file dei tipi per estendere le definizioni
+import '../types'; // Import type file to extend definitions
+import '../styles/index.css';
 
-// Tipi personalizzati per gestire le risposte dell'SDK
+// Custom types to handle SDK responses
 interface ExtendedAuthResult {
   success: boolean;
   userPub?: string;
@@ -12,7 +13,7 @@ interface ExtendedAuthResult {
   error?: string;
 }
 
-// Tipo di contesto per ShogunProvider
+// Context type for ShogunProvider
 type ShogunContextType = {
   sdk: ShogunSDK | null;
   options: {
@@ -37,7 +38,7 @@ type ShogunContextType = {
   logout: () => void;
 };
 
-// Contesto predefinito
+// Default context
 const defaultContext: ShogunContextType = {
   sdk: null,
   options: {
@@ -59,13 +60,13 @@ const defaultContext: ShogunContextType = {
   logout: () => {},
 };
 
-// Creazione del contesto
+// Create context
 const ShogunContext = createContext<ShogunContextType>(defaultContext);
 
-// Hook per utilizzare il contesto Shogun
+// Hook to use Shogun context
 export const useShogun = () => useContext(ShogunContext);
 
-// Proprietà del provider
+// Provider properties
 type ShogunButtonProviderProps = {
   children: React.ReactNode;
   sdk: ShogunSDK;
@@ -95,7 +96,7 @@ type ShogunButtonProviderProps = {
   onError?: (error: string) => void;
 };
 
-// Provider Shogun
+// Shogun Provider
 export function ShogunButtonProvider({
   children,
   sdk,
@@ -109,7 +110,7 @@ export function ShogunButtonProvider({
   const [username, setUsername] = useState<string | null>(null);
   const [wallet, setWallet] = useState<ethers.Wallet | null>(null);
 
-  // Login standard
+  // Standard login
   const login = async (username: string, password: string) => {
     try {
       const result = await sdk.login(username, password);
@@ -129,26 +130,26 @@ export function ShogunButtonProvider({
         
         return result;
       }
-      onError?.(result.error || 'Login fallito');
+      onError?.(result.error || 'Login failed');
       return result;
     } catch (error: any) {
-      onError?.(error.message || 'Errore durante il login');
+      onError?.(error.message || 'Error during login');
       return { success: false, error: error.message };
     }
   };
 
-  // Registrazione standard
+  // Standard registration
   const signUp = async (username: string, password: string, confirmPassword: string) => {
     if (password !== confirmPassword) {
-      onError?.('Le password non corrispondono');
-      return { success: false, error: 'Le password non corrispondono' };
+      onError?.('Passwords do not match');
+      return { success: false, error: 'Passwords do not match' };
     }
     
     try {
-      const result = await sdk.signUp(username, password );
+      const result = await sdk.signUp(username, password);
       if (result.success) {
         setIsLoggedIn(true);
-        // Cast esplicito per accedere alle proprietà necessarie
+        // Explicit cast to access required properties
         const extResult = result as any;
         const publicKey = extResult.publicKey || extResult.userPub || '';
         setUserPub(publicKey);
@@ -165,48 +166,48 @@ export function ShogunButtonProvider({
         
         return result;
       }
-      onError?.(result.error || 'Registrazione fallita');
+      onError?.(result.error);
       return result;
     } catch (error: any) {
-      onError?.(error.message || 'Errore durante la registrazione');
+      onError?.(error.message || 'Error during registration');
       return { success: false, error: error.message };
     }
   };
 
-  // Funzione per il login con MetaMask
+  // MetaMask login function
   const loginWithMetaMask = async () => {
     try {
       if (!sdk) {
-        throw new Error("SDK non inizializzato");
+        throw new Error("SDK not initialized");
       }
 
-      // Verifica se MetaMask è disponibile nel browser
+      // Check if MetaMask is available in browser
       const ethereum = (window as any).ethereum;
       if (!ethereum) {
-        throw new Error("MetaMask non è installato. Installa l'estensione MetaMask per continuare.");
+        throw new Error("MetaMask is not installed. Install the MetaMask extension to continue.");
       }
 
-      // Richiedi l'accesso agli account
+      // Request access to accounts
       let accounts;
       try {
         accounts = await ethereum.request({ method: 'eth_requestAccounts' });
       } catch (error) {
-        console.error('Errore nella richiesta degli account:', error);
-        throw new Error("Impossibile ottenere account MetaMask");
+        console.error('Error requesting accounts:', error);
+        throw new Error("Unable to get MetaMask accounts");
       }
 
       if (!accounts || accounts.length === 0) {
-        throw new Error('Nessun account trovato in MetaMask');
+        throw new Error('No accounts found in MetaMask');
       }
 
       const address = accounts[0];
       console.log('MetaMask address:', address);
       
-      // Login usando l'SDK
+      // Login using SDK
       const result = await sdk.loginWithMetaMask(address);
       
       if (result.success) {
-        // Ottieni il wallet principale dall'SDK
+        // Get main wallet from SDK
         const mainWallet = sdk.getMainWallet();
         
         setIsLoggedIn(true);
@@ -222,49 +223,49 @@ export function ShogunButtonProvider({
         
         return result;
       } else {
-        throw new Error(result.error || "Login con MetaMask fallito");
+        throw new Error(result.error || "MetaMask login failed");
       }
     } catch (error: any) {
-      console.error('Errore completo MetaMask:', error);
-      onError && onError(error.message || "Errore durante il login con MetaMask");
+      console.error('Complete MetaMask error:', error);
+      onError && onError(error.message || "Error during MetaMask login");
       throw error;
     }
   };
 
-  // Funzione per la registrazione con MetaMask
+  // MetaMask registration function
   const signUpWithMetaMask = async () => {
     try {
       if (!sdk) {
-        throw new Error("SDK non inizializzato");
+        throw new Error("SDK not initialized");
       }
 
-      // Verifica se MetaMask è disponibile nel browser
+      // Check if MetaMask is available in browser
       const ethereum = (window as any).ethereum;
       if (!ethereum) {
-        throw new Error("MetaMask non è installato. Installa l'estensione MetaMask per continuare.");
+        throw new Error("MetaMask is not installed. Install the MetaMask extension to continue.");
       }
 
-      // Richiedi l'accesso agli account
+      // Request access to accounts
       let accounts;
       try {
         accounts = await ethereum.request({ method: 'eth_requestAccounts' });
       } catch (error) {
-        console.error('Errore nella richiesta degli account:', error);
-        throw new Error("Impossibile ottenere account MetaMask");
+        console.error('Error requesting accounts:', error);
+        throw new Error("Unable to get MetaMask accounts");
       }
 
       if (!accounts || accounts.length === 0) {
-        throw new Error('Nessun account trovato in MetaMask');
+        throw new Error('No accounts found in MetaMask');
       }
 
       const address = accounts[0];
       console.log('MetaMask address for signup:', address);
       
-      // Registrazione usando l'SDK
+      // Registration using SDK
       const result = await sdk.signUpWithMetaMask(address);
       
       if (result.success) {
-        // Ottieni il wallet principale dall'SDK
+        // Get main wallet from SDK
         const mainWallet = sdk.getMainWallet();
         
         setIsLoggedIn(true);
@@ -280,24 +281,24 @@ export function ShogunButtonProvider({
         
         return result;
       } else {
-        throw new Error(result.error || "Registrazione con MetaMask fallita");
+        throw new Error(result.error );
       }
     } catch (error: any) {
-      console.error('Errore completo MetaMask:', error);
-      onError && onError(error.message || "Errore durante la registrazione con MetaMask");
+      console.error('Complete MetaMask error:', error);
+      onError && onError(error.message);
       throw error;
     }
   };
 
-  // Login con WebAuthn
+  // WebAuthn login
   const loginWithWebAuthn = async (username: string) => {
     try {
       if (!sdk) {
-        throw new Error("SDK non inizializzato");
+        throw new Error("SDK not initialized");
       }
 
       if (!sdk.isWebAuthnSupported()) {
-        throw new Error("WebAuthn non è supportato in questo browser");
+        throw new Error("WebAuthn is not supported in this browser");
       }
 
       const result = await sdk.loginWithWebAuthn(username);
@@ -319,23 +320,23 @@ export function ShogunButtonProvider({
         
         return result;
       } else {
-        throw new Error(result.error || "Login con WebAuthn fallito");
+        throw new Error(result.error || "WebAuthn login failed");
       }
     } catch (error: any) {
-      onError && onError(error.message || "Errore durante il login con WebAuthn");
+      onError && onError(error.message || "Error during WebAuthn login");
       throw error;
     }
   };
 
-  // Registrazione con WebAuthn
+  // WebAuthn registration
   const signUpWithWebAuthn = async (username: string) => {
     try {
       if (!sdk) {
-        throw new Error("SDK non inizializzato");
+        throw new Error("SDK not initialized");
       }
 
       if (!sdk.isWebAuthnSupported()) {
-        throw new Error("WebAuthn non è supportato in questo browser");
+        throw new Error("WebAuthn is not supported in this browser");
       }
 
       const result = await sdk.signUpWithWebAuthn(username);
@@ -357,10 +358,10 @@ export function ShogunButtonProvider({
         
         return result;
       } else {
-        throw new Error(result.error || "Registrazione con WebAuthn fallita");
+        throw new Error(result.error || "WebAuthn registration failed");
       }
     } catch (error: any) {
-      onError && onError(error.message || "Errore durante la registrazione con WebAuthn");
+      onError && onError(error.message || "Error during WebAuthn registration");
       throw error;
     }
   };
@@ -374,7 +375,7 @@ export function ShogunButtonProvider({
     setWallet(null);
   };
 
-  // Valori del contesto
+  // Context values
   const contextValue: ShogunContextType = {
     sdk,
     options,
@@ -398,22 +399,44 @@ export function ShogunButtonProvider({
   );
 }
 
-// Tipo per il componente personalizzato
+// Type for custom component
 interface CustomButtonProps {
   children: React.ReactNode;
   onClick?: () => void;
 }
 
-// Definizione del tipo per il componente ShogunButton con proprietà Custom
+// Definition of ShogunButton component type with Custom properties
 interface ShogunButtonComponent extends React.FC {
   Custom: React.FC<CustomButtonProps>;
 }
 
-// Componente per il pulsante di login Shogun
+// Component for Shogun login button
 export const ShogunButton: ShogunButtonComponent = (() => {
   const Button: React.FC = () => {
-    const { isLoggedIn, username, logout } = useShogun();
+    const { 
+      isLoggedIn, 
+      username, 
+      logout, 
+      login, 
+      signUp, 
+      loginWithMetaMask, 
+      signUpWithMetaMask, 
+      loginWithWebAuthn, 
+      signUpWithWebAuthn,
+      sdk,
+      options
+    } = useShogun();
+    
+    // Form states
+    const [showModal, setShowModal] = useState(false);
+    const [formUsername, setFormUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [formMode, setFormMode] = useState<'login' | 'signup'>('login');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
+    // If already logged in, show only logout button
     if (isLoggedIn && username) {
       return (
         <button 
@@ -425,21 +448,226 @@ export const ShogunButton: ShogunButtonComponent = (() => {
       );
     }
 
+    // Event handlers
+    const handleStandardAuth = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError('');
+      setLoading(true);
+      
+      try {
+        if (formMode === 'login') {
+          const result = await login(formUsername, password);
+          if (!result.success) {
+            throw new Error(result.error || "Authentication failed");
+          }
+        } else {
+          if (password !== confirmPassword) {
+            throw new Error("Passwords do not match");
+          }
+          const result = await signUp(formUsername, password, confirmPassword);
+          if (!result.success) {
+            throw new Error(result.error);
+          }
+        }
+        
+        // Close modal after success
+        setShowModal(false);
+        resetForm();
+      } catch (err: any) {
+        setError(err.message || "An error occurred");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const handleMetaMaskAuth = async () => {
+      setError('');
+      setLoading(true);
+      
+      try {
+        const result = formMode === 'login' 
+          ? await loginWithMetaMask()
+          : await signUpWithMetaMask();
+          
+        if (!result.success) {
+          throw new Error(result.error || "MetaMask authentication failed");
+        }
+        
+        // Close modal after success
+        setShowModal(false);
+        resetForm();
+      } catch (err: any) {
+        setError(err.message || "An error occurred with MetaMask");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const handleWebAuthnAuth = async () => {
+      if (!sdk?.isWebAuthnSupported()) {
+        setError('WebAuthn is not supported in your browser');
+        return;
+      }
+      
+      if (!formUsername) {
+        setError('Username required for WebAuthn');
+        return;
+      }
+      
+      setError('');
+      setLoading(true);
+      
+      try {
+        const result = formMode === 'login'
+          ? await loginWithWebAuthn(formUsername)
+          : await signUpWithWebAuthn(formUsername);
+          
+        if (!result.success) {
+          throw new Error(result.error || "WebAuthn authentication failed");
+        }
+        
+        // Close modal after success
+        setShowModal(false);
+        resetForm();
+      } catch (err: any) {
+        setError(err.message || "An error occurred with WebAuthn");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const resetForm = () => {
+      setFormUsername('');
+      setPassword('');
+      setConfirmPassword('');
+      setError('');
+      setLoading(false);
+    };
+    
+    const toggleFormMode = () => {
+      setFormMode(prevMode => prevMode === 'login' ? 'signup' : 'login');
+      resetForm();
+    };
+
+    // This is the modal that will open when clicking the button
+    const renderModal = () => {
+      if (!showModal) return null;
+      
+      return (
+        <div className="shogun-modal-overlay">
+          <div className="shogun-modal">
+            <div className="shogun-modal-header">
+              <h2>{formMode === 'login' ? 'Sign in' : 'Sign up'} with Shogun</h2>
+              <button className="shogun-close-button" onClick={() => setShowModal(false)}>×</button>
+            </div>
+            
+            <div className="shogun-modal-content">
+              {error && <div className="shogun-error-message">{error}</div>}
+              
+              <form onSubmit={handleStandardAuth}>
+                <div className="shogun-form-group">
+                  <label htmlFor="username">Username</label>
+                  <input
+                    type="text"
+                    id="username"
+                    value={formUsername}
+                    onChange={(e) => setFormUsername(e.target.value)}
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                
+                <div className="shogun-form-group">
+                  <label htmlFor="password">Password</label>
+                  <input
+                    type="password"
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                
+                {formMode === 'signup' && (
+                  <div className="shogun-form-group">
+                    <label htmlFor="confirmPassword">Confirm Password</label>
+                    <input
+                      type="password"
+                      id="confirmPassword"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                )}
+                
+                <button 
+                  type="submit" 
+                  className="shogun-submit-button"
+                  disabled={loading}
+                >
+                  {loading ? 'Loading...' : formMode === 'login' ? 'Sign in' : 'Sign up'}
+                </button>
+              </form>
+              
+              <div className="shogun-divider">or</div>
+              
+              {options.showMetamask && (
+                <button
+                  className="shogun-metamask-button"
+                  onClick={handleMetaMaskAuth}
+                  disabled={loading}
+                >
+                  {formMode === 'login' ? 'Sign in' : 'Sign up'} with Web3
+                </button>
+              )}
+              
+              {options.showWebauthn && (
+                <button
+                  className="shogun-webauthn-button"
+                  onClick={handleWebAuthnAuth}
+                  disabled={loading}
+                >
+                  {formMode === 'login' ? 'Sign in' : 'Sign up'} with WebAuthn
+                </button>
+              )}
+              
+              <div className="shogun-form-footer">
+                <p>
+                  {formMode === 'login' ? "Don't have an account?" : "Already have an account?"}
+                  <button
+                    type="button"
+                    className="shogun-toggle-mode"
+                    onClick={toggleFormMode}
+                    disabled={loading}
+                  >
+                    {formMode === 'login' ? 'Sign up' : 'Sign in'}
+                  </button>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Main button that opens the modal
     return (
-      <button 
-        onClick={() => {
-          // Apri il modale di login/registrazione
-          // Questo è solo un placeholder, dovresti implementare una UI o utilizzare un sistema modale
-          alert('Implementa un modale di login/registrazione qui');
-        }}
-        className="shogun-button"
-      >
-        Login con Shogun
-      </button>
+      <>
+        <button 
+          onClick={() => setShowModal(true)}
+          className="shogun-button"
+        >
+          Access with Shogun
+        </button>
+        {renderModal()}
+      </>
     );
   };
 
-  // Aggiungi la proprietà Custom al componente Button
+  // Add Custom property to Button component
   (Button as ShogunButtonComponent).Custom = ({ children, onClick }: CustomButtonProps) => {
     const { isLoggedIn, logout } = useShogun();
     

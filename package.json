@@ -4,7 +4,6 @@
   "private": true,
   "workspaces": [
     "shogun-relay",
-    "shogun-wallet",
     "shogun-protocol",
     "shogun-core",
     "shogun-button",

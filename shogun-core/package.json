@@ -6,7 +6,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
-    "format": "npx prettier --write 'src/**/*.ts'"
+    "format": "npx prettier --write 'src/**/*.ts'",
+    "docs": "yarn typedoc --options typedoc.json"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -33,28 +34,15 @@
   },
   "dependencies": {
     "base64url": "^3.0.1",
-    "browserify-cipher": "1.0.1",
-    "ethereumjs-wallet": "^1.0.2",
     "ethers": "^6.11.1",
     "gun": "git+https://github.com/scobru/gun.git",
-    "jsx": "^0.9.89",
-    "jsxs": "^1.0.1",
     "prettier": "^3.5.3",
-    "react": "^19.0.0",
-    "react-dom": "^18.2.0",
-    "solid-js": "^1.8.15",
     "ts-minimal": "file:../ts-minimal",
-    "typescript": "^5.3.3",
-    "uuid": "^11.1.0"
-  },
-  "peerDependencies": {
-    "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^18.2.19",
+    "typedoc": "^0.27.9",
     "typescript": "^5.3.3"
   }
 }

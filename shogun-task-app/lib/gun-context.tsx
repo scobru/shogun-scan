@@ -2,7 +2,7 @@
 
 import { IGunInstance } from "gun"
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-import { ShogunSDK } from "@shogun/sdk"
+import { ShogunSDK } from "@shogun/shogun-core"
 
 type GunContextType = {
   gun: IGunInstance | null
@@ -24,6 +24,30 @@ type GunContextType = {
   createWallet: () => Promise<any>
   loadWallets: () => Promise<any[]>
   getMainWallet: () => any
+  handleLogin: (
+    username: string, 
+    password: string, 
+    callbacks: { 
+      setUserpub: (pub: string) => void; 
+      setSignedIn: (signedIn: boolean) => void;
+    }
+  ) => Promise<any>
+  handleSignUp: (
+    username: string, 
+    password: string, 
+    passwordConfirmation: string,
+    callbacks: {
+      setErrorMessage: (msg: string) => void;
+      setUserpub: (pub: string) => void;
+      setSignedIn: (signedIn: boolean) => void;
+      messages: {
+        mismatched: string;
+        empty: string;
+        exists: string;
+      }
+    }
+  ) => Promise<any>
+  setUser: (user: any) => void
 }
 
 const GunContext = createContext<GunContextType>({
@@ -46,6 +70,9 @@ const GunContext = createContext<GunContextType>({
   createWallet: async () => null,
   loadWallets: async () => [],
   getMainWallet: () => null,
+  handleLogin: async () => ({ success: false, error: "SDK non inizializzato" }),
+  handleSignUp: async () => ({ success: false, error: "SDK non inizializzato" }),
+  setUser: () => {}
 })
 
 export function GunProvider({ children }: { children: ReactNode }) {
@@ -528,6 +555,80 @@ export function GunProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const handleLogin = async (
+    username: string, 
+    password: string, 
+    callbacks: { 
+      setUserpub: (pub: string) => void; 
+      setSignedIn: (signedIn: boolean) => void;
+    }
+  ): Promise<any> => {
+    if (!sdk) {
+      console.error("SDK non inizializzato");
+      return { success: false, error: "SDK non inizializzato" };
+    }
+
+    try {
+      const result = await sdk.login(username, password);
+      
+      if (result.success && result.userPub) {
+        callbacks.setUserpub(result.userPub);
+        callbacks.setSignedIn(true);
+      }
+      
+      return result;
+    } catch (error: any) {
+      console.error("Errore di login:", error);
+      return { success: false, error: error.message || "Errore durante il login" };
+    }
+  };
+
+  const handleSignUp = async (
+    username: string, 
+    password: string, 
+    passwordConfirmation: string,
+    callbacks: {
+      setErrorMessage: (msg: string) => void;
+      setUserpub: (pub: string) => void;
+      setSignedIn: (signedIn: boolean) => void;
+      messages: {
+        mismatched: string;
+        empty: string;
+        exists: string;
+      }
+    }
+  ): Promise<any> => {
+    if (!sdk) {
+      console.error("SDK non inizializzato");
+      return { success: false, error: "SDK non inizializzato" };
+    }
+
+    // Validazione base
+    if (!username || !password || !passwordConfirmation) {
+      callbacks.setErrorMessage(callbacks.messages.empty);
+      return { success: false, error: callbacks.messages.empty };
+    }
+
+    if (password !== passwordConfirmation) {
+      callbacks.setErrorMessage(callbacks.messages.mismatched);
+      return { success: false, error: callbacks.messages.mismatched };
+    }
+
+    try {
+      const result = await sdk.signUp(username, password, passwordConfirmation);
+      
+      if (result.success && result.userPub) {
+        callbacks.setUserpub(result.userPub);
+        callbacks.setSignedIn(true);
+      }
+      
+      return result;
+    } catch (error: any) {
+      console.error("Errore di registrazione:", error);
+      return { success: false, error: error.message || "Errore durante la registrazione" };
+    }
+  };
+
   return (
     <GunContext.Provider
       value={{
@@ -549,13 +650,16 @@ export function GunProvider({ children }: { children: ReactNode }) {
         openStealthAddress,
         createWallet,
         loadWallets,
-        getMainWallet
+        getMainWallet,
+        handleLogin,
+        handleSignUp,
+        setUser
       }}
     >
       {children}
     </GunContext.Provider>
-  )
+  );
 }
 
-export const useGun = () => useContext(GunContext)
+export const useGun = () => useContext(GunContext);
 
