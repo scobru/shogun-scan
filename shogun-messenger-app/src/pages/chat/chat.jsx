@@ -1,5 +1,5 @@
 import { gunAvatar } from 'gun-avatar';
-import { gun, messaging, user } from 'lonewolf-protocol';
+import { gun, messaging, user } from '@shogun/shogun-protocol';
 import moment from 'moment';
 import { useParams } from '@solidjs/router';
 import { useNavigation } from '../../contexts/navigationContext';

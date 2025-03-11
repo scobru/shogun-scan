@@ -2,7 +2,7 @@ import { useNavigation } from '../../contexts/navigationContext';
 import { createSignal, onCleanup, onMount } from 'solid-js';
 import Header from '../../components/header/header';
 import BackButton from '../../components/buttons/back';
-import { gun } from 'lonewolf-protocol';
+import { gun } from '@shogun/shogun-protocol';
 
 let SystemsStatusSettingsPage = ({ backEnabled = false }) => {
   let { navigate } = useNavigation();

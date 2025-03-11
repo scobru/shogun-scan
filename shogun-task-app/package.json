@@ -1,5 +1,5 @@
 {
-  "name": "task",
+  "name": "shogun-task-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -43,7 +43,7 @@
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
-    "gun": "git+https://github.com/scobru/gun.git",
+    "gun": "file:../gun",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
     "next": "14.2.16",
@@ -54,8 +54,8 @@
     "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
-    "@shogun/sdk": "file:../shogun-core",
-    "@shogun/shogun-button": "file:../shogun-button",
+    "shogun-core": "file:../shogun-core",
+    "shogun-button": "file:../shogun-button-react",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",

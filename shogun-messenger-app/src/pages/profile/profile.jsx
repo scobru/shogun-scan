@@ -1,4 +1,4 @@
-import { user } from 'lonewolf-protocol';
+import { user } from '@shogun/shogun-protocol';
 import { createSignal, onMount } from 'solid-js';
 import BackButton from '../../components/buttons/back';
 

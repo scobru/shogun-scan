@@ -1,6 +1,6 @@
-import { authentication } from 'lonewolf-protocol';
+import { authentication } from '@shogun/shogun-protocol';
 import { createSignal, onMount } from 'solid-js';
-import { ShogunSDK } from 'shogun-sdk';
+import { ShogunSDK } from '@shogun/shogun-core';
 import LoginWithShogunSolid from '../../components/LoginWithShogunSolid';
 
 let AuthenticationPage = () => {

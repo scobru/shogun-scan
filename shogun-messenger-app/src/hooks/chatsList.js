@@ -1,4 +1,4 @@
-import { gun, messaging } from 'lonewolf-protocol';
+import { gun, messaging } from '@shogun/shogun-protocol';
 import { onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 

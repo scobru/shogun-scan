@@ -1,4 +1,4 @@
-import { authentication, certificates, user } from 'lonewolf-protocol';
+import { authentication, certificates, user } from '@shogun/shogun-protocol';
 import { Route, Router } from '@solidjs/router';
 import { createSignal, onMount } from 'solid-js';
 import LogoutButton from './components/buttons/logout';

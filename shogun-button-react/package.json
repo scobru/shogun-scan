@@ -1,5 +1,5 @@
 {
-  "name": "@shogun/shogun-button",
+  "name": "shogun-button-react",
   "description": "Shogun connector button",
   "private": true,
   "version": "0.1.0",
@@ -16,7 +16,7 @@
     "hooks",
     "authentication"
   ],
-  "author": "Shogun",
+  "author": "Scobru",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -26,13 +26,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "npx tsc && cp src/styles dist/",
+    "build": "tsc",
     "typegen": "tsc --emitDeclarationOnly || true",
     "typegen:watch": "tsc --emitDeclarationOnly --watch"
   },
   "dependencies": {
-    "@shogun/shogun-core": "file:../shogun-core",
-    "prettier": "^3.5.3",
+    "shogun-core": "file:../shogun-core",
+    "prettier": "^3.5.3"
+  },
+  "devDependencies": {
+    "ts-minimal": "file:../ts-minimal",
     "typescript": "^5.8.2"
   },
   "peerDependencies": {

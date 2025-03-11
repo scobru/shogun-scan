@@ -6,6 +6,44 @@ import { Storage } from "../storage/storage";
 import { WalletInfo } from "../types/shogun";
 import SEA from "gun/sea";
 import { HDNodeWallet, randomBytes, Mnemonic } from "ethers";
+import { record, match, pipe } from "ts-minimal";
+
+// Definizione di uno schema per i percorsi dei wallet
+const WalletPathSchema = record<{
+  path: string;
+  created: number;
+}>({
+  path: String,
+  created: Number
+});
+
+type WalletPath = Parameters<typeof WalletPathSchema>[0];
+
+// Schema per il bilanciamento del wallet in cache
+const BalanceCacheSchema = record<{
+  balance: string;
+  timestamp: number;
+}>({
+  balance: String,
+  timestamp: Number
+});
+
+type BalanceCache = Parameters<typeof BalanceCacheSchema>[0];
+
+// Schema per l'esportazione dei wallet
+const WalletExportSchema = record<{
+  address: string;
+  privateKey: string;
+  path: string;
+  created: number;
+}>({
+  address: String,
+  privateKey: String,
+  path: String,
+  created: Number
+});
+
+type WalletExport = Parameters<typeof WalletExportSchema>[0];
 
 /**
  * Classe che gestisce le funzionalità dei wallet
@@ -15,10 +53,10 @@ export class WalletManager {
   private gun: any;
   private storage: Storage;
   private walletPaths: {
-    [address: string]: { path: string; created: number };
+    [address: string]: WalletPath;
   } = {};
   private mainWallet: ethers.Wallet | null = null;
-  private balanceCache: Map<string, { balance: string; timestamp: number }> = new Map();
+  private balanceCache: Map<string, BalanceCache> = new Map();
   private balanceCacheTTL: number = 30000; // 30 secondi di cache
   private defaultRpcUrl: string = "https://mainnet.infura.io/v3/your-project-id";
   private configuredRpcUrl: string | null = null;
@@ -63,13 +101,13 @@ export class WalletManager {
       // Carica i path da localStorage come fallback
       await this.loadWalletPathsFromLocalStorage();
 
-      // Logga il numero di wallet caricati
+      // Utilizziamo match per fornire un logging più espressivo
       const walletCount = Object.keys(this.walletPaths).length;
-      if (walletCount === 0) {
-        log("Nessun wallet path trovato, verranno creati nuovi wallet quando necessario");
-      } else {
-        log(`Inizializzati ${walletCount} wallet paths`);
-      }
+      match(walletCount, {
+        when: (count) => count === 0,
+        then: () => log("Nessun wallet path trovato, verranno creati nuovi wallet quando necessario"),
+        otherwise: (count) => log(`Inizializzati ${count} wallet paths`)
+      });
     } catch (error) {
       console.error("Errore durante l'inizializzazione dei wallet paths:", error);
     }
@@ -80,42 +118,57 @@ export class WalletManager {
    * @private
    */
   private async loadWalletPathsFromGun(): Promise<void> {
-    // 1. Prima tentiamo di caricare da GUN se l'utente è autenticato
+    // Utilizziamo match per verificare l'autenticazione dell'utente
     const user = this.gun.user();
-    if (!user || !user.is) {
-      log("Utente non autenticato su Gun, non è possibile caricare i wallet paths da Gun");
-      return;
-    }
+    return match(user?.is, {
+      when: (is) => !is,
+      then: () => {
+        log("Utente non autenticato su Gun, non è possibile caricare i wallet paths da Gun");
+        return Promise.resolve();
+      },
+      otherwise: async (is) => {
+        log(`Caricamento wallet paths da GUN per l'utente: ${is.alias}`);
 
-    log(`Caricamento wallet paths da GUN per l'utente: ${user.is.alias}`);
-
-    // Carica i paths dal profilo dell'utente
-    const walletPaths = await new Promise<Record<string, any>>((resolve) => {
-      user.get("wallet_paths").once((data: any) => {
-        if (!data) {
-          log("Nessun wallet path trovato in GUN");
-          resolve({});
-        } else {
-          log(`Trovati wallet paths in GUN: ${Object.keys(data).length - 1} wallet`); // -1 per il campo _
-          resolve(data || {});
-        }
-      });
-    });
-
-    // Converti i dati ricevuti da GUN in walletPaths
-    for (const [address, pathData] of Object.entries(walletPaths)) {
-      if (address !== "_" && pathData) {
-        // Verifica che pathData sia un oggetto con i campi richiesti
-        const data = pathData as any;
-        if (data.path) {
-          this.walletPaths[address] = {
-            path: data.path,
-            created: data.created || Date.now(),
-          };
-          log(`Caricato path per wallet: ${address} -> ${data.path}`);
-        }
+        // Carica i paths dal profilo dell'utente
+        const walletPaths = await pipe(
+          new Promise<Record<string, any>>((resolve) => {
+            user.get("wallet_paths").once((data: any) => {
+              match(data, {
+                when: (d) => !d,
+                then: () => {
+                  log("Nessun wallet path trovato in GUN");
+                  resolve({});
+                },
+                otherwise: (d) => {
+                  log(`Trovati wallet paths in GUN: ${Object.keys(d).length - 1} wallet`); // -1 per il campo _
+                  resolve(d || {});
+                }
+              });
+            });
+          }),
+          // Elaborazione dei dati
+          (paths) => {
+            // Converti i dati ricevuti da GUN in walletPaths
+            Object.entries(paths).forEach(([address, pathData]) => {
+              if (address !== "_" && pathData) {
+                const data = pathData as any;
+                match(data?.path, {
+                  when: (path) => !!path,
+                  then: (path) => {
+                    this.walletPaths[address] = {
+                      path,
+                      created: data.created || Date.now(),
+                    };
+                    log(`Caricato path per wallet: ${address} -> ${path}`);
+                  },
+                  otherwise: () => {}
+                });
+              }
+            });
+          }
+        );
       }
-    }
+    });
   }
 
   /**
@@ -126,25 +179,30 @@ export class WalletManager {
     const storageKey = `shogun_wallet_paths_${this.getStorageUserIdentifier()}`;
     const storedPaths = this.storage.getItem(storageKey);
 
-    if (storedPaths) {
-      try {
-        log("Trovati wallet paths in localStorage");
-        const parsedPaths = JSON.parse(storedPaths);
+    match(storedPaths, {
+      when: (paths) => !!paths,
+      then: (paths) => {
+        try {
+          log("Trovati wallet paths in localStorage");
+          const parsedPaths = JSON.parse(paths as string);
 
-        // Aggiunge i paths da localStorage se non sono già presenti in GUN
-        for (const [address, pathData] of Object.entries(parsedPaths)) {
-          if (!this.walletPaths[address]) {
-            this.walletPaths[address] = pathData as {
-              path: string;
-              created: number;
-            };
-            log(`Caricato path da localStorage per wallet: ${address}`);
-          }
+          // Aggiunge i paths da localStorage se non sono già presenti in GUN
+          Object.entries(parsedPaths).forEach(([address, pathData]) => {
+            match(this.walletPaths[address], {
+              when: (existingPath) => !existingPath,
+              then: () => {
+                this.walletPaths[address] = pathData as WalletPath;
+                log(`Caricato path da localStorage per wallet: ${address}`);
+              },
+              otherwise: () => {}
+            });
+          });
+        } catch (error) {
+          console.error("Errore nel parsing dei wallet paths da localStorage:", error);
         }
-      } catch (error) {
-        console.error("Errore nel parsing dei wallet paths da localStorage:", error);
-      }
-    }
+      },
+      otherwise: () => {}
+    });
   }
 
   /**
@@ -153,10 +211,14 @@ export class WalletManager {
    */
   private getStorageUserIdentifier(): string {
     const user = this.gun.user();
-    if (user && user.is && user.is.pub) {
-      return user.is.pub.substring(0, 12); // Usa una parte della chiave pubblica
-    }
-    return "guest"; // Identificatore per utenti non autenticati
+    return pipe(
+      user?.is?.pub,
+      (pub) => match(pub, {
+        when: (p) => !!p,
+        then: (p) => p.substring(0, 12), // Usa una parte della chiave pubblica
+        otherwise: () => "guest" // Identificatore per utenti non autenticati
+      })
+    );
   }
 
   /**
@@ -180,46 +242,102 @@ export class WalletManager {
   }
 
   /**
-   * Deriva una chiave privata in modo deterministico e compatibile
+   * Deriva una chiave privata in modo deterministico e compatibile con BIP-44
+   * @param mnemonic La frase mnemonica BIP-39
+   * @param path Il percorso di derivazione BIP-44 (es. m/44'/60'/0'/0/0)
+   * @returns Un wallet derivato secondo lo standard BIP-44
    */
   private derivePrivateKeyFromMnemonic(mnemonic: string, path: string): ethers.Wallet {
+    return pipe(
+      { mnemonic, path },
+      (input) => {
+        try {
+          log(`Derivazione BIP-44 standard per path: ${input.path}`);
+          
+          // Crea direttamente un HD wallet dalla mnemonica con il path specificato
+          // Questo è il modo corretto di derivare un wallet da una mnemonica in ethers.js v6
+          const wallet = ethers.HDNodeWallet.fromMnemonic(
+            ethers.Mnemonic.fromPhrase(input.mnemonic),
+            input.path  // Passiamo il path direttamente qui
+          );
+          
+          log(`Derivato wallet BIP-44 standard per ${input.path} con indirizzo ${wallet.address}`);
+          
+          return wallet;
+        } catch (error) {
+          console.error(`Errore nella derivazione BIP-44 del wallet per il path ${input.path}:`, error);
+          throw new Error(`Impossibile derivare il wallet per il path ${input.path}`);
+        }
+      }
+    );
+  }
+
+  /**
+   * Genera una nuova mnemonic BIP-39 standard compatibile con tutti i wallet
+   * @returns Una nuova frase mnemonica BIP-39 di 12 parole
+   */
+  generateNewMnemonic(): string {
+    // Genera una mnemonic casuale a 12 parole secondo lo standard BIP-39
+    return ethers.Mnemonic.fromEntropy(ethers.randomBytes(16)).phrase;
+  }
+
+  /**
+   * Ottiene gli indirizzi che sarebbero derivati da una mnemonica usando lo standard BIP-44
+   * Questo è utile per verificare che i wallet siano correttamente compatibili con MetaMask e altri wallet
+   * @param mnemonic La frase mnemonica BIP-39
+   * @param count Il numero di indirizzi da derivare
+   * @returns Un array di indirizzi Ethereum
+   */
+  getStandardBIP44Addresses(mnemonic: string, count: number = 5): string[] {
     try {
-      // Approccio completamente ridisegnato per evitare i problemi di hdnode
-      log(`Derivazione wallet per path: ${path}`);
+      log(`Derivazione standard BIP-44 da mnemonica`);
       
-      // Creiamo un seed deterministico che combina mnemonic e path
-      const seedBase = `${mnemonic}|${path}`;
+      const addresses: string[] = [];
+      for (let i = 0; i < count; i++) {
+        // Path standard BIP-44 per Ethereum: m/44'/60'/0'/0/i
+        const path = `m/44'/60'/0'/0/${i}`;
+        
+        // Crea direttamente un HD wallet dalla mnemonica con il path specificato
+        const wallet = ethers.HDNodeWallet.fromMnemonic(
+          ethers.Mnemonic.fromPhrase(mnemonic),
+          path  // Passiamo il path direttamente qui
+        );
+        
+        addresses.push(wallet.address);
+        log(`Indirizzo ${i}: ${wallet.address} (${path})`);
+      }
       
-      // Usiamo crypto.subtle per generare un hash SHA-256 del seed
-      // Questo ci dà un valore deterministico basato su mnemonic e path
-      const encoder = new TextEncoder();
-      const messageBuffer = encoder.encode(seedBase);
-      
-      // Generiamo la chiave privata in modo deterministico
-      const privateKey = this.generatePrivateKeyFromString(seedBase);
-      log(`Generata chiave privata deterministica per ${path}`);
-      
-      // Creiamo il wallet dalla chiave privata
-      return new ethers.Wallet(privateKey);
+      return addresses;
     } catch (error) {
-      // Fallback di ultima istanza in caso di errori
-      log(`Errore nella derivazione deterministica: ${error}, utilizzo chiave di fallback`);
-      
-      // Generiamo una chiave completamente hardcoded come ultima risorsa
-      // (questo è solo per evitare che l'app si blocchi completamente)
-      const fallbackSeed = `fallback-${path}-${mnemonic.substring(0, 10)}`;
-      const fallbackKey = this.generatePrivateKeyFromString(fallbackSeed);
-      return new ethers.Wallet(fallbackKey);
+      log(`Errore nel calcolo degli indirizzi BIP-44: ${error}`);
+      return [];
     }
   }
 
   /**
-   * Genera una nuova mnemonic BIP39 standard - anche se per ora
-   * non utilizziamo realmente la derivazione HD ma solo un approccio deterministico
+   * METODO INFORMATIVO: Recupera i primi n wallet che sarebbero stati creati da una mnemonic
+   * usando MetaMask (solo per debug e verifica)
+   * @deprecated Usa getStandardBIP44Addresses() che implementa la vera derivazione BIP-44
    */
-  generateNewMnemonic(): string {
-    // Genera una mnemonic casuale a 12 parole che utilizziamo come base per la generazione di wallet
-    return ethers.Mnemonic.fromEntropy(ethers.randomBytes(16)).phrase;
+  getMetaMaskCompatibleAddresses(mnemonic: string, count: number = 5): string[] {
+    try {
+      // Questo è solo a scopo informativo, non influisce sulla funzionalità dell'app
+      const addresses: string[] = [];
+      
+      log(`Tentativo di derivazione compatibile con MetaMask per mnemonic`);
+      
+      for (let i = 0; i < count; i++) {
+        // Generiamo indirizzi deterministici usando il nostro metodo
+        const path = `m/44'/60'/0'/0/${i}`;
+        const wallet = this.derivePrivateKeyFromMnemonic(mnemonic, path);
+        addresses.push(wallet.address);
+      }
+      
+      return addresses;
+    } catch (error) {
+      log(`Errore nel calcolo degli indirizzi MetaMask: ${error}`);
+      return [];
+    }
   }
 
   /**
@@ -277,31 +395,6 @@ export class WalletManager {
         .join("");
       
       return fallbackHex;
-    }
-  }
-
-  /**
-   * METODO INFORMATIVO: Recupera i primi n wallet che sarebbero stati creati da una mnemonic
-   * usando MetaMask (solo per debug e verifica)
-   */
-  getMetaMaskCompatibleAddresses(mnemonic: string, count: number = 5): string[] {
-    try {
-      // Questo è solo a scopo informativo, non influisce sulla funzionalità dell'app
-      const addresses: string[] = [];
-      
-      log(`Tentativo di derivazione compatibile con MetaMask per mnemonic`);
-      
-      for (let i = 0; i < count; i++) {
-        // Generiamo indirizzi deterministici usando il nostro metodo
-        const path = `m/44'/60'/0'/0/${i}`;
-        const wallet = this.derivePrivateKeyFromMnemonic(mnemonic, path);
-        addresses.push(wallet.address);
-      }
-      
-      return addresses;
-    } catch (error) {
-      log(`Errore nel calcolo degli indirizzi MetaMask: ${error}`);
-      return [];
     }
   }
 
@@ -440,6 +533,7 @@ export class WalletManager {
         
         if (gunMnemonic) {
           log("Mnemonic recuperata da GunDB");
+          log("gunMnemonic: ", gunMnemonic);
           return gunMnemonic;
         }
       }
@@ -519,6 +613,8 @@ export class WalletManager {
         await this.saveUserMasterMnemonic(masterMnemonic);
         log(`Generata nuova mnemonic: ${masterMnemonic}`);
       }
+
+      log("*** masterMnemonic: ", masterMnemonic);
       
       // Deriva il wallet usando il metodo sicuro
       const wallet = this.derivePrivateKeyFromMnemonic(masterMnemonic, path);
@@ -577,8 +673,11 @@ export class WalletManager {
       for (const [address, data] of Object.entries(this.walletPaths)) {
         try {
           // Usa il metodo sicuro per derivare la chiave privata
-          const wallet = this.derivePrivateKeyFromMnemonic(masterMnemonic, data.path);
-          log(`Derivato wallet per path ${data.path} con indirizzo ${wallet.address}`);
+          const wallet = this.derivePrivateKeyFromMnemonic(
+            masterMnemonic, 
+            data.path || `m/44'/60'/0'/0/${address.substring(0, 6)}`
+          );
+          log(`Derivato wallet per path ${data.path || 'fallback'} con indirizzo ${wallet.address}`);
           
           if (wallet.address.toLowerCase() !== address.toLowerCase()) {
             console.warn(
@@ -587,7 +686,7 @@ export class WalletManager {
           }
           wallets.push({
             wallet,
-            path: data.path,
+            path: data.path || `m/44'/60'/0'/0/${wallet.address.substring(0, 8)}`,
             address: wallet.address,
             getAddressString: () => wallet.address,
           });
@@ -624,9 +723,10 @@ export class WalletManager {
       const cachedData = this.balanceCache.get(address);
       const now = Date.now();
       
-      if (cachedData && (now - cachedData.timestamp) < this.balanceCacheTTL) {
-        log(`Usando saldo in cache per ${address}: ${cachedData.balance} ETH`);
-        return cachedData.balance;
+      if (cachedData && cachedData.timestamp !== undefined && (now - cachedData.timestamp) < this.balanceCacheTTL) {
+        const cachedBalance = cachedData.balance || "0";
+        log(`Usando saldo in cache per ${address}: ${cachedBalance} ETH`);
+        return cachedBalance;
       }
       
       // Altrimenti chiama il provider
@@ -807,12 +907,16 @@ export class WalletManager {
       }
       
       // Crea un oggetto con i dati dei wallet
-      const walletData = wallets.map(walletInfo => ({
-        address: walletInfo.address,
-        privateKey: walletInfo.wallet.privateKey,
-        path: walletInfo.path,
-        created: this.walletPaths[walletInfo.address]?.created || Date.now()
-      }));
+      const walletData = wallets.map(walletInfo => {
+        // Controllo di sicurezza per walletInfo.address
+        const address = walletInfo.address || "";
+        return {
+          address: address,
+          privateKey: walletInfo.wallet.privateKey,
+          path: walletInfo.path,
+          created: address && this.walletPaths[address]?.created || Date.now()
+        };
+      });
       
       const exportData = {
         wallets: walletData,
@@ -892,12 +996,16 @@ export class WalletManager {
       }
       
       // Prepara i dati dei wallet
-      const walletData = wallets.map(walletInfo => ({
-        address: walletInfo.address,
-        privateKey: walletInfo.wallet.privateKey,
-        path: walletInfo.path,
-        created: this.walletPaths[walletInfo.address]?.created || Date.now()
-      }));
+      const walletData = wallets.map(walletInfo => {
+        // Controllo di sicurezza per walletInfo.address
+        const address = walletInfo.address || "";
+        return {
+          address: address,
+          privateKey: walletInfo.wallet.privateKey,
+          path: walletInfo.path,
+          created: address && this.walletPaths[address]?.created || Date.now()
+        };
+      });
       
       // Crea l'oggetto completo con tutti i dati
       const exportData = {
@@ -968,18 +1076,50 @@ export class WalletManager {
         throw new Error("La mnemonica fornita non è valida");
       }
       
-      // Salva la mnemonica
-      await this.saveUserMasterMnemonic(mnemonic);
+      // OTTIMIZZAZIONE: Ripulisci i wallet path esistenti prima di salvare la nuova mnemonica
+      const user = this.gun.user();
       
-      // Reset del wallet principale per forzare la riderivazione
-      this.resetMainWallet();
-      
-      // Genera il primo wallet se non ne esistono
-      if (Object.keys(this.walletPaths).length === 0) {
-        await this.createWallet();
+      // Verifica che l'utente sia autenticato
+      if (!user || !user.is) {
+        throw new Error("L'utente deve essere autenticato per importare una mnemonica");
       }
       
-      log("Mnemonica importata con successo");
+      log("Cancellazione dei wallet path esistenti prima dell'importazione della nuova mnemonica");
+      
+      // 1. Cancella i path da Gun
+      try {
+        // Rimuovi l'intero nodo wallet_paths
+        await user.get("wallet_paths").put(null);
+        log("Wallet path eliminati da Gun con successo");
+      } catch (gunError) {
+        console.error("Errore durante la cancellazione dei wallet path da Gun:", gunError);
+        // Continua comunque, non bloccare l'operazione per questo errore
+      }
+      
+      // 2. Cancella i path da localStorage
+      try {
+        const storageKey = `shogun_wallet_paths_${this.getStorageUserIdentifier()}`;
+        this.storage.removeItem(storageKey);
+        log("Wallet path eliminati da localStorage con successo");
+      } catch (storageError) {
+        console.error("Errore durante la cancellazione dei wallet path da localStorage:", storageError);
+        // Continua comunque
+      }
+      
+      // 3. Ripulisci i wallet path in memoria
+      this.walletPaths = {};
+      
+      // 4. Salva la nuova mnemonica
+      await this.saveUserMasterMnemonic(mnemonic);
+      log("Nuova mnemonica salvata con successo");
+      
+      // 5. Reset del wallet principale per forzare la riderivazione
+      this.resetMainWallet();
+      
+      // 6. Genera il primo wallet con la nuova mnemonica
+      await this.createWallet();
+      log("Generato nuovo wallet con la mnemonica importata");
+      
       return true;
     } catch (error) {
       console.error("Errore nell'importazione della mnemonica:", error);

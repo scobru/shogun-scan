@@ -1,5 +1,4 @@
-import { ShogunSDK } from "@shogun/shogun-core";
-import type { HDNodeWallet } from "ethers";
+import { ShogunCore } from "shogun-core";
 import { ShogunConnectorOptions } from "../types";
 
 /**
@@ -59,7 +58,7 @@ function shogunConnector({
   };
 
   // Inizializza l'SDK Shogun
-  const sdk = new ShogunSDK(config);
+  const sdk = new ShogunCore(config);
 
   return {
     sdk,

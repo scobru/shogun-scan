@@ -4,6 +4,7 @@
 import { ethers } from "ethers";
 import { log, logDebug, logError, logWarning } from "../utils/logger";
 import CONFIG from "../config";
+import { record, pipe, match } from "ts-minimal";
 
 // Extend the Window interface to include ethereum
 declare global {
@@ -22,20 +23,25 @@ declare global {
 }
 
 /**
- * Risultato della connessione a MetaMask
+ * Definizione degli schemi con record per validazione tipo concisa
  */
-interface ConnectionResult {
+const ConnectionResultSchema = record<{
   success: boolean;
   address?: string;
   username?: string;
   randomPassword?: string;
   error?: string;
-}
+}>({
+  success: Boolean,
+  address: String,
+  username: String,
+  randomPassword: String,
+  error: String
+});
 
-/**
- * Risultato dell'autenticazione
- */
-interface AuthResult {
+type ConnectionResult = Parameters<typeof ConnectionResultSchema>[0];
+
+const AuthResultSchema = record<{
   success: boolean;
   username?: string;
   password?: string;
@@ -43,15 +49,27 @@ interface AuthResult {
   nonce?: string;
   timestamp?: number;
   messageToSign?: string;
-}
+}>({
+  success: Boolean,
+  username: String,
+  password: String,
+  error: String,
+  nonce: String,
+  timestamp: Number,
+  messageToSign: String
+});
 
-/**
- * Credenziali MetaMask
- */
-interface MetaMaskCredentials {
+type AuthResult = Parameters<typeof AuthResultSchema>[0];
+
+const MetaMaskCredentialsSchema = record<{
   username: string;
   password: string;
-}
+}>({
+  username: String,
+  password: String
+});
+
+type MetaMaskCredentials = Parameters<typeof MetaMaskCredentialsSchema>[0];
 
 // Definizione di EthereumProvider per TypeScript
 interface EthereumProvider {
@@ -83,27 +101,36 @@ class MetaMask {
   /**
    * Verifica che l'indirizzo sia valido
    * @param address Indirizzo da validare
+   * @returns Indirizzo normalizzato 
    * @throws Error se l'indirizzo non è valido
    */
   private validateAddress(address: string | null | undefined): string {
-    if (!address) {
-      throw new Error("Indirizzo non fornito");
-    }
-
-    // Normalizza l'indirizzo
-    let normalizedAddress = String(address).trim().toLowerCase();
-    
-    try {
-      // Verifica se è un indirizzo valido con ethers
-      if (!ethers.isAddress(normalizedAddress)) {
-        throw new Error("Formato indirizzo non valido");
-      }
-      
-      // Formatta l'indirizzo in modo corretto
-      return ethers.getAddress(normalizedAddress);
-    } catch (e) {
-      throw new Error("Indirizzo Ethereum non valido");
-    }
+    // Utilizziamo match per gestire la validazione dell'indirizzo
+    return pipe(
+      address,
+      (addr) => match(addr, {
+        when: (a) => !a,
+        then: () => {
+          throw new Error("Indirizzo non fornito");
+        },
+        otherwise: (a) => {
+          // Normalizza l'indirizzo
+          const normalizedAddress = String(a).trim().toLowerCase();
+          
+          try {
+            // Verifica se è un indirizzo valido con ethers
+            if (!ethers.isAddress(normalizedAddress)) {
+              throw new Error("Formato indirizzo non valido");
+            }
+            
+            // Formatta l'indirizzo in modo corretto
+            return ethers.getAddress(normalizedAddress);
+          } catch (e) {
+            throw new Error("Indirizzo Ethereum non valido");
+          }
+        }
+      })
+    );
   }
 
   /**
@@ -112,12 +139,17 @@ class MetaMask {
    * @returns Password generata
    */
   public generateSecurePassword(signature: string): string {
-    if (!signature) {
-      throw new Error("Firma non valida");
-    }
-    // hash the signature
-    const hash = ethers.keccak256(ethers.toUtf8Bytes(signature));
-    return hash.slice(2, 66);
+    return match(signature, {
+      when: (s) => !s,
+      then: () => {
+        throw new Error("Firma non valida");
+      },
+      otherwise: (s) => {
+        // hash the signature
+        const hash = ethers.keccak256(ethers.toUtf8Bytes(s));
+        return hash.slice(2, 66);
+      }
+    });
   }
 
   /**
@@ -126,6 +158,7 @@ class MetaMask {
    */
   async connectMetaMask(): Promise<ConnectionResult> {
     try {
+      // Verifichiamo se MetaMask è disponibile
       if (!MetaMask.isMetaMaskAvailable()) {
         return {
           success: false,
@@ -141,22 +174,25 @@ class MetaMask {
           method: "eth_requestAccounts",
         });
 
-        if (!accounts || accounts.length === 0) {
-          return {
+        // Verifichiamo se ci sono account disponibili
+        return match(accounts, {
+          when: (accs) => !accs || accs.length === 0,
+          then: () => ({
             success: false,
             error: "Nessun account trovato in MetaMask",
-          };
-        }
+          }),
+          otherwise: (accs) => {
+            // Valida e normalizza l'indirizzo
+            const address = this.validateAddress(accs[0]);
+            const metamaskUsername = `mm_${address.toLowerCase()}`;
 
-        // Valida e normalizza l'indirizzo
-        const address = this.validateAddress(accounts[0]);
-        const metamaskUsername = `mm_${address.toLowerCase()}`;
-
-        return {
-          success: true,
-          address,
-          username: metamaskUsername,
-        };
+            return {
+              success: true,
+              address,
+              username: metamaskUsername,
+            };
+          }
+        });
       } catch (error: any) {
         logError("Errore nell'accesso a MetaMask:", error);
         return {
@@ -198,42 +234,57 @@ class MetaMask {
     try {
       // Prima connetti a MetaMask
       const connection = await this.connectMetaMask();
-      if (!connection.success) {
-        throw new Error(connection.error || "Errore di connessione a MetaMask");
-      }
+      
+      // Verifichiamo il risultato della connessione
+      return pipe(
+        connection,
+        (conn) => match(conn, {
+          when: (c) => !c.success,
+          then: (c) => {
+            throw new Error(c.error || "Errore di connessione a MetaMask");
+          },
+          otherwise: async (c) => {
+            // Verifica che l'indirizzo connesso corrisponda
+            const connectedAddress = this.validateAddress(c.address);
+            
+            if (connectedAddress.toLowerCase() !== address.toLowerCase()) {
+              throw new Error("L'account selezionato non corrisponde all'indirizzo fornito");
+            }
 
-      // Verifica che l'indirizzo connesso corrisponda
-      const connectedAddress = this.validateAddress(connection.address);
-      if (connectedAddress.toLowerCase() !== address.toLowerCase()) {
-        throw new Error("L'account selezionato non corrisponde all'indirizzo fornito");
-      }
+            // Il messaggio da firmare
+            const messageToSign = this.MESSAGE_TO_SIGN;
+            log(`Richiesta firma del messaggio: "${messageToSign}"`);
 
-      // Il messaggio da firmare
-      const messageToSign = this.MESSAGE_TO_SIGN;
-      log(`Richiesta firma del messaggio: "${messageToSign}"`);
+            const ethereum = window.ethereum as EthereumProvider;
+            const signature = await ethereum.request({
+              method: "personal_sign",
+              params: [messageToSign, connectedAddress],
+            });
 
-      const ethereum = window.ethereum as EthereumProvider;
-      const signature = await ethereum.request({
-        method: "personal_sign",
-        params: [messageToSign, connectedAddress],
-      });
+            // Verifichiamo la firma
+            return match(signature, {
+              when: (s) => !s,
+              then: () => {
+                throw new Error("Firma non ottenuta");
+              },
+              otherwise: async (s) => {
+                log("Firma ottenuta, generazione password...");
 
-      if (!signature) {
-        throw new Error("Firma non ottenuta");
-      }
+                // Genera la password usando il metodo dedicato
+                const password = await this.generatePassword(s);
 
-      log("Firma ottenuta, generazione password...");
+                // Usa l'username generato durante la connessione
+                const username = c.username || `mm_${connectedAddress.toLowerCase()}`;
 
-      // Genera la password usando il metodo dedicato
-      const password = await this.generatePassword(signature);
-
-      // Usa l'username generato durante la connessione
-      const username = connection.username || `mm_${connectedAddress.toLowerCase()}`;
-
-      return {
-        username,
-        password
-      };
+                return {
+                  username,
+                  password
+                };
+              }
+            });
+          }
+        })
+      );
     } catch (error: any) {
       logError("Errore nella generazione delle credenziali:", error);
       throw new Error(
@@ -249,22 +300,30 @@ class MetaMask {
    * @throws {Error} For invalid parameters
    */
   public setCustomProvider(rpcUrl: string, privateKey: string): void {
-    try {
-      if (!rpcUrl || typeof rpcUrl !== "string") {
+    // Utilizziamo match per validare i parametri
+    match({ rpcUrl, privateKey }, {
+      when: (params) => !params.rpcUrl || typeof params.rpcUrl !== "string",
+      then: () => {
         throw new Error("RPC URL non valido");
-      }
-      if (!privateKey || typeof privateKey !== "string") {
-        throw new Error("Chiave privata non valida");
-      }
-
-      this.customProvider = new ethers.JsonRpcProvider(rpcUrl);
-      this.customWallet = new ethers.Wallet(privateKey, this.customProvider);
-      logDebug("Provider personalizzato configurato con successo");
-    } catch (error: any) {
-      throw new Error(
-        `Errore nella configurazione del provider: ${error.message || "Errore sconosciuto"}`
-      );
-    }
+      },
+      otherwise: (params) => match(params, {
+        when: (p) => !p.privateKey || typeof p.privateKey !== "string",
+        then: () => {
+          throw new Error("Chiave privata non valida");
+        },
+        otherwise: (p) => {
+          try {
+            this.customProvider = new ethers.JsonRpcProvider(p.rpcUrl);
+            this.customWallet = new ethers.Wallet(p.privateKey, this.customProvider);
+            logDebug("Provider personalizzato configurato con successo");
+          } catch (error: any) {
+            throw new Error(
+              `Errore nella configurazione del provider: ${error.message || "Errore sconosciuto"}`
+            );
+          }
+        }
+      })
+    });
   }
 
   /**
@@ -274,14 +333,20 @@ class MetaMask {
    */
   public async getSigner(): Promise<ethers.Signer> {
     try {
-      if (this.customWallet) {
-        return this.customWallet;
-      }
-      const signer = await this.getEthereumSigner();
-      if (!signer) {
-        throw new Error("Nessun signer Ethereum disponibile");
-      }
-      return signer;
+      return match(this.customWallet, {
+        when: (wallet) => !!wallet,
+        then: (wallet) => wallet as ethers.Signer,
+        otherwise: async () => {
+          const signer = await this.getEthereumSigner();
+          return match(signer, {
+            when: (s) => !s,
+            then: () => {
+              throw new Error("Nessun signer Ethereum disponibile");
+            },
+            otherwise: (s) => s
+          });
+        }
+      });
     } catch (error: any) {
       throw new Error(
         `Impossibile ottenere il signer Ethereum: ${error.message || "Errore sconosciuto"}`
@@ -296,11 +361,16 @@ class MetaMask {
    * @throws {Error} For invalid signature
    */
   public async generatePassword(signature: string): Promise<string> {
-    if (!signature) {
-      throw new Error("Firma non valida");
-    }
-    const hash = ethers.keccak256(ethers.toUtf8Bytes(signature));
-    return hash.slice(2, 66); // Rimuovi 0x e usa i primi 32 bytes
+    return match(signature, {
+      when: (s) => !s,
+      then: () => {
+        throw new Error("Firma non valida");
+      },
+      otherwise: (s) => {
+        const hash = ethers.keccak256(ethers.toUtf8Bytes(s));
+        return hash.slice(2, 66); // Rimuovi 0x e usa i primi 32 bytes
+      }
+    });
   }
 
   /**
@@ -314,14 +384,19 @@ class MetaMask {
     message: string,
     signature: string
   ): Promise<string> {
-    try {
-      if (!message || !signature) {
+    return match({ message, signature }, {
+      when: (params) => !params.message || !params.signature,
+      then: () => {
         throw new Error("Messaggio o firma non validi");
+      },
+      otherwise: (params) => {
+        try {
+          return ethers.verifyMessage(params.message, params.signature);
+        } catch (error) {
+          throw new Error("Messaggio o firma non validi");
+        }
       }
-      return ethers.verifyMessage(message, signature);
-    } catch (error) {
-      throw new Error("Messaggio o firma non validi");
-    }
+    });
   }
 
   /**
@@ -330,25 +405,29 @@ class MetaMask {
    * @throws {Error} If MetaMask not detected
    */
   public async getEthereumSigner(): Promise<ethers.Signer> {
-    if (!MetaMask.isMetaMaskAvailable()) {
-      throw new Error(
-        "Metamask non trovato. Installa Metamask per continuare."
-      );
-    }
+    return match(MetaMask.isMetaMaskAvailable(), {
+      when: (available) => !available,
+      then: () => {
+        throw new Error(
+          "Metamask non trovato. Installa Metamask per continuare."
+        );
+      },
+      otherwise: async () => {
+        try {
+          const ethereum = window.ethereum as EthereumProvider;
+          await ethereum.request({
+            method: "eth_requestAccounts",
+          });
 
-    try {
-      const ethereum = window.ethereum as EthereumProvider;
-      await ethereum.request({
-        method: "eth_requestAccounts",
-      });
-
-      const provider = new ethers.BrowserProvider(ethereum);
-      return provider.getSigner();
-    } catch (error: any) {
-      throw new Error(
-        `Errore nell'accesso a MetaMask: ${error.message || "Errore sconosciuto"}`
-      );
-    }
+          const provider = new ethers.BrowserProvider(ethereum);
+          return provider.getSigner();
+        } catch (error: any) {
+          throw new Error(
+            `Errore nell'accesso a MetaMask: ${error.message || "Errore sconosciuto"}`
+          );
+        }
+      }
+    });
   }
 }
 

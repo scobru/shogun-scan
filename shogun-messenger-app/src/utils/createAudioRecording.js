@@ -1,5 +1,5 @@
 import { SEA } from 'gun/gun';
-import { gun, messaging } from 'lonewolf-protocol';
+import { gun, messaging } from '@shogun/shogun-protocol';
 import moment from 'moment';
 import { v4 } from 'uuid';
 

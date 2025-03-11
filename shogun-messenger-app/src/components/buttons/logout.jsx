@@ -1,4 +1,4 @@
-import { authentication } from 'lonewolf-protocol';
+import { authentication } from '@shogun/shogun-protocol';
 
 let LogoutButton = () => {
   return (

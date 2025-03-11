@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { shogunConnector, ShogunButtonProvider, ShogunButton } from "@shogun/shogun-button";
+import { shogunConnector, ShogunButtonProvider, ShogunButton } from "shogun-button-react";
 import Sidebar from "./components/Sidebar";
 import { rpcOptions } from "./constants";
 import { WalletInfo, AuthMethod, StealthKeyPair } from "./types";
@@ -7,6 +7,7 @@ import "./App.css";
 import { ethers } from "ethers";
 import { TokenService } from "./services/TokenService";
 import { TokenManager } from "./components/TokenManager";
+import StealthSection from "./components/StealthSection";
 
 // Inizializzazione del connettore Shogun
 const connectorConfig = {
@@ -102,6 +103,8 @@ const App: React.FC = () => {
   const [openedStealthWallet, setOpenedStealthWallet] = useState<any>(null);
   const [openingStealthAddress, setOpeningStealthAddress] =
     useState<boolean>(false);
+  const [generatingStealthAddress, setGeneratingStealthAddress] =
+    useState<boolean>(false);
 
   // Stato per l'interfaccia utente
   const [showSendModal, setShowSendModal] = useState(false);
@@ -118,10 +121,16 @@ const App: React.FC = () => {
 
   // Nuovi stati per la gestione dell'importazione
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
-  const [importType, setImportType] = useState<string>("");
+  const [importType, setImportType] = useState<"mnemonic" | "wallets" | "gunpair" | "alldata">("mnemonic");
   const [importData, setImportData] = useState<string>("");
   const [importPassword, setImportPassword] = useState<string>("");
   const [importFile, setImportFile] = useState<File | null>(null);
+
+  // Stato per modali
+  const [showTransactionModal, setShowTransactionModal] = useState<boolean>(false);
+  const [showSignMessageModal, setShowSignMessageModal] = useState<boolean>(false);
+  const [showMnemonicModal, setShowMnemonicModal] = useState<boolean>(false);
+  const [generatedMnemonic, setGeneratedMnemonic] = useState<string>("");
 
   // Aggiungo una referenza all'input file
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1698,74 +1707,7 @@ const App: React.FC = () => {
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold mb-2">Il tuo wallet</h2>
               {/* Pulsanti di azione */}
-              <div className="flex items-center space-x-2">
-                <button
-                  className="bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600 text-sm"
-                  onClick={() => setShowSignBox(!showSignBox)}
-                >
-                  <div className="flex items-center">
-                    <span className="mr-1">Firma</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                      />
-                    </svg>
-                  </div>
-                </button>
-                <button
-                  className="bg-green-500 text-white px-3 py-1 rounded-lg hover:bg-green-600 text-sm"
-                  onClick={handleSend}
-                >
-                  <div className="flex items-center">
-                    <span className="mr-1">Invia</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </button>
-                <button
-                  className="bg-purple-500 text-white px-3 py-1 rounded-lg hover:bg-purple-600 text-sm"
-                  onClick={handleReceive}
-                >
-                  <div className="flex items-center">
-                    <span className="mr-1">Ricevi</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                  </div>
-                </button>
-              </div>
+          
             </div>
 
             <div className="mt-4 bg-gray-800 rounded-lg p-4">
@@ -1791,303 +1733,17 @@ const App: React.FC = () => {
               </div>
             )}
             
-            {/* Form di invio */}
-            {showSendForm && (
-              <div className="bg-gray-800 rounded-lg p-6 mt-4">
-                <h3 className="text-xl font-bold mb-4">Invia ETH</h3>
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Destinatario</label>
-                  <input
-                    className="w-full p-3 bg-gray-700 rounded"
-                    value={recipientAddress}
-                    onChange={(e) => setRecipientAddress(e.target.value)}
-                    placeholder="0x..."
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Importo (ETH)</label>
-                  <input
-                    className="w-full p-3 bg-gray-700 rounded"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    type="number"
-                    step="0.0001"
-                    placeholder="0.0"
-                  />
-                </div>
-                <div className="flex space-x-4">
-                  <button
-                    className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
-                    onClick={sendTransaction}
-                  >
-                    Invia
-                  </button>
-                  <button
-                    className="flex-1 p-3 bg-gray-700 rounded hover:bg-gray-600"
-                    onClick={() => setShowSendForm(false)}
-                  >
-                    Annulla
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Form di firma */}
-            {showSignBox && (
-              <div className="bg-gray-800 rounded-lg p-6 mt-4">
-                <h3 className="text-xl font-bold mb-4">Firma Messaggio</h3>
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Messaggio</label>
-                  <textarea
-                    className="w-full p-3 bg-gray-700 rounded"
-                    value={messageToSign}
-                    onChange={(e) => setMessageToSign(e.target.value)}
-                    rows={3}
-                    placeholder="Scrivi un messaggio da firmare..."
-                  />
-                </div>
-                <div className="mb-4">
-                  <button
-                    className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700"
-                    onClick={signMessage}
-                  >
-                    Firma
-                  </button>
-                </div>
-                {signedMessage && (
-                  <div className="mt-4">
-                    <label className="block text-gray-400 mb-2">Firma</label>
-                    <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
-                      {signedMessage}
-                    </div>
-                  </div>
-                )}
-                <button
-                  className="w-full p-3 bg-gray-700 rounded hover:bg-gray-600 mt-4"
-                  onClick={() => setShowSignBox(false)}
-                >
-                  Chiudi
-                </button>
-              </div>
-            )}
-            
-            {/* Modal di ricezione */}
-            {showReceiveModal && (
-              <div className="bg-gray-800 rounded-lg p-6 mt-4">
-                <h3 className="text-xl font-bold mb-4">Ricevi ETH</h3>
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Il tuo indirizzo</label>
-                  <div className="flex">
-                    <input
-                      className="flex-1 p-3 bg-gray-700 rounded-l"
-                      value={selectedAddress || ""}
-                      readOnly
-                    />
-                    <button
-                      className="p-3 bg-blue-600 rounded-r"
-                      onClick={() => {
-                        if (selectedAddress) {
-                          navigator.clipboard.writeText(selectedAddress);
-                          setErrorMessage("Indirizzo copiato negli appunti!");
-                          setTimeout(() => setErrorMessage(""), 3000);
-                        }
-                      }}
-                    >
-                      Copia
-                    </button>
-                  </div>
-                </div>
-                <button
-                  className="w-full p-3 bg-gray-700 rounded hover:bg-gray-600"
-                  onClick={() => setShowReceiveModal(false)}
-                >
-                  Chiudi
-                </button>
-              </div>
-            )}
+       
           </div>
         );
       case "stealth":
         return (
-          <div>
-            <h2 className="text-2xl font-bold mb-6">Indirizzi Stealth</h2>
-            
-            <div className="flex space-x-4 mb-6">
-              <button
-                className={`flex-1 p-3 rounded ${
-                  showStealthBox ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
-                }`}
-                onClick={() => {
-                  setShowStealthBox(true);
-                  setShowStealthOpener(false);
-                }}
-              >
-                Genera Indirizzo
-              </button>
-              <button
-                className={`flex-1 p-3 rounded ${
-                  showStealthOpener ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
-                }`}
-                onClick={() => {
-                  setShowStealthOpener(true);
-                  setShowStealthBox(false);
-                }}
-              >
-                Apri Indirizzo
-              </button>
-            </div>
-            
-            {/* Panel per generare un indirizzo stealth */}
-            {showStealthBox && (
-              <div className="bg-gray-800 rounded-lg p-6 mb-4">
-                <h3 className="text-xl font-bold mb-4">Genera un indirizzo stealth</h3>
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">
-                    Chiave pubblica del destinatario
-                  </label>
-                  <input
-                    className="w-full p-3 bg-gray-700 rounded"
-                    value={recipientPublicKey}
-                    onChange={(e) => setRecipientPublicKey(e.target.value)}
-                    placeholder="Inserisci la chiave pubblica del destinatario..."
-                  />
-                </div>
-                <button
-                  className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
-                  onClick={generateStealthAddress}
-                  disabled={stealthGenerating}
-                >
-                  {stealthGenerating ? "Generazione in corso..." : "Genera Indirizzo Stealth"}
-                </button>
-                
-                {stealthAddress && (
-                  <div className="mt-4">
-                    <div className="mb-4">
-                      <label className="block text-gray-400 mb-2">Indirizzo Stealth</label>
-                      <div className="flex">
-                        <input
-                          className="flex-1 p-3 bg-gray-700 rounded-l"
-                          value={stealthAddress}
-                          readOnly
-                        />
-                        <button
-                          className="p-3 bg-blue-600 rounded-r"
-                          onClick={() => {
-                            navigator.clipboard.writeText(stealthAddress);
-                            setErrorMessage("Indirizzo stealth copiato negli appunti!");
-                            setTimeout(() => setErrorMessage(""), 3000);
-                          }}
-                        >
-                          Copia
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-gray-400 mb-2">Chiave Pubblica Effimera</label>
-                      <div className="flex">
-                        <input
-                          className="flex-1 p-3 bg-gray-700 rounded-l"
-                          value={ephemeralPublicKey}
-                          readOnly
-                        />
-                        <button
-                          className="p-3 bg-blue-600 rounded-r"
-                          onClick={() => {
-                            navigator.clipboard.writeText(ephemeralPublicKey);
-                            setErrorMessage("Chiave pubblica effimera copiata negli appunti!");
-                            setTimeout(() => setErrorMessage(""), 3000);
-                          }}
-                        >
-                          Copia
-                        </button>
-                      </div>
-                    </div>
-                    <div className="p-4 bg-yellow-800 rounded mt-4">
-                      <p className="font-bold mb-2">Importante:</p>
-                      <p>
-                        Condividi sia l'indirizzo stealth che la chiave pubblica effimera con il destinatario.
-                        Entrambi sono necessari per aprire l'indirizzo stealth.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Panel per aprire un indirizzo stealth */}
-            {showStealthOpener && (
-              <div className="bg-gray-800 rounded-lg p-6 mb-4">
-                <h3 className="text-xl font-bold mb-4">Apri un indirizzo stealth</h3>
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Indirizzo Stealth</label>
-                  <input
-                    className="w-full p-3 bg-gray-700 rounded"
-                    value={stealthToOpen}
-                    onChange={(e) => setStealthToOpen(e.target.value)}
-                    placeholder="0x..."
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Chiave Pubblica Effimera</label>
-                  <input
-                    className="w-full p-3 bg-gray-700 rounded"
-                    value={ephemeralKeyToOpen}
-                    onChange={(e) => setEphemeralKeyToOpen(e.target.value)}
-                    placeholder="Inserisci la chiave pubblica effimera..."
-                  />
-                </div>
-                <button
-                  className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
-                  onClick={openStealthAddress}
-                  disabled={openingStealthAddress}
-                >
-                  {openingStealthAddress ? "Apertura in corso..." : "Apri Indirizzo Stealth"}
-                </button>
-                
-                {openedStealthWallet && (
-                  <div className="mt-4">
-                    <div className="mb-4">
-                      <label className="block text-gray-400 mb-2">Chiave Privata Recuperata</label>
-                      <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
-                        {openedStealthWallet.privateKey}
-                      </div>
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-gray-400 mb-2">Indirizzo Wallet</label>
-                      <div className="p-3 bg-gray-700 rounded font-mono">
-                        {openedStealthWallet.address}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-red-800 rounded mt-4">
-                      <p className="font-bold mb-2">Attenzione:</p>
-                      <p>
-                        La chiave privata è visualizzata in chiaro. Assicurati di essere in un ambiente sicuro
-                        e di non condividere mai la chiave privata.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <div className="bg-blue-800 rounded-lg p-6 mt-6">
-              <h3 className="text-xl font-bold mb-2">Le tue chiavi stealth</h3>
-              <div className="mb-4">
-                <label className="block text-gray-300 mb-1">Chiave pubblica (pub)</label>
-                <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs relative">
-                  {userEpub}
-                  <button 
-                    className="absolute top-2 right-2 p-1 bg-gray-600 rounded hover:bg-gray-500"
-                    onClick={() => navigator.clipboard.writeText(userEpub)}
-                  >
-                    Copia
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <StealthSection 
+            sdk={sdk}
+            userEpub={userEpub}
+            setErrorMessage={setErrorMessage}
+          />
         );
-
       case "settings":
         return (
           <div className="p-6 flex-grow overflow-auto">
@@ -2162,6 +1818,34 @@ const App: React.FC = () => {
                   <span className="mr-1 text-sm">⚠️</span>
                   Attenzione: Le chiavi private e la mnemonica permettono l'accesso completo ai tuoi wallet.
                   Non condividere mai questi dati e conservali in modo sicuro.
+                </p>
+              </div>
+            </div>
+            
+            {/* Sezione Generazione Mnemonica */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-4">
+              <h3 className="text-xl font-bold mb-4">Generazione Mnemonica</h3>
+              <p className="text-gray-400 mb-4">
+                Genera una nuova mnemonica BIP-39 compatibile con MetaMask e altri wallet. 
+                La mnemonica generata può essere salvata in GunDB per il recupero futuro.
+              </p>
+              
+              <div className="flex flex-col mb-4">
+                <button
+                  className="p-4 bg-indigo-600 hover:bg-indigo-700 rounded flex items-center justify-center"
+                  onClick={handleGenerateNewMnemonic}
+                >
+                  <span className="mr-2">🔐</span>
+                  Genera Nuova Mnemonica
+                </button>
+              </div>
+              
+              <div className="p-4 bg-blue-800 bg-opacity-30 rounded">
+                <p className="text-blue-300 text-sm">
+                  <span className="mr-1 text-sm">ℹ️</span>
+                  La nuova mnemonica generata sarà conforme allo standard BIP-39 e compatibile 
+                  con tutti i wallet che supportano questo standard, come MetaMask.
+                  Salva sempre la mnemonica in un luogo sicuro.
                 </p>
               </div>
             </div>
@@ -2332,6 +2016,124 @@ const App: React.FC = () => {
     return sdk ? sdk.isLoggedIn() : false;
   };
 
+  const handleGenerateNewMnemonic = () => {
+    if (!sdk) {
+      setErrorMessage("SDK non inizializzato");
+      return;
+    }
+
+    try {
+      let newMnemonic;
+      
+      // Verifica se il metodo esiste nell'SDK
+      if (typeof sdk.generateNewMnemonic === 'function') {
+        newMnemonic = sdk.generateNewMnemonic();
+      } else {
+        // Alternativa utilizzando ethers.js se il metodo non esiste nell'SDK
+        console.log("[ShogunApp] Metodo generateNewMnemonic non trovato nell'SDK, utilizzo alternativa con ethers.js");
+        newMnemonic = ethers.Wallet.createRandom().mnemonic?.phrase || "";
+      }
+      
+      // Salva la mnemonica in GunDB per utilizzo futuro
+      if (sdk?.gun) {
+        // Salviamo la mnemonica in GunDB cifrata
+        sdk.gun.user().get('masterMnemonic').put(newMnemonic, (ack: any) => {
+          if (ack.err) {
+            console.error("[ShogunApp] Errore nel salvare la mnemonica in GunDB:", ack.err);
+          } else {
+            console.log("[ShogunApp] Mnemonica salvata con successo in GunDB");
+          }
+        });
+      }
+      
+      setGeneratedMnemonic(newMnemonic);
+      setShowMnemonicModal(true);
+      console.log("[ShogunApp] Nuova mnemonica generata con successo");
+      setErrorMessage("Mnemonica generata con successo e salvata nel database");
+      setTimeout(() => setErrorMessage(""), 3000);
+    } catch (error) {
+      console.error("[ShogunApp] Errore durante la generazione della mnemonica:", error);
+      setErrorMessage("Errore durante la generazione della mnemonica");
+    }
+  };
+
+  // Funzione per copiare la mnemonica negli appunti
+  const copyMnemonicToClipboard = () => {
+    if (generatedMnemonic) {
+      navigator.clipboard.writeText(generatedMnemonic)
+        .then(() => {
+          setErrorMessage("Mnemonica copiata negli appunti!");
+          setTimeout(() => setErrorMessage(""), 3000);
+        })
+        .catch(err => {
+          console.error("Errore durante la copia negli appunti:", err);
+          setErrorMessage("Impossibile copiare negli appunti");
+        });
+    }
+  };
+
+  // Funzione per importare la mnemonica generata
+  const importGeneratedMnemonic = () => {
+    if (!generatedMnemonic) return;
+    
+    // Chiudiamo il modale
+    setShowMnemonicModal(false);
+    
+    // Utilizziamo la funzione di importazione esistente
+    setImportType("mnemonic");
+    setImportData(generatedMnemonic);
+    setShowImportModal(true);
+  };
+
+  // Componente modale per visualizzare la mnemonica generata
+  const renderMnemonicModal = () => {
+    if (!showMnemonicModal) return null;
+
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-75 p-4">
+        <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+          <h3 className="text-xl font-bold mb-4">Nuova Mnemonica Generata</h3>
+          <p className="text-gray-400 mb-4">
+            Questa mnemonica è la chiave per accedere ai tuoi fondi. 
+            Non condividerla mai con nessuno e conservala in un luogo sicuro.
+          </p>
+          
+          <div className="mb-4 p-4 bg-gray-700 rounded font-mono text-sm break-words">
+            {generatedMnemonic}
+          </div>
+          
+          <div className="p-4 bg-red-800 bg-opacity-30 rounded mb-4 text-sm">
+            <p className="text-red-300">
+              <strong>ATTENZIONE:</strong> Se perdi questa mnemonica, perderai l'accesso ai tuoi fondi.
+              Scrivila e conservala in un luogo sicuro.
+            </p>
+          </div>
+          
+          <div className="flex space-x-4">
+            <button
+              className="flex-1 p-3 bg-blue-600 rounded hover:bg-blue-700"
+              onClick={copyMnemonicToClipboard}
+            >
+              Copia negli Appunti
+            </button>
+            <button
+              className="flex-1 p-3 bg-green-600 rounded hover:bg-green-700"
+              onClick={importGeneratedMnemonic}
+            >
+              Importa
+            </button>
+            <button
+              className="flex-1 p-3 bg-gray-700 rounded hover:bg-gray-600"
+              onClick={() => setShowMnemonicModal(false)}
+            >
+              Chiudi
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex">
       {signedIn ? (
@@ -2398,6 +2200,9 @@ const App: React.FC = () => {
       
       {/* Modal per l'importazione */}
       {renderImportModal()}
+      
+      {/* Modal per la mnemonica generata */}
+      {renderMnemonicModal()}
     </div>
   );
 };

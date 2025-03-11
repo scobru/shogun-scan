@@ -1,6 +1,6 @@
 {
-  "name": "@shogun/shogun-core",
-  "version": "1.1.0",
+  "name": "shogun-core",
+  "version": "0.1.0",
   "description": "SHOGUN SDK - Libreria semplificata per la gestione di wallet crypto con GunDB",
   "scripts": {
     "build": "tsc",
@@ -35,10 +35,9 @@
   "dependencies": {
     "base64url": "^3.0.1",
     "ethers": "^6.11.1",
-    "gun": "git+https://github.com/scobru/gun.git",
+    "gun": "file:../gun",
     "prettier": "^3.5.3",
-    "ts-minimal": "file:../ts-minimal",
-    "typescript": "^5.3.3"
+    "ts-minimal": "file:../ts-minimal"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

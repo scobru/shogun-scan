@@ -1,4 +1,4 @@
-# Shogun SDK Documentation
+# Shogun SDK
 
 ## Overview
 
@@ -12,77 +12,60 @@ Welcome to the Shogun SDK! This powerful and user-friendly SDK is designed to si
 - **Stealth Addresses**: Create and manage stealth addresses for enhanced privacy.
 - **Storage Solutions**: Simple key-value storage with support for localStorage.
 
-## Getting Started
+## Installation
 
-To get started with Shogun SDK, follow these simple steps:
+```bash
+npm install shogun-core
+# o
+yarn add shogun-core
+```
 
-1. **Installation**: Install the SDK via npm or yarn.
-   ```bash
-   npm install @shogun/shogun-core
-   # or
-   yarn add @shogun/shogun-core
-   ```
+## Basic Usage Example   
 
-2. **Initialization**: Initialize the SDK with your configuration.
-   ```typescript
-   import { ShogunSDK } from '@shogun/shogun-core';
+```typescript
+import { ShogunSDK } from 'shogun-core';
 
-   const config = {
-     // Your configuration here
-   };
+// Initialize the SDK
+const shogun = new ShogunSDK({
+  peers: ['https://your-gun-peer.com/gun'],
+  localStorage: true
+});
 
-   const shogun = new ShogunSDK(config);
-   ```
+// Authentication with username/password
+const loginResult = await shogun.login('username', 'password');
 
-3. **Authentication**: Use the provided methods to authenticate users.
-   ```typescript
-   // Username/Password
-   const loginResult = await shogun.login('username', 'password');
+// Or with MetaMask
+const metaMaskLoginResult = await shogun.loginWithMetaMask('ethereumAddress');
 
-   // MetaMask
-   const metaMaskLoginResult = await shogun.loginWithMetaMask('ethereumAddress');
+// Or with WebAuthn
+const webAuthnLoginResult = await shogun.loginWithWebAuthn('username');
+```
 
-   // WebAuthn
-   const webAuthnLoginResult = await shogun.loginWithWebAuthn('username');
-   ```
+## Full Documentation
 
-4. **Wallet Management**: Manage wallets, mnemonics, and keys.
-   ```typescript
-   // Export mnemonic
-   const mnemonic = await shogun.exportMnemonic('password');
+Shogun SDK includes a complete technical documentation generated with TSDoc:
 
-   // Import mnemonic
-   const importResult = await shogun.importMnemonic('mnemonicData', 'password');
-   ```
+- **Local documentation**: View the documentation by opening `./docs/index.html`
+- **Main classes**: View `./docs/classes/` for details on the main classes
+- **Interfaces**: View `./docs/interfaces/` for details on the interfaces
 
-## Detailed Documentation
+## System Requirements and Compatibility
 
-### ShogunSDK
+- **Modern browsers** with support for WebAuthn (Chrome, Firefox, Edge, Safari)
+- **Node.js** 14 or higher
+- Compatible with **ethers.js** v6
 
-#### Methods
+## Contribute
 
-- `constructor(config: ShogunSDKConfig)`: Initializes the Shogun SDK with the provided configuration.
-- `isLoggedIn(): boolean`: Checks if the user is logged in.
-- `logout(): void`: Logs out the current user.
-- `login(username: string, password: string): Promise<AuthResult>`: Logs in a user with the provided username and password.
-- `signUp(username: string, password: string, passwordConfirmation?: string): Promise<SignUpResult>`: Registers a new user with the provided username and password.
-- `isWebAuthnSupported(): boolean`: Checks if WebAuthn is supported by the browser.
-- `loginWithWebAuthn(username: string): Promise<AuthResult>`: Logs in a user with WebAuthn.
-- `signUpWithWebAuthn(username: string): Promise<AuthResult>`: Registers a new user with WebAuthn.
-- `loginWithMetaMask(address: string): Promise<AuthResult>`: Logs in a user with MetaMask.
-- `signUpWithMetaMask(address: string): Promise<AuthResult>`: Registers a new user with MetaMask.
-- `signMessage(wallet: ethers.Wallet, message: string | Uint8Array): Promise<string>`: Signs a message with the provided wallet.
-- `verifySignature(message: string | Uint8Array, signature: string): string`: Verifies a signature.
-- `signTransaction(wallet: ethers.Wallet, toAddress: string, value: string): Promise<string>`: Signs a transaction with the provided wallet.
-- `exportMnemonic(password?: string): Promise<string>`: Exports the user's mnemonic.
-- `exportWalletKeys(password?: string): Promise<string>`: Exports the private keys of all wallets.
-- `exportGunPair(password?: string): Promise<string>`: Exports the user's Gun pair.
-- `exportAllUserData(password: string): Promise<string>`: Exports all user data in a single file.
-- `importMnemonic(mnemonicData: string, password?: string): Promise<boolean>`: Imports a mnemonic.
+Contributions are welcome! If you would like to contribute to the project, please:
 
-### MetaMask
+1. Fork the repository
+2. Create a branch for your feature (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Added amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-- `connectMetaMask(): Promise<ConnectionResult>`: Connects to MetaMask and retrieves the user's Ethereum address.
-- `isMetaMaskAvailable(): boolean`: Checks if MetaMask is available in the browser.
-- `generateCredentials(address: string): Promise<MetaMaskCredentials>`: Generates authentication credentials for the given Ethereum address.
+## License
+
+MIT
 

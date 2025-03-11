@@ -1,6 +1,6 @@
 import React, { useContext, useState, createContext } from 'react';
 import { ethers } from 'ethers';
-import { ShogunSDK } from '@shogun/shogun-core';
+import { ShogunCore } from 'shogun-core';
 import '../types'; // Import type file to extend definitions
 import '../styles/index.css';
 
@@ -15,7 +15,7 @@ interface ExtendedAuthResult {
 
 // Context type for ShogunProvider
 type ShogunContextType = {
-  sdk: ShogunSDK | null;
+  sdk: ShogunCore | null;
   options: {
     appName: string;
     appDescription?: string;
@@ -69,7 +69,7 @@ export const useShogun = () => useContext(ShogunContext);
 // Provider properties
 type ShogunButtonProviderProps = {
   children: React.ReactNode;
-  sdk: ShogunSDK;
+  sdk: ShogunCore;
   options: {
     appName: string;
     appDescription?: string;

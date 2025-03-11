@@ -34,9 +34,6 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       'buffer',
-      '@audius/hedgehog',
-      'ethereumjs-wallet',
-      'ethereum-cryptography',
       'gun',
       'gun/sea',
       'gun/radix',
@@ -59,7 +56,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'ethereum': [
-            '@audius/hedgehog',
             'ethereumjs-wallet',
             'ethereum-cryptography'
           ]

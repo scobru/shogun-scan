@@ -1,4 +1,4 @@
-import { authentication } from 'lonewolf-protocol';
+import { authentication } from '@shogun/shogun-protocol';
 import { createSignal } from 'solid-js';
 import LoneWolfLogo from '../../assets/LoneWolfLogo';
 

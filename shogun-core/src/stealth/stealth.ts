@@ -1,7 +1,8 @@
 /**
  * Gestisce la logica stealth usando Gun e SEA
  */
-import { ethers } from 'ethers';
+import { ethers } from "ethers";
+import { record, pipe, match } from "ts-minimal";
 
 // Estendere l'interfaccia Window per includere StealthChain
 declare global {
@@ -18,28 +19,48 @@ declare global {
   }
 }
 
-// Definiamo un'interfaccia per i dati stealth
-interface StealthData {
+// Definiamo gli schemi per i tipi usando record
+const StealthDataSchema = record<{
   recipientPublicKey: string;
   ephemeralKeyPair: any;
   timestamp: number;
   method?: string;
   sharedSecret?: string;
-}
+}>({
+  recipientPublicKey: String,
+  ephemeralKeyPair: Object,
+  timestamp: Number,
+  method: String,
+  sharedSecret: String,
+});
 
-interface StealthKeyPair {
+type StealthData = Parameters<typeof StealthDataSchema>[0];
+
+const StealthKeyPairSchema = record<{
   pub: string;
   priv: string;
   epub: string;
   epriv: string;
-}
+}>({
+  pub: String,
+  priv: String,
+  epub: String,
+  epriv: String,
+});
 
-interface StealthAddressResult {
+type StealthKeyPair = Parameters<typeof StealthKeyPairSchema>[0];
+
+const StealthAddressResultSchema = record<{
   stealthAddress: string;
   ephemeralPublicKey: string;
   recipientPublicKey: string;
-}
+}>({
+  stealthAddress: String,
+  ephemeralPublicKey: String,
+  recipientPublicKey: String,
+});
 
+type StealthAddressResult = Parameters<typeof StealthAddressResultSchema>[0];
 
 class Stealth {
   public readonly STEALTH_DATA_TABLE: string;
@@ -54,21 +75,26 @@ class Stealth {
    * Rimuove il tilde (~) iniziale dalla chiave pubblica se presente
    */
   formatPublicKey(publicKey: string | null): string | null {
-    if (!publicKey) {
-      return null;
-    }
+    return pipe(publicKey, (key) =>
+      match(key, {
+        when: (k) => !k,
+        then: () => null,
+        otherwise: (k) => {
+          const trimmedKey = k.trim();
 
-    const trimmedKey = publicKey.trim();
-
-    if (!trimmedKey) {
-      return null;
-    }
-
-    if (!/^[~]?[\w+/=\-_.]+$/.test(trimmedKey)) {
-      return null;
-    }
-
-    return trimmedKey.startsWith("~") ? trimmedKey.slice(1) : trimmedKey;
+          return match(trimmedKey, {
+            when: (tk) => !tk,
+            then: () => null,
+            otherwise: (tk) =>
+              match(tk, {
+                when: (t) => !/^[~]?[\w+/=\-_.]+$/.test(t),
+                then: () => null,
+                otherwise: (t) => (t.startsWith("~") ? t.slice(1) : t),
+              }),
+          });
+        },
+      })
+    );
   }
 
   /**
@@ -78,17 +104,19 @@ class Stealth {
     try {
       // Genera una nuova coppia di chiavi
       const keyPair = await (Gun as any).SEA.pair();
-      
-      if (!keyPair || !keyPair.pub || !keyPair.priv || !keyPair.epub || !keyPair.epriv) {
-        throw new Error("Failed to generate stealth key pair");
-      }
-      
-      return {
-        pub: keyPair.pub,
-        priv: keyPair.priv,
-        epub: keyPair.epub,
-        epriv: keyPair.epriv
-      };
+
+      return match(keyPair, {
+        when: (kp) => !kp || !kp.pub || !kp.priv || !kp.epub || !kp.epriv,
+        then: () => {
+          throw new Error("Failed to generate stealth key pair");
+        },
+        otherwise: (kp) => ({
+          pub: kp.pub,
+          priv: kp.priv,
+          epub: kp.epub,
+          epriv: kp.epriv,
+        }),
+      });
     } catch (error) {
       console.error("Error creating stealth account:", error);
       throw error;
@@ -98,229 +126,370 @@ class Stealth {
   /**
    * Genera un indirizzo stealth per la chiave pubblica del destinatario
    */
-  async generateStealthAddress(recipientPublicKey: string): Promise<StealthAddressResult> {
-    if (!recipientPublicKey) {
-      throw new Error("Invalid keys: missing or invalid parameters");
-    }
+  async generateStealthAddress(
+    recipientPublicKey: string
+  ): Promise<StealthAddressResult> {
+    return match(recipientPublicKey, {
+      when: (pk) => !pk,
+      then: () => {
+        throw new Error("Invalid keys: missing or invalid parameters");
+      },
+      otherwise: async (pk) => {
+        // Prima creiamo le chiavi stealth
+        const stealthKeys = await this.createAccount();
 
-    // Prima creiamo le chiavi stealth se non esistono
-    const stealthKeys = await this.createAccount();
-    if (!stealthKeys) {
-      throw new Error("Failed to create stealth keys");
-    }
-
-    console.log("Generazione indirizzo stealth con chiavi:", {
-      userPub: stealthKeys.pub,
-      userEpub: stealthKeys.epub,
-      recipientPub: recipientPublicKey
-    });
-
-    return new Promise((resolve, reject) => {
-      // Genera una coppia di chiavi effimere
-      (Gun as any).SEA.pair((ephemeralKeyPair: any) => {
-        if (!ephemeralKeyPair?.epub || !ephemeralKeyPair?.epriv) {
-          reject(new Error("Invalid ephemeral keys"));
-          return;
-        }
-
-        console.log("Chiavi effimere generate:", ephemeralKeyPair);
-
-        // Memorizza l'intero pair per debug
-        this.lastEphemeralKeyPair = ephemeralKeyPair;
-
-        // MODIFICA CRUCIALE: Usiamo l'interfaccia definita
-        const stealthData: StealthData = {
-          recipientPublicKey,
-          ephemeralKeyPair: ephemeralKeyPair,
-          timestamp: Date.now()
-        };
-
-        // Usa questo formato specifico per il parametro di SEA.secret
-        const keyForSecret = {
-          epub: ephemeralKeyPair.epub,
-          epriv: ephemeralKeyPair.epriv
-        };
-        
-        console.log("Formato chiave per segreto (generazione):", JSON.stringify(keyForSecret));
-        
-        (Gun as any).SEA.secret(recipientPublicKey, keyForSecret, async (sharedSecret: string) => {
-         
-          console.log("Segreto condiviso generato correttamente con le chiavi del destinatario");
-          console.log("Formato di input usato:", {
-            recipientPublicKey,
-            ephemeralKeyObject: keyForSecret
-          });
-
-          try {
-            // Genera l'indirizzo stealth usando il segreto condiviso
-            const stealthPrivateKey = ethers.keccak256(
-              ethers.toUtf8Bytes(sharedSecret)
-            );
-            const stealthWallet = new ethers.Wallet(stealthPrivateKey);
-
-            console.log("Indirizzo stealth generato:", {
-              address: stealthWallet.address,
-              ephemeralPubKey: ephemeralKeyPair.epub,
-              recipientPublicKey
+        return match(stealthKeys, {
+          when: (keys) => !keys,
+          then: () => {
+            throw new Error("Failed to create stealth keys");
+          },
+          otherwise: (keys) => {
+            console.log("Generazione indirizzo stealth con chiavi:", {
+              userPub: keys.pub,
+              userEpub: keys.epub,
+              recipientPub: pk,
             });
-            
-            // Salva il metodo utilizzato e il segreto condiviso
-            this.lastMethodUsed = "standard";
-            stealthData.method = "standard";
-            stealthData.sharedSecret = sharedSecret;
-            
-            // Salva i dati nella memoria locale per consentire l'apertura
-            this.saveStealthHistory(stealthWallet.address, stealthData);
 
-            resolve({
-              stealthAddress: stealthWallet.address,
-              ephemeralPublicKey: ephemeralKeyPair.epub,
-              recipientPublicKey
+            return new Promise((resolve, reject) => {
+              // Genera una coppia di chiavi effimere
+              (Gun as any).SEA.pair((ephemeralKeyPair: any) => {
+                match(ephemeralKeyPair, {
+                  when: (ekp) => !ekp?.epub || !ekp?.epriv,
+                  then: () => {
+                    reject(new Error("Invalid ephemeral keys"));
+                  },
+                  otherwise: (ekp) => {
+                    console.log("Chiavi effimere generate:", ekp);
+
+                    // Memorizza l'intero pair per debug
+                    this.lastEphemeralKeyPair = ekp;
+
+                    // Creiamo i dati stealth
+                    const stealthData: StealthData = {
+                      recipientPublicKey: pk,
+                      ephemeralKeyPair: ekp,
+                      timestamp: Date.now(),
+                    };
+
+                    // Usa questo formato specifico per il parametro di SEA.secret
+                    const keyForSecret = {
+                      epub: ekp.epub,
+                      epriv: ekp.epriv,
+                    };
+
+                    console.log(
+                      "Formato chiave per segreto (generazione):",
+                      JSON.stringify(keyForSecret)
+                    );
+
+                    (Gun as any).SEA.secret(
+                      pk,
+                      keyForSecret,
+                      async (sharedSecret: string) => {
+                        console.log(
+                          "Segreto condiviso generato correttamente con le chiavi del destinatario"
+                        );
+                        console.log("Formato di input usato:", {
+                          recipientPublicKey: pk,
+                          ephemeralKeyObject: keyForSecret,
+                        });
+
+                        try {
+                          // Genera l'indirizzo stealth usando il segreto condiviso
+                          const stealthPrivateKey = ethers.keccak256(
+                            ethers.toUtf8Bytes(sharedSecret)
+                          );
+                          const stealthWallet = new ethers.Wallet(
+                            stealthPrivateKey
+                          );
+
+                          console.log("Indirizzo stealth generato:", {
+                            address: stealthWallet.address,
+                            ephemeralPubKey: ekp.epub,
+                            recipientPublicKey: pk,
+                          });
+
+                          // Salva il metodo utilizzato e il segreto condiviso
+                          this.lastMethodUsed = "standard";
+                          stealthData.method = "standard";
+                          stealthData.sharedSecret = sharedSecret;
+
+                          // Salva i dati nella memoria locale per consentire l'apertura
+                          this.saveStealthHistory(
+                            stealthWallet.address,
+                            stealthData
+                          );
+
+                          resolve({
+                            stealthAddress: stealthWallet.address,
+                            ephemeralPublicKey: ekp.epub,
+                            recipientPublicKey: pk,
+                          });
+                        } catch (error) {
+                          reject(
+                            new Error(
+                              `Error creating stealth address: ${error instanceof Error ? error.message : "unknown error"}`
+                            )
+                          );
+                        }
+                      }
+                    );
+                  },
+                });
+              });
             });
-          } catch (error) {
-            reject(
-              new Error(
-                `Error creating stealth address: ${error instanceof Error ? error.message : "unknown error"}`
-              )
-            );
-          }
+          },
         });
-      });
+      },
     });
   }
 
   /**
    * Apre un indirizzo stealth derivando la chiave privata
    */
-  async openStealthAddress(stealthAddress: string, ephemeralPublicKey: string, pair: StealthKeyPair): Promise<ethers.Wallet> {
-    console.log(`Tentativo di apertura dell'indirizzo stealth ${stealthAddress}`);
-    
+  async openStealthAddress(
+    stealthAddress: string,
+    ephemeralPublicKey: string,
+    pair: StealthKeyPair
+  ): Promise<ethers.Wallet> {
+    console.log(
+      `Tentativo di apertura dell'indirizzo stealth ${stealthAddress}`
+    );
+
     // Prima controlla se abbiamo i dati salvati in locale
     try {
-      const stealthHistory = localStorage.getItem('stealthHistory') || '{}';
+      const stealthHistory = localStorage.getItem("stealthHistory") || "{}";
       const history = JSON.parse(stealthHistory);
-      
-      console.log(`Controllo se esistono dati per l'indirizzo ${stealthAddress} in localStorage`);
-      
-      if (history[stealthAddress]) {
-        console.log("Trovati dati stealth salvati localmente:", history[stealthAddress]);
-        const data = history[stealthAddress];
-        
-        // Se abbiamo il segreto condiviso, possiamo derivare direttamente il wallet
-        if (data.sharedSecret) {
-          console.log("Derivazione diretta dal segreto condiviso salvato");
-          const stealthPrivateKey = ethers.keccak256(ethers.toUtf8Bytes(data.sharedSecret));
-          return new ethers.Wallet(stealthPrivateKey);
-        }
-        
-        // Se abbiamo il metodo e le chiavi effimere complete, proviamo a rigenerare il segreto
-        if (data.method && data.ephemeralKeyPair) {
-          console.log("Tentativo di rigenerazione del segreto con il metodo:", data.method);
-          
-          if (data.method === "standard") {
-            // Usa il formato specifico che abbiamo usato durante la generazione
-            const keyForSecret = {
-              epub: data.ephemeralKeyPair.epub,
-              epriv: data.ephemeralKeyPair.epriv
-            };
-            
-            console.log("Rigenerazione con formato esplicito:", JSON.stringify(keyForSecret));
-            
-            return new Promise((resolve, reject) => {
-              (Gun as any).SEA.secret(data.recipientPublicKey, keyForSecret, async (secret: string) => {
-                if (!secret) {
-                  return reject(new Error("Impossibile rigenerare il segreto condiviso"));
+
+      console.log(
+        `Controllo se esistono dati per l'indirizzo ${stealthAddress} in localStorage`
+      );
+
+      return match(history[stealthAddress], {
+        when: (data) => !!data,
+        then: (data) => {
+          console.log("Trovati dati stealth salvati localmente:", data);
+
+          // Se abbiamo il segreto condiviso, possiamo derivare direttamente il wallet
+          return match(data.sharedSecret, {
+            when: (secret) => !!secret,
+            then: (secret) => {
+              console.log("Derivazione diretta dal segreto condiviso salvato");
+              const stealthPrivateKey = ethers.keccak256(
+                ethers.toUtf8Bytes(secret)
+              );
+              return new ethers.Wallet(stealthPrivateKey);
+            },
+            otherwise: () => {
+              // Se abbiamo il metodo e le chiavi effimere complete, proviamo a rigenerare il segreto
+              return match(
+                { method: data.method, keyPair: data.ephemeralKeyPair },
+                {
+                  when: (d) => !!d.method && !!d.keyPair,
+                  then: async (d) => {
+                    console.log(
+                      "Tentativo di rigenerazione del segreto con il metodo:",
+                      d.method
+                    );
+
+                    if (d.method === "standard") {
+                      // Usa il formato specifico che abbiamo usato durante la generazione
+                      const keyForSecret = {
+                        epub: d.keyPair.epub,
+                        epriv: d.keyPair.epriv,
+                      };
+
+                      console.log(
+                        "Rigenerazione con formato esplicito:",
+                        JSON.stringify(keyForSecret)
+                      );
+
+                      return new Promise((resolve, reject) => {
+                        (Gun as any).SEA.secret(
+                          data.recipientPublicKey,
+                          keyForSecret,
+                          async (secret: string) => {
+                            return match(secret, {
+                              when: (s) => !s,
+                              then: () => {
+                                reject(
+                                  new Error(
+                                    "Impossibile rigenerare il segreto condiviso"
+                                  )
+                                );
+                              },
+                              otherwise: (s) => {
+                                try {
+                                  const stealthPrivateKey = ethers.keccak256(
+                                    ethers.toUtf8Bytes(s)
+                                  );
+                                  const wallet = new ethers.Wallet(
+                                    stealthPrivateKey
+                                  );
+
+                                  // Verifica che il wallet generato corrisponda all'indirizzo
+                                  return match(
+                                    wallet.address.toLowerCase() ===
+                                      stealthAddress.toLowerCase(),
+                                    {
+                                      when: (isMatch) => isMatch,
+                                      then: () => {
+                                        console.log(
+                                          "Rigenerazione riuscita! Indirizzo corrispondente:",
+                                          wallet.address
+                                        );
+                                        return resolve(wallet);
+                                      },
+                                      otherwise: () => {
+                                        console.log(
+                                          "Indirizzo generato non corrispondente:",
+                                          wallet.address
+                                        );
+                                        // Continua con i metodi standard
+                                        throw new Error(
+                                          "Indirizzo non corrispondente"
+                                        ); // Per uscire dal match e continuare
+                                      },
+                                    }
+                                  );
+                                } catch (e) {
+                                  console.error(
+                                    "Errore durante la derivazione:",
+                                    e
+                                  );
+                                  // Continua con i metodi standard
+                                  throw new Error("Errore di derivazione"); // Per uscire dal match e continuare
+                                }
+                              },
+                            });
+                          }
+                        );
+                      });
+                    }
+                    throw new Error("Metodo non supportato"); // Per uscire dal match e continuare
+                  },
+                  otherwise: () => {
+                    throw new Error("Dati insufficienti"); // Per uscire dal match e continuare
+                  },
                 }
-                
-                try {
-                  const stealthPrivateKey = ethers.keccak256(ethers.toUtf8Bytes(secret));
-                  const wallet = new ethers.Wallet(stealthPrivateKey);
-                  
-                  // Verifica che il wallet generato corrisponda all'indirizzo
-                  if (wallet.address.toLowerCase() === stealthAddress.toLowerCase()) {
-                    console.log("Rigenerazione riuscita! Indirizzo corrispondente:", wallet.address);
-                    return resolve(wallet);
-                  } else {
-                    console.log("Indirizzo generato non corrispondente:", wallet.address);
-                    // Continua con i metodi standard
-                  }
-                } catch (e) {
-                  console.error("Errore durante la derivazione:", e);
-                  // Continua con i metodi standard
-                }
-              });
-            });
-          }
-        }
-      } else {
-        console.log("Nessun dato stealth trovato in localStorage per questo indirizzo");
-      }
+              );
+            },
+          });
+        },
+        otherwise: () => {
+          console.log(
+            "Nessun dato stealth trovato in localStorage per questo indirizzo"
+          );
+          throw new Error("Nessun dato trovato"); // Per continuare con i metodi standard
+        },
+      }).catch(() => {
+        // Se qualcosa va storto, procedi con il metodo normale
+        return this.openStealthAddressStandard(
+          stealthAddress,
+          ephemeralPublicKey,
+          pair
+        );
+      });
     } catch (e) {
       console.log("Errore nel recupero dei dati da localStorage:", e);
+      // Procedi con il metodo normale
+      return this.openStealthAddressStandard(
+        stealthAddress,
+        ephemeralPublicKey,
+        pair
+      );
     }
-    
-    // Se non abbiamo dati salvati, procedi con il metodo normale
-    if (!stealthAddress || !ephemeralPublicKey) {
-      throw new Error("Missing parameters: stealthAddress or ephemeralPublicKey");
-    }
+  }
 
-    // Recupera le chiavi stealth dell'utente
-    let keys = pair
-    
-    console.log("Apertura indirizzo stealth con chiavi recuperate:", {
-      stealthAddress,
-      ephemeralPublicKey,
-      userKeysFound: !!keys
-    });
-
-    return new Promise((resolve, reject) => {
-      // Prova tutte le possibili combinazioni di parametri per SEA.secret
-      const attempts = [
-        // Tentativo 1: Metodo standard - ephemeral keys first
-        () => {
-          console.log("Tentativo 1: Metodo standard con chiavi effimere");
-          return new Promise((res) => {
-            (Gun as any).SEA.secret(ephemeralPublicKey, keys, async (secret: string) => {
-              try {
-                if (!secret) {
-                  return res(null);
-                }
-                const wallet = this.deriveWalletFromSecret(secret);
-                if (wallet.address.toLowerCase() === stealthAddress.toLowerCase()) {
-                  return res(wallet);
-                }
-                return res(null);
-              } catch (e) {
-                return res(null);
-              }
-            });
+  /**
+   * Metodo standard per aprire un indirizzo stealth (usato come fallback)
+   */
+  private async openStealthAddressStandard(
+    stealthAddress: string,
+    ephemeralPublicKey: string,
+    pair: StealthKeyPair
+  ): Promise<ethers.Wallet> {
+    return match(
+      { stealthAddress, ephemeralPublicKey },
+      {
+        when: (params) => !params.stealthAddress || !params.ephemeralPublicKey,
+        then: () => {
+          throw new Error(
+            "Missing parameters: stealthAddress or ephemeralPublicKey"
+          );
+        },
+        otherwise: (params) => {
+          // Recupera le chiavi stealth dell'utente
+          console.log("Apertura indirizzo stealth con chiavi recuperate:", {
+            stealthAddress: params.stealthAddress,
+            ephemeralPublicKey: params.ephemeralPublicKey,
+            userKeysFound: !!pair,
           });
-        }
-      ];
-      
-      // Funzione helper per derivare il wallet dal secret
-      this.deriveWalletFromSecret = (secret: string) => {
-        const stealthPrivateKey = ethers.keccak256(ethers.toUtf8Bytes(secret));
-        return new ethers.Wallet(stealthPrivateKey);
-      };
-      
-      // Esegui tutti i tentativi in sequenza
-      const tryNextAttempt = async (index = 0) => {
-        if (index >= attempts.length) {
-          return reject(new Error("Tutti i metodi di derivazione dell'indirizzo stealth hanno fallito"));
-        }
-        
-        const wallet = await attempts[index]();
-        if (wallet) {
-          console.log(`Metodo ${index + 1} ha funzionato!`);
-          return resolve(wallet as ethers.Wallet);
-        }
-        
-        tryNextAttempt(index + 1);
-      };
-      
-      tryNextAttempt();
-    });
+
+          return new Promise((resolve, reject) => {
+            // Prova tutte le possibili combinazioni di parametri per SEA.secret
+            const attempts = [
+              // Tentativo 1: Metodo standard - ephemeral keys first
+              () => {
+                console.log("Tentativo 1: Metodo standard con chiavi effimere");
+                return new Promise((res) => {
+                  (Gun as any).SEA.secret(
+                    params.ephemeralPublicKey,
+                    pair,
+                    async (secret: string) => {
+                      try {
+                        if (!secret) {
+                          return res(null);
+                        }
+                        const wallet = this.deriveWalletFromSecret(secret);
+                        if (
+                          wallet.address.toLowerCase() ===
+                          params.stealthAddress.toLowerCase()
+                        ) {
+                          return res(wallet);
+                        }
+                        return res(null);
+                      } catch (e) {
+                        return res(null);
+                      }
+                    }
+                  );
+                });
+              },
+            ];
+
+            // Funzione helper per derivare il wallet dal secret
+            this.deriveWalletFromSecret = (secret: string) => {
+              const stealthPrivateKey = ethers.keccak256(
+                ethers.toUtf8Bytes(secret)
+              );
+              return new ethers.Wallet(stealthPrivateKey);
+            };
+
+            // Esegui tutti i tentativi in sequenza
+            const tryNextAttempt = async (index = 0) => {
+              if (index >= attempts.length) {
+                return reject(
+                  new Error(
+                    "Tutti i metodi di derivazione dell'indirizzo stealth hanno fallito"
+                  )
+                );
+              }
+
+              const wallet = await attempts[index]();
+              if (wallet) {
+                console.log(`Metodo ${index + 1} ha funzionato!`);
+                return resolve(wallet as ethers.Wallet);
+              }
+
+              tryNextAttempt(index + 1);
+            };
+
+            tryNextAttempt();
+          });
+        },
+      }
+    );
   }
 
   /**
@@ -336,11 +505,15 @@ class Stealth {
    * @returns Le chiavi stealth da salvare
    */
   prepareStealthKeysForSaving(stealthKeyPair: StealthKeyPair): StealthKeyPair {
-    if (!stealthKeyPair?.pub || !stealthKeyPair?.priv || !stealthKeyPair?.epub || !stealthKeyPair?.epriv) {
-      throw new Error("Invalid stealth keys: missing or incomplete parameters");
-    }
-
-    return stealthKeyPair;
+    return match(stealthKeyPair, {
+      when: (pair) => !pair?.pub || !pair?.priv || !pair?.epub || !pair?.epriv,
+      then: () => {
+        throw new Error(
+          "Invalid stealth keys: missing or incomplete parameters"
+        );
+      },
+      otherwise: (pair) => pair,
+    });
   }
 
   /**
@@ -357,10 +530,10 @@ class Stealth {
   saveStealthHistory(address: string, data: any) {
     // Salva nella localStorage
     try {
-      const stealthHistory = localStorage.getItem('stealthHistory') || '{}';
+      const stealthHistory = localStorage.getItem("stealthHistory") || "{}";
       const history = JSON.parse(stealthHistory);
       history[address] = data;
-      localStorage.setItem('stealthHistory', JSON.stringify(history));
+      localStorage.setItem("stealthHistory", JSON.stringify(history));
       console.log(`Dati stealth salvati per l'indirizzo ${address}`);
     } catch (e) {
       console.error("Errore nel salvataggio dei dati stealth:", e);
@@ -369,10 +542,10 @@ class Stealth {
 }
 
 // Rendi disponibile globalmente
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.Stealth = Stealth;
-} else if (typeof global !== 'undefined') {
+} else if (typeof global !== "undefined") {
   (global as any).Stealth = Stealth;
 }
 
-export { Stealth, StealthKeyPair, StealthAddressResult }; 
+export { Stealth, StealthKeyPair, StealthAddressResult };

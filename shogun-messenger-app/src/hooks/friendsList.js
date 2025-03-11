@@ -1,4 +1,4 @@
-import { certificates, friends } from 'lonewolf-protocol';
+import { certificates, friends } from '@shogun/shogun-protocol';
 import { onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 

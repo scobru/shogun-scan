@@ -1,5 +1,5 @@
 import { gunAvatar } from 'gun-avatar';
-import { friends, gun } from 'lonewolf-protocol';
+import { friends, gun } from '@shogun/shogun-protocol';
 import { createSignal } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import CloseButton from '../buttons/close';
