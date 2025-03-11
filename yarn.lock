@@ -2580,13 +2580,13 @@
     ethers "^6.11.1"
     gun "git+https://github.com/scobru/gun.git"
     prettier "^3.5.3"
-    ts-minimal "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-@shogun-sdk-1.1.0-ebc1f18b-da0a-4f77-9cb2-b47131a81781-1741645276054/node_modules/@shogun/ts-minimal"
+    ts-minimal "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-@shogun-sdk-1.1.0-461a10c9-9384-4fa1-a6ab-18f1c6867fbc-1741714855093/node_modules/@shogun/ts-minimal"
     typescript "^5.3.3"
 
 "@shogun/shogun-button@file:shogun-button":
   version "0.1.0"
   dependencies:
-    "@shogun/shogun-core" "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-@shogun-shogun-button-0.1.0-4186ba32-0b8d-41e8-8a02-bb632b90da53-1741645276062/node_modules/@shogun/shogun-core"
+    "@shogun/shogun-core" "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-@shogun-shogun-button-0.1.0-8fa999da-67f7-4f16-aab8-d42e8730b3ec-1741714855103/node_modules/@shogun/shogun-core"
     prettier "^3.5.3"
     typescript "^5.8.2"
 
@@ -2597,7 +2597,7 @@
     ethers "^6.11.1"
     gun "git+https://github.com/scobru/gun.git"
     prettier "^3.5.3"
-    ts-minimal "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-@shogun-shogun-core-1.1.0-ebc1f18b-da0a-4f77-9cb2-b47131a81781-1741645276054/node_modules/@shogun/ts-minimal"
+    ts-minimal "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-@shogun-shogun-core-1.1.0-461a10c9-9384-4fa1-a6ab-18f1c6867fbc-1741714855093/node_modules/@shogun/ts-minimal"
     typescript "^5.3.3"
 
 "@sindresorhus/is@^0.7.0":
@@ -7667,7 +7667,7 @@ logplease@^1.2.14, logplease@~1.2.14, logplease@~1.2.15:
     hyperswarm-web "^2.1.1"
     jose "^5.1.0"
     rxjs "^7.4.0"
-    shogun-sdk "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-lonewolf-protocol-0.1.4-783e7193-aa75-44f8-bcad-37a789ce6e74-1741645276059/node_modules/shogun-core"
+    shogun-sdk "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-lonewolf-protocol-0.1.4-31583650-fdde-4893-a2c5-89df1a3c570f-1741714855104/node_modules/shogun-core"
     slugid "^3.0.0"
     sodium-universal "^3.0.4"
     uuid "^8.3.2"
@@ -9955,7 +9955,7 @@ shebang-regex@^3.0.0:
     ethers "^6.11.1"
     gun "git+https://github.com/scobru/gun.git"
     prettier "^3.5.3"
-    ts-minimal "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-sdk-1.1.0-ebc1f18b-da0a-4f77-9cb2-b47131a81781-1741645276054/node_modules/ts-minimal"
+    ts-minimal "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-sdk-1.1.0-461a10c9-9384-4fa1-a6ab-18f1c6867fbc-1741714855093/node_modules/ts-minimal"
     typescript "^5.3.3"
 
 side-channel-list@^1.0.0:

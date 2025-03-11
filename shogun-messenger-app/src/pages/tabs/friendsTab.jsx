@@ -40,10 +40,10 @@ let FriendsTabPage = () => {
                     />
 
                     <div class="flex flex-col justify-center w-auto h-full">
-                      <div class="text-sm text-gray-900 dark:text-white overflow-ellipsis">
+                      <div class="text-sm text-gray-900 dark:text-white overflow-ellipsis break-all">
                         {friendRequest.displayName}
                       </div>
-                      <div class="text-xs text-gray-400 overflow-ellipsis">
+                      <div class="text-xs text-gray-400 overflow-ellipsis break-all">
                         @{friendRequest.alias}
                       </div>
                     </div>
@@ -107,10 +107,10 @@ let FriendsTabPage = () => {
                     />
 
                     <div class="flex flex-col justify-center w-auto h-full">
-                      <div class="text-sm text-gray-900 dark:text-white overflow-ellipsis">
+                      <div class="text-sm text-gray-900 dark:text-white overflow-ellipsis break-all">
                         {friend.displayName}
                       </div>
-                      <div class="text-xs text-gray-400 overflow-ellipsis">
+                      <div class="text-xs text-gray-400 overflow-ellipsis break-all">
                         @{friend.alias}
                       </div>
                     </div>

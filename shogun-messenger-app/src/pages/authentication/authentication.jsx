@@ -46,10 +46,10 @@ let AuthenticationPage = () => {
     console.log('Login effettuato con successo!');
     console.log('Chiave pubblica:', userPub);
     console.log('Username:', username);
+    console.log('Password:', password);
 
     // Controlla se abbiamo una password salvata per questo utente
-    const savedPassword = localStorage.getItem(`lonewolf_${username}`);
-    const finalPassword = password || savedPassword;
+    const finalPassword = password;
 
     if (!finalPassword) {
       console.error(

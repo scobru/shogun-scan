@@ -69,7 +69,7 @@ const LoginWithShogunSolid = (props) => {
     console.log('password:', password());
 
     try {
-      const result = await props.sdk.handleLogin(username(), password(), {});
+      const result = await props.sdk.login(username(), password(), {});
       console.log('Risultato login standard:', result);
 
       if (result.success && result.userPub) {
@@ -113,7 +113,7 @@ const LoginWithShogunSolid = (props) => {
     setErrorMessage('');
 
     try {
-      const result = await props.sdk.handleSignUp(
+      const result = await props.sdk.signUp(
         username(),
         password(),
         passwordConfirmation(),
@@ -177,36 +177,6 @@ const LoginWithShogunSolid = (props) => {
     setErrorMessage('');
 
     try {
-      // Importante: l'username deve essere generato nello stesso modo in cui viene fatto nel backend
-      // Dai log vediamo che il formato è metamask_0x8aa5f726
-      const username = `metamask_${metamaskAddress().slice(0, 10)}`;
-
-      console.log('Tentativo di login con username:', username);
-
-      // Prima controlla se abbiamo una password salvata
-      const savedPassword = localStorage.getItem(`lonewolf_${username}`);
-
-      // Se abbiamo una password salvata, prova a usarla direttamente con LoneWolf
-      if (savedPassword) {
-        console.log(
-          'Password salvata trovata, tentativo di login diretto con LoneWolf...'
-        );
-
-        // Notifica il componente di autenticazione che vogliamo usare la password salvata
-        if (props.onLoginSuccess) {
-          const authResult = {
-            userPub: metamaskAddress(),
-            username: username,
-            password: savedPassword,
-            authMethod: 'metamask_saved',
-          };
-
-          props.onLoginSuccess(authResult);
-          setLoading(false);
-          return;
-        }
-      }
-
       // Se non abbiamo una password salvata o il login diretto fallisce, procedi con MetaMask
       console.log('Tentativo di login con MetaMask...');
       const result = await props.sdk.loginWithMetaMask(metamaskAddress());
@@ -219,10 +189,12 @@ const LoginWithShogunSolid = (props) => {
           localStorage.setItem(`lonewolf_${username}`, result.password);
         }
 
+        console.log('result:', result);
+
         if (props.onLoginSuccess) {
           props.onLoginSuccess({
-            userPub: result.userPub || metamaskAddress(),
-            username: result.username || username,
+            userPub: result.userPub,
+            username: result.username,
             password: result.password,
             wallet: result.wallet,
             authMethod: 'metamask_direct',
@@ -264,12 +236,6 @@ const LoginWithShogunSolid = (props) => {
     setErrorMessage('');
 
     try {
-      // Importante: l'username deve essere generato nello stesso modo in cui viene fatto nel backend
-      // Dai log vediamo che il formato è metamask_0x8aa5f726
-      const username = `metamask_${metamaskAddress().slice(0, 10)}`;
-
-      console.log('Tentativo di registrazione con username:', username);
-
       // Tenta la registrazione con MetaMask
       console.log('Tentativo di registrazione con MetaMask...');
       const result = await props.sdk.signUpWithMetaMask(metamaskAddress());
@@ -284,8 +250,8 @@ const LoginWithShogunSolid = (props) => {
 
         if (props.onSignupSuccess) {
           props.onSignupSuccess({
-            userPub: result.userPub || metamaskAddress(),
-            username: username,
+            userPub: result.userPub,
+            username: result.username,
             password: result.password,
             wallet: result.wallet,
             authMethod: 'metamask_signup',
@@ -313,7 +279,7 @@ const LoginWithShogunSolid = (props) => {
             if (props.onLoginSuccess) {
               props.onLoginSuccess({
                 userPub: loginResult.userPub || metamaskAddress(),
-                username: username,
+                username: loginResult.username,
                 password: loginResult.password,
                 wallet: loginResult.wallet,
                 authMethod: 'metamask_direct',

@@ -1,8 +1,17 @@
-import { onMount } from 'solid-js';
+import { onMount, createEffect } from 'solid-js';
 import useUserSettings from '../hooks/userSettings';
 
 let ThemeProvider = ({ setIsLoading, setLoadingMessage, children }) => {
   let [settings, setSettings, loadSettings] = useUserSettings();
+
+  // Effect per applicare il tema al document.documentElement
+  createEffect(() => {
+    if (settings.theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  });
 
   onMount(() => {
     setIsLoading(true);
@@ -20,7 +29,7 @@ let ThemeProvider = ({ setIsLoading, setLoadingMessage, children }) => {
     );
   });
 
-  return <div class={`${settings.theme}`}>{children}</div>;
+  return <div>{children}</div>;
 };
 
 export default ThemeProvider;

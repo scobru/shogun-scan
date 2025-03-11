@@ -8,6 +8,38 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Palette ispirata a Signal
+        signal: {
+          blue: '#2C6BED',       // Blu primario di Signal
+          'blue-light': '#3A76F0',  
+          'blue-dark': '#1A5BD7',
+          gray: colors.neutral,
+          background: {
+            light: '#FFFFFF',    // Sfondo chiaro
+            dark: '#121212',     // Sfondo scuro
+          },
+          surface: {
+            light: '#F6F6F6',    // Superfici chiare, come card o sidebar
+            dark: '#1E1E1E',     // Superfici scure
+          },
+          sidebar: {
+            light: '#EEEEEE',    // Sidebar chiara
+            dark: '#2C2C2C',     // Sidebar scura
+          },
+          border: {
+            light: '#E5E5E5',    // Bordi chiari
+            dark: '#3A3A3A',     // Bordi scuri
+          },
+          text: {
+            light: '#111111',    // Testo principale chiaro
+            dark: '#FFFFFF',     // Testo principale scuro
+            muted: {
+              light: '#767676',  // Testo secondario chiaro
+              dark: '#AAAAAA',   // Testo secondario scuro
+            },
+          }
+        },
+        // Mantieni i colori tradizionali per compatibilità
         gray: colors.neutral,
       },
       fontWeight: ['hover', 'focus'],

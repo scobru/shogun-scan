@@ -15,6 +15,7 @@ export interface AuthResult {
   username?: string;
   error?: string;
   credentialId?: string;
+  password?: string;
 }
 
 export interface SignUpResult {

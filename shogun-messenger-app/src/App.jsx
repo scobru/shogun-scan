@@ -75,7 +75,7 @@ function App() {
           setIsLoading={setIsLoading}
           setLoadingMessage={setLoadingMessage}
         >
-          <div class="z-10 w-screen h-screen bg-black text-gray-100 select-none outline-none">
+          <div class="z-10 w-screen h-screen dark:bg-signal-background-dark bg-white dark:text-signal-text-dark text-signal-text-light select-none outline-none">
             <NotificationProvider />
 
             {modals.addFriend && (
@@ -85,13 +85,13 @@ function App() {
             )}
 
             <div class="flex flex-col md:flex-row w-full h-full">
-              <Sidebar class="w-64 bg-gray-900 border-r border-gray-800">
-                <SidebarHeader title="Shogun" class="px-4 py-3 border-b border-gray-800" />
+              <Sidebar class="w-64 dark:bg-signal-sidebar-dark bg-signal-sidebar-light border-r dark:border-signal-border-dark border-signal-border-light">
+                <SidebarHeader title="Shogun" class="px-4 py-3 border-b dark:border-signal-border-dark border-signal-border-light" />
                 <SidebarContent class="flex-1">
                   <Tabs
                     class="text-sm"
-                    activeClass="text-violet-500 border-violet-500"
-                    inactiveClass="text-gray-400 hover:text-gray-200 border-transparent"
+                    activeClass="text-signal-blue border-signal-blue font-medium"
+                    inactiveClass="dark:text-signal-text-muted-dark text-signal-text-muted-light hover:dark:text-signal-text-dark hover:text-signal-text-light border-transparent"
                     tabs={[
                       {
                         label: 'Chats',
@@ -105,31 +105,31 @@ function App() {
                   />
                 </SidebarContent>
                 <SidebarFooter
-                  class="px-4 py-3 border-t border-gray-800"
+                  class="px-4 py-3 border-t dark:border-signal-border-dark border-signal-border-light"
                   start={() => <MiniProfile />}
                   end={() => (
                     <div class="flex space-x-3">
-                      <SettingsButton class="text-gray-400 hover:text-violet-500" />
-                      <LogoutButton class="text-gray-400 hover:text-violet-500" />
+                      <SettingsButton class="dark:text-signal-text-muted-dark text-signal-text-muted-light hover:text-signal-blue" />
+                      <LogoutButton class="dark:text-signal-text-muted-dark text-signal-text-muted-light hover:text-signal-blue" />
                     </div>
                   )}
                 />
               </Sidebar>
 
-              <Navbar class="md:hidden bg-gray-900 border-b border-gray-800">
+              <Navbar class="md:hidden dark:bg-signal-sidebar-dark bg-signal-sidebar-light border-b dark:border-signal-border-dark border-signal-border-light">
                 <NavbarHeader title="Shogun" class="px-4 py-3" />
                 <NavbarContent class="px-4 py-2">
                   <div class="flex justify-between items-center">
                     <MiniProfile />
                     <div class="flex space-x-3">
-                      <SettingsButton class="text-gray-400 hover:text-violet-500" />
-                      <LogoutButton class="text-gray-400 hover:text-violet-500" />
+                      <SettingsButton class="dark:text-signal-text-muted-dark text-signal-text-muted-light hover:text-signal-blue" />
+                      <LogoutButton class="dark:text-signal-text-muted-dark text-signal-text-muted-light hover:text-signal-blue" />
                     </div>
                   </div>
                 </NavbarContent>
               </Navbar>
 
-              <Content class="flex-1 bg-gray-900">
+              <Content class="flex-1 dark:bg-signal-background-dark bg-white">
                 <Router>
                   <Route path="/" component={WelcomePage} />
                   <Route path="/chat/:chatId/:pub" component={ChatPage} />

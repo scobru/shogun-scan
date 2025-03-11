@@ -14,12 +14,28 @@ export function NavigationProvider(props) {
     location = useRouterLocation();
   } catch (e) {
     console.warn("Navigation context initialization error:", e);
-    // Fallback per casi in cui il router non è disponibile
-    navigate = (path) => {
+    // Fallback più soft che non causa refresh completo della pagina quando possibile
+    navigate = (path, options) => {
       console.warn(`Navigation to ${path} not available outside router context`);
-      // Fallback che usa redirezione base con window.location
+      // Solo se è assolutamente necessario, usiamo window.location
       if (typeof window !== 'undefined') {
-        window.location.href = path;
+        // Verifichiamo se siamo sulla stessa origin per evitare refresh non necessari
+        const currentPath = window.location.pathname;
+        if (currentPath === path) {
+          // Se è lo stesso percorso, non facciamo nulla per evitare refresh
+          return;
+        }
+        
+        // Utilizziamo history API quando possibile per evitare refresh completo
+        try {
+          window.history.pushState({}, '', path);
+          // Dispatchamo un evento di cambiamento di posizione per notificare il router
+          window.dispatchEvent(new PopStateEvent('popstate', { state: options?.state || {} }));
+          return;
+        } catch (historyError) {
+          console.warn("History API not available, falling back to location redirect");
+          window.location.href = path;
+        }
       }
     };
     location = { pathname: typeof window !== 'undefined' ? window.location.pathname : '/' };
@@ -38,11 +54,22 @@ export function useNavigation() {
   if (!context) {
     // Fallback per ambienti di test o quando il context non è disponibile
     return {
-      navigate: (path) => {
+      navigate: (path, options) => {
         console.warn(`Navigation to ${path} not available outside router context`);
-        // Fallback che usa redirezione base con window.location
+        // Utilizziamo lo stesso approccio migliorato
         if (typeof window !== 'undefined') {
-          window.location.href = path;
+          const currentPath = window.location.pathname;
+          if (currentPath === path) {
+            return;
+          }
+          
+          try {
+            window.history.pushState({}, '', path);
+            window.dispatchEvent(new PopStateEvent('popstate', { state: options?.state || {} }));
+            return;
+          } catch (historyError) {
+            window.location.href = path;
+          }
         }
       },
       location: { pathname: typeof window !== 'undefined' ? window.location.pathname : '/' }

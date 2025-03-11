@@ -233,34 +233,39 @@ export class ShogunSDK implements IShogunSDK {
       }
 
       // Verifica le credenziali WebAuthn
-      const assertionResult = await this.webauthn.generateCredentials(username, null, true);
+      const assertionResult = await this.webauthn.generateCredentials(
+        username,
+        null,
+        true
+      );
       if (!assertionResult.success) {
         throw new Error(assertionResult.error || "Verifica WebAuthn fallita");
       }
 
       // Usa l'ID delle credenziali come password
-        const hashedCredentialId = ethers.keccak256(
+      const hashedCredentialId = ethers.keccak256(
         ethers.toUtf8Bytes(assertionResult.credentialId)
-        );
+      );
 
       // Effettua il login con le credenziali verificate
-        const result = await this.login(username, hashedCredentialId);
+      const result = await this.login(username, hashedCredentialId);
 
-        if (result.success) {
+      if (result.success) {
         log(`Login WebAuthn completato con successo per l'utente: ${username}`);
         return {
           ...result,
-            username,
-          credentialId: assertionResult.credentialId
+          username,
+          password: hashedCredentialId,
+          credentialId: assertionResult.credentialId,
         };
-        }
+      }
 
-        return result;
+      return result;
     } catch (error: any) {
       logError(`Errore durante il login WebAuthn: ${error}`);
-        return {
-          success: false,
-        error: error.message || "Errore durante il login WebAuthn"
+      return {
+        success: false,
+        error: error.message || "Errore durante il login WebAuthn",
       };
     }
   }
@@ -283,9 +288,16 @@ export class ShogunSDK implements IShogunSDK {
       }
 
       // Genera nuove credenziali WebAuthn
-      const attestationResult = await this.webauthn.generateCredentials(username, null, false);
+      const attestationResult = await this.webauthn.generateCredentials(
+        username,
+        null,
+        false
+      );
       if (!attestationResult.success) {
-        throw new Error(attestationResult.error || "Impossibile generare le credenziali WebAuthn");
+        throw new Error(
+          attestationResult.error ||
+            "Impossibile generare le credenziali WebAuthn"
+        );
       }
 
       // Usa l'ID delle credenziali come password
@@ -297,11 +309,14 @@ export class ShogunSDK implements IShogunSDK {
       const result = await this.signUp(username, hashedCredentialId);
 
       if (result.success) {
-        log(`Registrazione WebAuthn completata con successo per l'utente: ${username}`);
+        log(
+          `Registrazione WebAuthn completata con successo per l'utente: ${username}`
+        );
         return {
           ...result,
           username,
-          credentialId: attestationResult.credentialId
+          password: hashedCredentialId,
+          credentialId: attestationResult.credentialId,
         };
       }
 
@@ -310,7 +325,7 @@ export class ShogunSDK implements IShogunSDK {
       logError(`Errore durante la registrazione WebAuthn: ${error}`);
       return {
         success: false,
-        error: error.message || "Errore durante la registrazione WebAuthn"
+        error: error.message || "Errore durante la registrazione WebAuthn",
       };
     }
   }
@@ -338,14 +353,20 @@ export class ShogunSDK implements IShogunSDK {
           `Login con MetaMask completato con successo per l'indirizzo: ${address}`
         );
 
-        // Aggiungi l'username alle informazioni restituite
         return {
           ...result,
           username: credentials.username,
+          password: credentials.password,
+        };
+      } else {
+        logError(`Login con MetaMask fallito per l'indirizzo: ${address}`);
+        return {
+          success: false,
+          error: result.error || "Errore durante il login con MetaMask",
         };
       }
 
-      return result;
+      
     } catch (error: any) {
       logError(`Errore durante il login con MetaMask: ${error}`);
       return {
@@ -384,6 +405,7 @@ export class ShogunSDK implements IShogunSDK {
         return {
           ...result,
           username: credentials.username,
+          password: credentials.password,
         };
       }
 
@@ -559,16 +581,19 @@ export class ShogunSDK implements IShogunSDK {
 }
 
 // Esporta tutti i tipi
-export * from './types/auth';
-export * from './types/gun';
-export * from './types/shogun';
-export * from './types/token';
+export * from "./types/auth";
+export * from "./types/gun";
+export * from "./types/shogun";
+export * from "./types/token";
 
 // Esporta le classi
-export { GunDB } from './gun/gun';
-export { MetaMask } from './connector/metamask';
-export { Stealth, StealthKeyPair, StealthAddressResult } from './stealth/stealth';
-export { Webauthn } from './webauthn/webauthn';
-export { Storage } from './storage/storage';
-export { ShogunEventEmitter } from './events';
-
+export { GunDB } from "./gun/gun";
+export { MetaMask } from "./connector/metamask";
+export {
+  Stealth,
+  StealthKeyPair,
+  StealthAddressResult,
+} from "./stealth/stealth";
+export { Webauthn } from "./webauthn/webauthn";
+export { Storage } from "./storage/storage";
+export { ShogunEventEmitter } from "./events";

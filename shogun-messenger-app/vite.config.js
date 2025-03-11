@@ -5,6 +5,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 import solidPlugin from 'vite-plugin-solid';
 
 export default defineConfig({
+  optimizeDeps: {
+    include: ['@shogun/shogun-core']
+  },
   resolve: {
     alias: {
       '@src': resolve(__dirname, 'src'),

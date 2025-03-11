@@ -1,45 +1,79 @@
 import { gun } from 'lonewolf-protocol';
-import { onMount } from 'solid-js';
+import { onMount, createSignal, createEffect } from 'solid-js';
 import { createStore } from 'solid-js/store';
 
 let useUserSettings = () => {
+  // Imposta il tema predefinito in base alle preferenze del sistema
+  const prefersDarkMode = typeof window !== 'undefined' && 
+    window.matchMedia && 
+    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  const defaultTheme = prefersDarkMode ? 'dark' : 'light';
+  
   let [userSettings, setUserSettings] = createStore(
     {
-      theme: 'light'
+      theme: defaultTheme
     },
     { name: 'user-settings' }
   );
 
+  let [isInitialized, setIsInitialized] = createSignal(false);
+
   onMount(() => {
+    // Carica le impostazioni dal database Gun
     gun
       .user()
       .get('settings')
-      .on((data, _) => {
-        setUserSettings('theme', () => data.theme || 'light');
+      .on((data) => {
+        if (data && data.theme) {
+          setUserSettings('theme', data.theme);
+          setIsInitialized(true);
+        } else if (!isInitialized()) {
+          // Se non ci sono impostazioni salvate, usa il valore predefinito
+          setUserSettings('theme', defaultTheme);
+          setIsInitialized(true);
+        }
       });
   });
 
   let settings = () => userSettings;
 
-  let setSettings = (settings) => {
-    setUserSettings({ ...userSettings, ...settings });
+  let setSettings = (newSettings) => {
+    // Aggiorna lo store locale
+    setUserSettings({ ...userSettings, ...newSettings });
 
-    gun.user().get('settings').put(userSettings);
+    // Persisti le impostazioni in Gun
+    // Nota: utilizziamo setTimeout per assicurarci che lo store sia aggiornato
+    setTimeout(() => {
+      gun.user().get('settings').put(userSettings);
+    }, 0);
+    
+    // Log per debugging
+    console.log('Aggiornate impostazioni:', { ...userSettings, ...newSettings });
   };
 
   let loadSettings = (callback) => {
     return gun
       .user()
       .get('settings')
-      .once((data, _) => {
+      .once((data) => {
         if (data) {
-          setUserSettings('theme', () => data.theme);
-
-          callback();
+          // Imposta il tema se presente nei dati
+          if (data.theme) {
+            setUserSettings('theme', data.theme);
+          } else {
+            setUserSettings('theme', defaultTheme);
+          }
+          
+          if (callback) callback();
         } else {
-          setUserSettings('theme', () => 'light');
-
-          callback();
+          // Se non ci sono dati, imposta il tema predefinito
+          setUserSettings('theme', defaultTheme);
+          
+          // Salva immediatamente il tema predefinito
+          gun.user().get('settings').put({ theme: defaultTheme });
+          
+          if (callback) callback();
         }
       });
   };
