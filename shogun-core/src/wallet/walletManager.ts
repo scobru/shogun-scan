@@ -6,44 +6,26 @@ import { Storage } from "../storage/storage";
 import { WalletInfo } from "../types/shogun";
 import SEA from "gun/sea";
 import { HDNodeWallet, randomBytes, Mnemonic } from "ethers";
-import { record, match, pipe } from "ts-minimal";
 
-// Definizione di uno schema per i percorsi dei wallet
-const WalletPathSchema = record<{
+// Definizione di interfacce per i wallet
+interface WalletPath {
   path: string;
   created: number;
-}>({
-  path: String,
-  created: Number
-});
+}
 
-type WalletPath = Parameters<typeof WalletPathSchema>[0];
-
-// Schema per il bilanciamento del wallet in cache
-const BalanceCacheSchema = record<{
+// Interfaccia per il bilanciamento del wallet in cache
+interface BalanceCache {
   balance: string;
   timestamp: number;
-}>({
-  balance: String,
-  timestamp: Number
-});
+}
 
-type BalanceCache = Parameters<typeof BalanceCacheSchema>[0];
-
-// Schema per l'esportazione dei wallet
-const WalletExportSchema = record<{
+// Interfaccia per l'esportazione dei wallet
+interface WalletExport {
   address: string;
   privateKey: string;
   path: string;
   created: number;
-}>({
-  address: String,
-  privateKey: String,
-  path: String,
-  created: Number
-});
-
-type WalletExport = Parameters<typeof WalletExportSchema>[0];
+}
 
 /**
  * Classe che gestisce le funzionalità dei wallet
@@ -101,13 +83,13 @@ export class WalletManager {
       // Carica i path da localStorage come fallback
       await this.loadWalletPathsFromLocalStorage();
 
-      // Utilizziamo match per fornire un logging più espressivo
+      // Logging basato sul numero di wallet trovati
       const walletCount = Object.keys(this.walletPaths).length;
-      match(walletCount, {
-        when: (count) => count === 0,
-        then: () => log("Nessun wallet path trovato, verranno creati nuovi wallet quando necessario"),
-        otherwise: (count) => log(`Inizializzati ${count} wallet paths`)
-      });
+      if (walletCount === 0) {
+        log("Nessun wallet path trovato, verranno creati nuovi wallet quando necessario");
+      } else {
+        log(`Inizializzati ${walletCount} wallet paths`);
+      }
     } catch (error) {
       console.error("Errore durante l'inizializzazione dei wallet paths:", error);
     }
@@ -118,56 +100,42 @@ export class WalletManager {
    * @private
    */
   private async loadWalletPathsFromGun(): Promise<void> {
-    // Utilizziamo match per verificare l'autenticazione dell'utente
+    // Verificare l'autenticazione dell'utente
     const user = this.gun.user();
-    return match(user?.is, {
-      when: (is) => !is,
-      then: () => {
-        log("Utente non autenticato su Gun, non è possibile caricare i wallet paths da Gun");
-        return Promise.resolve();
-      },
-      otherwise: async (is) => {
-        log(`Caricamento wallet paths da GUN per l'utente: ${is.alias}`);
+    if (!user?.is) {
+      log("Utente non autenticato su Gun, non è possibile caricare i wallet paths da Gun");
+      return Promise.resolve();
+    }
+    
+    log(`Caricamento wallet paths da GUN per l'utente: ${user.is.alias}`);
 
-        // Carica i paths dal profilo dell'utente
-        const walletPaths = await pipe(
-          new Promise<Record<string, any>>((resolve) => {
-            user.get("wallet_paths").once((data: any) => {
-              match(data, {
-                when: (d) => !d,
-                then: () => {
-                  log("Nessun wallet path trovato in GUN");
-                  resolve({});
-                },
-                otherwise: (d) => {
-                  log(`Trovati wallet paths in GUN: ${Object.keys(d).length - 1} wallet`); // -1 per il campo _
-                  resolve(d || {});
-                }
-              });
-            });
-          }),
-          // Elaborazione dei dati
-          (paths) => {
-            // Converti i dati ricevuti da GUN in walletPaths
-            Object.entries(paths).forEach(([address, pathData]) => {
-              if (address !== "_" && pathData) {
-                const data = pathData as any;
-                match(data?.path, {
-                  when: (path) => !!path,
-                  then: (path) => {
-                    this.walletPaths[address] = {
-                      path,
-                      created: data.created || Date.now(),
-                    };
-                    log(`Caricato path per wallet: ${address} -> ${path}`);
-                  },
-                  otherwise: () => {}
-                });
-              }
-            });
+    // Carica i paths dal profilo dell'utente
+    return new Promise<void>((resolve) => {
+      user.get("wallet_paths").once((data: any) => {
+        if (!data) {
+          log("Nessun wallet path trovato in GUN");
+          resolve();
+          return;
+        }
+        
+        log(`Trovati wallet paths in GUN: ${Object.keys(data).length - 1} wallet`); // -1 per il campo _
+        
+        // Converti i dati ricevuti da GUN in walletPaths
+        Object.entries(data).forEach(([address, pathData]) => {
+          if (address !== "_" && pathData) {
+            const data = pathData as any;
+            if (data?.path) {
+              this.walletPaths[address] = {
+                path: data.path,
+                created: data.created || Date.now(),
+              };
+              log(`Caricato path per wallet: ${address} -> ${data.path}`);
+            }
           }
-        );
-      }
+        });
+        
+        resolve();
+      });
     });
   }
 
@@ -179,30 +147,22 @@ export class WalletManager {
     const storageKey = `shogun_wallet_paths_${this.getStorageUserIdentifier()}`;
     const storedPaths = this.storage.getItem(storageKey);
 
-    match(storedPaths, {
-      when: (paths) => !!paths,
-      then: (paths) => {
-        try {
-          log("Trovati wallet paths in localStorage");
-          const parsedPaths = JSON.parse(paths as string);
+    if (storedPaths) {
+      try {
+        log("Trovati wallet paths in localStorage");
+        const parsedPaths = JSON.parse(storedPaths as string);
 
-          // Aggiunge i paths da localStorage se non sono già presenti in GUN
-          Object.entries(parsedPaths).forEach(([address, pathData]) => {
-            match(this.walletPaths[address], {
-              when: (existingPath) => !existingPath,
-              then: () => {
-                this.walletPaths[address] = pathData as WalletPath;
-                log(`Caricato path da localStorage per wallet: ${address}`);
-              },
-              otherwise: () => {}
-            });
-          });
-        } catch (error) {
-          console.error("Errore nel parsing dei wallet paths da localStorage:", error);
-        }
-      },
-      otherwise: () => {}
-    });
+        // Aggiunge i paths da localStorage se non sono già presenti in GUN
+        Object.entries(parsedPaths).forEach(([address, pathData]) => {
+          if (!this.walletPaths[address]) {
+            this.walletPaths[address] = pathData as WalletPath;
+            log(`Caricato path da localStorage per wallet: ${address}`);
+          }
+        });
+      } catch (error) {
+        console.error("Errore nel parsing dei wallet paths da localStorage:", error);
+      }
+    }
   }
 
   /**
@@ -211,14 +171,11 @@ export class WalletManager {
    */
   private getStorageUserIdentifier(): string {
     const user = this.gun.user();
-    return pipe(
-      user?.is?.pub,
-      (pub) => match(pub, {
-        when: (p) => !!p,
-        then: (p) => p.substring(0, 12), // Usa una parte della chiave pubblica
-        otherwise: () => "guest" // Identificatore per utenti non autenticati
-      })
-    );
+    const pub = user?.is?.pub;
+    if (pub) {
+      return pub.substring(0, 12); // Usa una parte della chiave pubblica
+    }
+    return "guest"; // Identificatore per utenti non autenticati
   }
 
   /**
@@ -242,34 +199,27 @@ export class WalletManager {
   }
 
   /**
-   * Deriva una chiave privata in modo deterministico e compatibile con BIP-44
-   * @param mnemonic La frase mnemonica BIP-39
-   * @param path Il percorso di derivazione BIP-44 (es. m/44'/60'/0'/0/0)
-   * @returns Un wallet derivato secondo lo standard BIP-44
+   * Deriva un wallet privato da una mnemonic e un path derivation
+   * @param mnemonic Mnemonic phrase
+   * @param path Path di derivazione
+   * @returns Wallet derivato
+   * @private
    */
   private derivePrivateKeyFromMnemonic(mnemonic: string, path: string): ethers.Wallet {
-    return pipe(
-      { mnemonic, path },
-      (input) => {
-        try {
-          log(`Derivazione BIP-44 standard per path: ${input.path}`);
-          
-          // Crea direttamente un HD wallet dalla mnemonica con il path specificato
-          // Questo è il modo corretto di derivare un wallet da una mnemonica in ethers.js v6
-          const wallet = ethers.HDNodeWallet.fromMnemonic(
-            ethers.Mnemonic.fromPhrase(input.mnemonic),
-            input.path  // Passiamo il path direttamente qui
-          );
-          
-          log(`Derivato wallet BIP-44 standard per ${input.path} con indirizzo ${wallet.address}`);
-          
-          return wallet;
-        } catch (error) {
-          console.error(`Errore nella derivazione BIP-44 del wallet per il path ${input.path}:`, error);
-          throw new Error(`Impossibile derivare il wallet per il path ${input.path}`);
-        }
+    try {
+      log(`Derivazione wallet dal path: ${path}`);
+      const hdNode = ethers.HDNodeWallet.fromPhrase(mnemonic);
+      const wallet = hdNode.derivePath(path);
+      
+      if (!wallet || !wallet.privateKey) {
+        throw new Error(`Impossibile derivare il wallet per il path ${path}`);
       }
-    );
+      
+      return wallet;
+    } catch (error) {
+      console.error(`Errore nella derivazione del wallet per il path ${path}:`, error);
+      throw new Error(`Impossibile derivare il wallet per il path ${path}`);
+    }
   }
 
   /**
