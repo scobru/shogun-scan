@@ -2760,6 +2760,11 @@
   dependencies:
     "@babel/types" "^7.20.7"
 
+"@types/cookie@^0.6.0":
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/@types/cookie/-/cookie-0.6.0.tgz#eac397f28bf1d6ae0ae081363eca2f425bedf0d5"
+  integrity sha512-4Kh9a6B2bQciAhf7FSuMRRkUWecJgJu9nPnx3yzpsfXX/c50REIqpHY4C82bXP90qrLtXtkDxTZosYO3UpOwlA==
+
 "@types/d3-array@^3.0.3":
   version "3.2.1"
   resolved "https://registry.yarnpkg.com/@types/d3-array/-/d3-array-3.2.1.tgz#1f6658e3d2006c4fceac53fde464166859f8b8c5"
@@ -4086,6 +4091,11 @@ cookie@0.7.1:
   resolved "https://registry.yarnpkg.com/cookie/-/cookie-0.7.1.tgz#2f73c42142d5d5cf71310a74fc4ae61670e5dbc9"
   integrity sha512-6DnInpx7SJ2AK3+CTUE/ZM0vWTUboZCegxhC2xiIydHR9jNuTAASBrfEpHhiGOZw/nX51bHt6YQl8jsGo4y/0w==
 
+cookie@^1.0.1:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/cookie/-/cookie-1.0.2.tgz#27360701532116bd3f1f9416929d176afe1e4610"
+  integrity sha512-9Kr/j4O16ISv8zBBhJoi4bXOYNTkFLOqSL3UDB0njXxCXNezjeyVrJyGOWtgfs/q2km1gwBcfH8q1yEGoMYunA==
+
 core-js-compat@^3.40.0:
   version "3.41.0"
   resolved "https://registry.yarnpkg.com/core-js-compat/-/core-js-compat-3.41.0.tgz#4cdfce95f39a8f27759b667cf693d96e5dda3d17"
@@ -4557,6 +4567,16 @@ domain-browser@4.22.0:
   resolved "https://registry.yarnpkg.com/domain-browser/-/domain-browser-4.22.0.tgz#6ddd34220ec281f9a65d3386d267ddd35c491f9f"
   integrity sha512-IGBwjF7tNk3cwypFNH/7bfzBcgSCbaMOD3GsaY1AU/JRrnHnYgEM0+9kQt52iZxjNsjBtJYtao146V+f8jFZNw==
 
+dot-env@^0.0.1:
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/dot-env/-/dot-env-0.0.1.tgz#e4434cb8c69143e445bc28a729437e4fabd88c80"
+  integrity sha512-SajHtzm3v7yjMH8DW9xY+4i7Zv/cN3aMtLVy0mRMuZu8L9qRCR7CNqcl4KBbG27e5Up4BpSlEyPXXLNbSAe2DQ==
+
+dotenv@^16.4.7:
+  version "16.4.7"
+  resolved "https://registry.yarnpkg.com/dotenv/-/dotenv-16.4.7.tgz#0e20c5b82950140aa99be360a8a5f52335f53c26"
+  integrity sha512-47qPchRCykZC03FhkYAhrvwU4xDBFIj1QPqaarj6mdM/hgUzfPHcpkHJOn3mJAufFeeAxAzeGsr5X0M4k6fLZQ==
+
 drbg.js@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/drbg.js/-/drbg.js-1.0.1.tgz#3e36b6c42b37043823cdbc332d58f31e2445480b"
@@ -4632,9 +4652,9 @@ electron-fetch@^1.7.2:
     encoding "^0.1.13"
 
 electron-to-chromium@^1.5.73:
-  version "1.5.114"
-  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.5.114.tgz#f2bb4fda80a7db4ea273565e75b0ebbe19af0ac3"
-  integrity sha512-DFptFef3iktoKlFQK/afbo274/XNWD00Am0xa7M8FZUepHlHT8PEuiNBoRfFHbH1okqN58AlhbJ4QTkcnXorjA==
+  version "1.5.115"
+  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.5.115.tgz#193dd534948b3ea77e3d95dd38ca12cdc01c76a9"
+  integrity sha512-MN1nahVHAQMOz6dz6bNZ7apgqc9InZy7Ja4DBEVCTdeiUcegbyOYE9bi/f2Z/z6ZxLi0RxLpyJ3EGe+4h3w73A==
 
 elliptic@6.6.1, elliptic@^6.5.3, elliptic@^6.5.5, elliptic@^6.5.7:
   version "6.6.1"
@@ -9265,6 +9285,23 @@ react-resizable-panels@^2.1.7:
   resolved "https://registry.yarnpkg.com/react-resizable-panels/-/react-resizable-panels-2.1.7.tgz#afd29d8a3d708786a9f95183a38803c89f13c2e7"
   integrity sha512-JtT6gI+nURzhMYQYsx8DKkx6bSoOGFp7A3CwMrOb8y5jFHFyqwo9m68UhmXRw57fRVJksFn1TSlm3ywEQ9vMgA==
 
+react-router-dom@^7.3.0:
+  version "7.3.0"
+  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-7.3.0.tgz#170e569b7536ffd71ff16016cb0f4458d1f23d83"
+  integrity sha512-z7Q5FTiHGgQfEurX/FBinkOXhWREJIAB2RiU24lvcBa82PxUpwqvs/PAXb9lJyPjTs2jrl6UkLvCZVGJPeNuuQ==
+  dependencies:
+    react-router "7.3.0"
+
+react-router@7.3.0:
+  version "7.3.0"
+  resolved "https://registry.yarnpkg.com/react-router/-/react-router-7.3.0.tgz#14fb630f088d919386e97f91199a2bc4abcdd85d"
+  integrity sha512-466f2W7HIWaNXTKM5nHTqNxLrHTyXybm7R0eBlVSt0k/u55tTCDO194OIx/NrYD4TS5SXKTNekXfT37kMKUjgw==
+  dependencies:
+    "@types/cookie" "^0.6.0"
+    cookie "^1.0.1"
+    set-cookie-parser "^2.6.0"
+    turbo-stream "2.4.0"
+
 react-smooth@^4.0.0:
   version "4.0.4"
   resolved "https://registry.yarnpkg.com/react-smooth/-/react-smooth-4.0.4.tgz#a5875f8bb61963ca61b819cedc569dc2453894b4"
@@ -9281,6 +9318,13 @@ react-style-singleton@^2.2.2, react-style-singleton@^2.2.3:
   dependencies:
     get-nonce "^1.0.0"
     tslib "^2.0.0"
+
+react-toastify@^11.0.5:
+  version "11.0.5"
+  resolved "https://registry.yarnpkg.com/react-toastify/-/react-toastify-11.0.5.tgz#ce4c42d10eeb433988ab2264d3e445c4e9d13313"
+  integrity sha512-EpqHBGvnSTtHYhCPLxML05NLY2ZX0JURbAdNYa6BUkk+amz4wbKBQvoKQAB0ardvSarUBuY4Q4s1sluAzZwkmA==
+  dependencies:
+    clsx "^2.1.1"
 
 react-transition-group@^4.4.5:
   version "4.4.5"
@@ -9807,6 +9851,11 @@ serve-static@1.16.2:
     parseurl "~1.3.3"
     send "0.19.0"
 
+set-cookie-parser@^2.6.0:
+  version "2.7.1"
+  resolved "https://registry.yarnpkg.com/set-cookie-parser/-/set-cookie-parser-2.7.1.tgz#3016f150072202dfbe90fadee053573cc89d2943"
+  integrity sha512-IOc8uWeOZgnb3ptbCURJWNjWUPcO3ZnTTdzsurqERrP6nPyv+paC55vJM0LpOlT2ne+Ix+9+CRG1MNLlyZ4GjQ==
+
 set-delayed-interval@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/set-delayed-interval/-/set-delayed-interval-1.0.0.tgz#1f7c065780a365f10250f8a80e2be10175ea0388"
@@ -9909,20 +9958,20 @@ shebang-regex@^3.0.0:
   version "0.1.0"
   dependencies:
     prettier "^3.5.3"
-    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-react-0.1.0-6a641db2-c73c-400c-8f97-b9378e31eafd-1741801885543/node_modules/shogun-core"
+    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-react-0.1.0-7f666912-3ee4-48e0-9ac3-a51801c148c6-1741817570641/node_modules/shogun-core"
 
 "shogun-button@file:shogun-button-react":
   version "0.1.0"
   dependencies:
     prettier "^3.5.3"
-    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-0.1.0-6a641db2-c73c-400c-8f97-b9378e31eafd-1741801885543/node_modules/shogun-core"
+    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-0.1.0-7f666912-3ee4-48e0-9ac3-a51801c148c6-1741817570641/node_modules/shogun-core"
 
 "shogun-core@file:shogun-core":
   version "0.1.0"
   dependencies:
     base64url "^3.0.1"
     ethers "^6.11.1"
-    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-core-0.1.0-50fcd66e-99cb-4721-aac9-e3440212bcc7-1741801885540/node_modules/gun"
+    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-core-0.1.0-4b55a055-5eaa-4fb1-bd7b-673fa4a47765-1741817570643/node_modules/gun"
     prettier "^3.5.3"
 
 "shogun-protocol@file:shogun-protocol":
@@ -9930,12 +9979,12 @@ shebang-regex@^3.0.0:
   dependencies:
     axios "^0.24.0"
     ethers "^6.0.0"
-    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-7e743af3-812a-4281-97cf-6894a238c8f5-1741801885544/node_modules/gun"
+    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-149aa374-db49-401e-ab98-15648e842192-1741817570642/node_modules/gun"
     gun-avatar "^1.3.5"
     hyperswarm-web "^2.1.1"
     jose "^5.1.0"
     rxjs "^7.4.0"
-    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-7e743af3-812a-4281-97cf-6894a238c8f5-1741801885544/node_modules/shogun-core"
+    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-149aa374-db49-401e-ab98-15648e842192-1741817570642/node_modules/shogun-core"
     slugid "^3.0.0"
     sodium-universal "^3.0.4"
     uuid "^8.3.2"
@@ -10640,6 +10689,11 @@ tunnel-agent@^0.6.0:
   integrity sha512-McnNiV1l8RYeY8tBgEpuodCC1mLUdbSN+CYBL7kJsJNInOP8UjDDEwdk6Mw60vdLLrr5NHKZhMAOSrR2NZuQ+w==
   dependencies:
     safe-buffer "^5.0.1"
+
+turbo-stream@2.4.0:
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/turbo-stream/-/turbo-stream-2.4.0.tgz#1e4fca6725e90fa14ac4adb782f2d3759a5695f0"
+  integrity sha512-FHncC10WpBd2eOmGwpmQsWLDoK4cqsA/UT/GqNoaKOQnT8uzhtCbg3EoUDMvqpOSAI0S26mr0rkjzbOO6S3v1g==
 
 tweetnacl@^0.14.3, tweetnacl@~0.14.0:
   version "0.14.5"

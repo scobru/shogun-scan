@@ -12,7 +12,7 @@ import {
   WalletInfo,
 } from "./types/shogun";
 import { IGunInstance } from "gun/types/gun";
-import { log, logError, logWarning } from "./utils/logger";
+import { log, logError } from "./utils/logger";
 import { WalletManager } from "./wallet/walletManager";
 import CONFIG from "./config";
 import { ethers } from "ethers";
@@ -28,6 +28,7 @@ export class ShogunCore implements IShogunCore {
   private storage: Storage;
   private eventEmitter: EventEmitter;
   private walletManager: WalletManager;
+  private provider?: ethers.Provider;
 
   /**
    * Initialize the Shogun SDK
@@ -56,6 +57,14 @@ export class ShogunCore implements IShogunCore {
     this.metamask = new MetaMask();
     this.stealth = new Stealth();
 
+    // Inizializza il provider Ethereum
+    if (config.providerUrl) {
+      this.provider = new ethers.JsonRpcProvider(config.providerUrl);
+    } else {
+      // Provider predefinito (può essere sostituito secondo necessità)
+      this.provider = ethers.getDefaultProvider("mainnet");
+    }
+
     this.walletManager = new WalletManager(this.gundb, this.gun, this.storage);
 
     log("ShogunSDK initialized!");
@@ -70,7 +79,7 @@ export class ShogunCore implements IShogunCore {
   isLoggedIn(): boolean {
     const gunLoggedIn = this.gundb.isLoggedIn();
     const gunUser = this.gun.user();
-    
+
     if (gunLoggedIn) {
       return true;
     }
@@ -78,7 +87,7 @@ export class ShogunCore implements IShogunCore {
     // @ts-ignore - Accessing internal Gun property that is not fully typed
     const hasPair = gunUser && gunUser._ && gunUser._.sea;
     const hasLocalPair = this.storage.getItem("pair");
-    
+
     return !!hasPair || !!hasLocalPair;
   }
 
@@ -122,7 +131,7 @@ export class ShogunCore implements IShogunCore {
       if (!username || !password) {
         return {
           success: false,
-          error: "Username e password sono richiesti"
+          error: "Username e password sono richiesti",
         };
       }
 
@@ -133,14 +142,14 @@ export class ShogunCore implements IShogunCore {
             log(`Errore login: ${ack.err}`);
             resolve({
               success: false,
-              error: ack.err
+              error: ack.err,
             });
           } else {
             const user = this.gundb.gun.user();
             if (!user.is) {
               resolve({
                 success: false,
-                error: "Login fallito: utente non autenticato"
+                error: "Login fallito: utente non autenticato",
               });
             } else {
               log("Login completato con successo");
@@ -148,7 +157,7 @@ export class ShogunCore implements IShogunCore {
               resolve({
                 success: true,
                 userPub,
-                username
+                username,
               });
             }
           }
@@ -160,7 +169,7 @@ export class ShogunCore implements IShogunCore {
         setTimeout(() => {
           resolve({
             success: false,
-            error: "Timeout durante il login"
+            error: "Timeout durante il login",
           });
         }, 10000);
       });
@@ -179,7 +188,7 @@ export class ShogunCore implements IShogunCore {
       logError(`Errore durante il login per utente ${username}:`, error);
       return {
         success: false,
-        error: error.message || "Errore sconosciuto durante il login"
+        error: error.message || "Errore sconosciuto durante il login",
       };
     }
   }
@@ -203,15 +212,18 @@ export class ShogunCore implements IShogunCore {
       if (!username || !password) {
         return {
           success: false,
-          error: "Username e password sono richiesti"
+          error: "Username e password sono richiesti",
         };
       }
 
       // Valida passwords match se confirmation fornita
-      if (passwordConfirmation !== undefined && password !== passwordConfirmation) {
+      if (
+        passwordConfirmation !== undefined &&
+        password !== passwordConfirmation
+      ) {
         return {
           success: false,
-          error: "Le password non corrispondono"
+          error: "Le password non corrispondono",
         };
       }
 
@@ -219,7 +231,7 @@ export class ShogunCore implements IShogunCore {
       if (password.length < 6) {
         return {
           success: false,
-          error: "La password deve essere di almeno 6 caratteri"
+          error: "La password deve essere di almeno 6 caratteri",
         };
       }
 
@@ -229,7 +241,7 @@ export class ShogunCore implements IShogunCore {
           if (ack.err) {
             resolve({
               success: false,
-              error: ack.err
+              error: ack.err,
             });
           } else {
             // Auto-login dopo la registrazione
@@ -237,20 +249,20 @@ export class ShogunCore implements IShogunCore {
               if (loginAck.err) {
                 resolve({
                   success: false,
-                  error: "Registrazione completata ma login fallito"
+                  error: "Registrazione completata ma login fallito",
                 });
               } else {
                 const user = this.gundb.gun.user();
                 if (!user.is) {
                   resolve({
                     success: false,
-                    error: "Registrazione completata ma utente non autenticato"
+                    error: "Registrazione completata ma utente non autenticato",
                   });
                 } else {
                   resolve({
                     success: true,
                     userPub: user.is?.pub || "",
-                    username: username || ""
+                    username: username || "",
                   });
                 }
               }
@@ -264,7 +276,7 @@ export class ShogunCore implements IShogunCore {
         setTimeout(() => {
           resolve({
             success: false,
-            error: "Timeout durante la registrazione"
+            error: "Timeout durante la registrazione",
           });
         }, 15000);
       });
@@ -275,16 +287,19 @@ export class ShogunCore implements IShogunCore {
       if (result.success) {
         this.eventEmitter.emit("auth:signup", {
           userPub: result.userPub || "",
-          username
+          username,
         });
       }
 
       return result;
     } catch (error: any) {
-      logError(`Errore durante la registrazione per utente ${username}:`, error);
+      logError(
+        `Errore durante la registrazione per utente ${username}:`,
+        error
+      );
       return {
         success: false,
-        error: error.message || "Errore sconosciuto durante la registrazione"
+        error: error.message || "Errore sconosciuto durante la registrazione",
       };
     }
   }
@@ -323,19 +338,21 @@ export class ShogunCore implements IShogunCore {
         null,
         true
       );
-      
+
       if (!assertionResult.success) {
-        throw new Error(assertionResult.error || "WebAuthn verification failed");
+        throw new Error(
+          assertionResult.error || "WebAuthn verification failed"
+        );
       }
 
       // Use the credential ID as the password
       const hashedCredentialId = ethers.keccak256(
         ethers.toUtf8Bytes(assertionResult.credentialId || "")
       );
-      
+
       // Login with verified credentials
       const result = await this.login(username, hashedCredentialId);
-      
+
       if (result.success) {
         log(`WebAuthn login completed successfully for user: ${username}`);
         return {
@@ -381,11 +398,10 @@ export class ShogunCore implements IShogunCore {
         null,
         false
       );
-      
+
       if (!attestationResult.success) {
         throw new Error(
-          attestationResult.error ||
-            "Unable to generate WebAuthn credentials"
+          attestationResult.error || "Unable to generate WebAuthn credentials"
         );
       }
 
@@ -445,7 +461,10 @@ export class ShogunCore implements IShogunCore {
       }
 
       // Tenta il login con le credenziali generate
-      const loginPromise = this.login(credentials.username, credentials.password);
+      const loginPromise = this.login(
+        credentials.username,
+        credentials.password
+      );
       const timeoutPromise = new Promise<AuthResult>((_, reject) => {
         setTimeout(() => reject(new Error("Timeout durante il login")), 30000);
       });
@@ -487,7 +506,9 @@ export class ShogunCore implements IShogunCore {
       log(`Tentativo di registrazione MetaMask per indirizzo: ${address}`);
 
       if (!address) {
-        throw new Error("Indirizzo Ethereum richiesto per la registrazione MetaMask");
+        throw new Error(
+          "Indirizzo Ethereum richiesto per la registrazione MetaMask"
+        );
       }
 
       // Verifica che MetaMask sia disponibile
@@ -502,16 +523,24 @@ export class ShogunCore implements IShogunCore {
       }
 
       // Tenta la registrazione con le credenziali generate
-      const signupPromise = this.signUp(credentials.username, credentials.password);
+      const signupPromise = this.signUp(
+        credentials.username,
+        credentials.password
+      );
       const timeoutPromise = new Promise<SignUpResult>((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout durante la registrazione")), 30000);
+        setTimeout(
+          () => reject(new Error("Timeout durante la registrazione")),
+          30000
+        );
       });
 
       // Usa race per gestire il timeout
       const result = await Promise.race([signupPromise, timeoutPromise]);
 
       if (result.success) {
-        log(`Registrazione MetaMask completata con successo per indirizzo: ${address}`);
+        log(
+          `Registrazione MetaMask completata con successo per indirizzo: ${address}`
+        );
         return {
           ...result,
           username: credentials.username,
@@ -528,7 +557,9 @@ export class ShogunCore implements IShogunCore {
       logError(`Errore durante la registrazione MetaMask: ${error}`);
       return {
         success: false,
-        error: error.message || "Errore sconosciuto durante la registrazione MetaMask",
+        error:
+          error.message ||
+          "Errore sconosciuto durante la registrazione MetaMask",
       };
     }
   }

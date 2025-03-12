@@ -25,23 +25,13 @@ export const rpcOptions = [
     url: "https://eth-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
   },
   {
-    value: "optimism",
-    label: "Optimism Mainnet",
-    url: "https://opt-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
-  },
-  {
     value: "sepolia",
     label: "Sepolia Testnet",
     url: "https://eth-sepolia.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
   },
   {
-    value: "polygon",
-    label: "Polygon Mainnet",
-    url: "https://polygon-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
-  },
-  {
-    value: "unichain",
-    label: "Unichain Mainnet",
-    url: "https://unichain-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
+    value: "localhost",
+    label: "Localhost",
+    url: "http://127.0.0.1:8545",
   },
 ]; 

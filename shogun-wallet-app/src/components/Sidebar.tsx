@@ -6,7 +6,7 @@ import { WalletInfo } from '../types';
 const rpcOptions = [
   { value: "mainnet", label: "Ethereum Mainnet" },
   { value: "sepolia", label: "Sepolia Testnet" },
-  { value: "optimism_sepolia", label: "Optimism Sepolia Testnet" },
+  { value: "localhost", label: "Localhost", }
 ];
 
 interface SidebarProps {
@@ -35,7 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Sezioni dell'app
   const sections = [
     { id: "wallet", name: "Wallet", icon: "💰" },
-    { id: "stealth", name: "Stealth", icon: "🕶️" },
+    { id: "stealth", name: "Stealth", icon: "🕵️" },
     { id: "settings", name: "Impostazioni", icon: "⚙️" }
   ];
 

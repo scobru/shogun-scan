@@ -28,6 +28,60 @@ export interface SignUpResult {
   wallet?: any;
 }
 
+/**
+ * Configurazione di un canale di pagamento
+ */
+export interface ChannelConfig {
+  /** Identificatore univoco del canale */
+  channelId: string;
+  /** Indirizzo Ethereum del creatore del canale */
+  creatorAddress: string;
+  /** Indirizzo Ethereum della controparte */
+  counterpartyAddress: string;
+  /** Deposito iniziale in wei */
+  initialDeposit: string;
+  /** Timestamp di creazione del canale */
+  createdAt: number;
+  /** Periodo di timeout per le dispute in secondi */
+  timeoutPeriod: number;
+  /** Indirizzo dello smart contract */
+  contractAddress: string;
+}
+
+/**
+ * Stato corrente di un canale di pagamento
+ */
+export interface ChannelState {
+  /** Identificatore univoco del canale */
+  channelId: string;
+  /** Saldo corrente in wei (quanto rimane al creatore) */
+  balance: string;
+  /** Numero di sequenza per prevenire replay attack */
+  nonce: number;
+  /** Firma del creatore sullo stato corrente */
+  creatorSignature?: string;
+  /** Firma della controparte sullo stato corrente */
+  counterpartySignature?: string;
+  /** Timestamp dell'ultimo aggiornamento */
+  lastUpdated: number;
+  /** Stato del canale */
+  status: 'open' | 'closing' | 'disputed' | 'closed';
+}
+
+/**
+ * Risultato di un'operazione sul canale di pagamento
+ */
+export interface ChannelResult {
+  /** Indica se l'operazione ha avuto successo */
+  success: boolean;
+  /** Messaggio di errore in caso di fallimento */
+  error?: string;
+  /** Stato del canale dopo l'operazione */
+  state?: ChannelState;
+  /** ID della transazione Ethereum (se applicabile) */
+  txHash?: string;
+}
+
 export interface IShogunCore {
   gun: IGunInstance<any>;
   gundb: GunDB;
@@ -62,28 +116,23 @@ export interface IShogunCore {
   isLoggedIn(): boolean;
 }
 
+/**
+ * Configurazione dell'SDK Shogun
+ */
 export interface ShogunSDKConfig {
-  gunPeers?: string[];
-  localStorage?: boolean;
-  sessionStorage?: boolean;
-  rpcUrl?: string;
-  ipfsGateway?: string;
-  ipfsService?: string;
-  momStorageType?: "gun" | "ipfs";
-  peers?: string[];
+  /** Configurazione GunDB */
   gundb?: {
-    peers?: string[];
+    /** Lista dei peer da utilizzare */
+    peers: string[];
   };
-  websocket?: {
-    secure?: boolean;
-    mode?: string;
-    path?: string;
-  };
-  storage?: {
-    prefix?: string;
-  };
-  axe?: boolean;
-  multicast?: boolean;
+  /** Lista dei peer da utilizzare (deprecato, usa gundb.peers) */
+  peers?: string[];
+  /** Abilita websocket */
+  websocket?: boolean;
+  /** URL del provider Ethereum */
+  providerUrl?: string;
+  /** Indirizzo del contratto per i canali di pagamento */
+  paymentChannelContract?: string;
 }
 
 export interface WalletInfo {

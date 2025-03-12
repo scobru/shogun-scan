@@ -10,9 +10,12 @@
     "dev": "nodemon start.js"
   },
   "dependencies": {
+    "dot-env": "^0.0.1",
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "gun": "file:../gun",
-    "ws": "latest"
+    "ws": "latest",
+    "shogun-core": "file:../shogun-core"
   },
   "devDependencies": {}
 }

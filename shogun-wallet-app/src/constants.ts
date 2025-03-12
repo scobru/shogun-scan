@@ -16,16 +16,11 @@ export const messages = {
     webauthnMessage: `Access with WebAuthn`,
   };
 
-  export  const rpcOptions = [
+  export const rpcOptions = [
     {
       value: "mainnet",
       label: "Ethereum Mainnet",
       url: "https://eth-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
-    },
-    {
-      value: "optimism",
-      label: "Optimism Mainnet",
-      url: "https://opt-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
     },
     {
       value: "sepolia",
@@ -33,13 +28,8 @@ export const messages = {
       url: "https://eth-sepolia.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
     },
     {
-      value: "polygon",
-      label: "Polygon Mainnet",
-      url: "https://polygon-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
+      value: "localhost",
+      label: "Localhost",
+      url: "http://localhost:8545",
     },
-    {
-      value: "unichain",
-      label: "Unichain Mainnet",
-      url: "https://unichain-mainnet.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx",
-    },
-  ];
+  ]; 
