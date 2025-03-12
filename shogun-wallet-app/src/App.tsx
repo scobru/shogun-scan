@@ -39,6 +39,15 @@ export const initShogunSDK = () => {
 export const { sdk, options } = initShogunSDK();
 export const gun = sdk ? sdk.gun : null;
 
+// Funzione helper per verificare se l'SDK è disponibile
+const withSdk = <T,>(callback: (sdk: any) => T, fallback: T): T => {
+  if (!sdk) {
+    console.error("SDK non disponibile");
+    return fallback;
+  }
+  return callback(sdk);
+};
+
 const App: React.FC = () => {
   // Stati per l'autenticazione
   const [signedIn, setSignedIn] = useState<boolean>(false);
@@ -509,11 +518,13 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (gun?.user()._) {
-      setUserEpub(gun?.user()._?.sea?.epub);
+      const userSea = (gun.user()._ as any).sea;
+      setUserEpub(userSea?.epub || "");
     }
   }, [userpub]);
 
 
+  // Funzione per firmare un messaggio
   const signMessage = async () => {
     try {
       if (!selectedAddress || !messageToSign) {
@@ -521,7 +532,6 @@ const App: React.FC = () => {
         return;
       }
 
-      // Trova il wallet corrispondente all'indirizzo selezionato
       const selectedWallet = derivedWallets.find(
         (w) => w.address === selectedAddress
       );
@@ -531,11 +541,15 @@ const App: React.FC = () => {
         return;
       }
 
-      // Utilizza il metodo signMessage dell'SDK
-      const signature = await sdk.signMessage(
-        selectedWallet.wallet,
-        messageToSign
+      // Usa withSdk per gestire in sicurezza l'SDK
+      const signature = await withSdk(
+        async (s) => s.signMessage(selectedWallet.wallet, messageToSign),
+        null
       );
+
+      if (!signature) {
+        throw new Error("Errore durante la firma del messaggio");
+      }
 
       setSignedMessage(signature);
       setErrorMessage("");
@@ -664,30 +678,24 @@ const App: React.FC = () => {
   // Funzione per il login con MetaMask
   const handleMetaMaskLogin = async () => {
     try {
-      // Prima connetti MetaMask
       const address = await handleMetaMaskConnect();
       if (!address) return;
 
       setLoading(true);
       setErrorMessage("");
 
-      // Effettua il login con MetaMask
-      const result = await sdk.loginWithMetaMask(address);
-      
+      const result = await withSdk(
+        async (s) => s.loginWithMetaMask(address),
+        { success: false, error: "SDK non disponibile" }
+      );
+
       if (result.success) {
-        // Salva i dati dell'utente
         setUserpub(result.userPub || "");
         setUsername(`metamask_${address}`);
         setSignedIn(true);
-        
-        // Carica i wallet
         await loadWallets();
-        
-        // Salva i dati nel localStorage
         localStorage.setItem("userPub", result.userPub || "");
         localStorage.setItem("username", `metamask_${address}`);
-        
-        setSignedIn(true);
       } else if (result.error) {
         setErrorMessage(result.error);
       }
@@ -701,7 +709,7 @@ const App: React.FC = () => {
 
   // Funzione per verificare il supporto WebAuthn
   const checkWebAuthnSupport = () => {
-    return sdk.isWebAuthnSupported();
+    return withSdk((s) => s.isWebAuthnSupported(), false);
   };
 
   // Funzione per la registrazione con WebAuthn
@@ -764,28 +772,21 @@ const App: React.FC = () => {
       setLoading(true);
       setErrorMessage("");
 
-      // Effettua il login con WebAuthn
-      const result = await sdk.loginWithWebAuthn(username);
-      
+      const result = await withSdk(
+        async (s) => s.loginWithWebAuthn(username),
+        { success: false, error: "SDK non disponibile" }
+      );
+
       if (result.success) {
-        // Salva i dati dell'utente
         setUserpub(result.userPub || "");
         setUsername(username);
         setSignedIn(true);
-        
-        // Carica i wallet
         await loadWallets();
-        
-        // Salva i dati nel localStorage
         localStorage.setItem("userPub", result.userPub || "");
         localStorage.setItem("username", username);
-        
-        // Se c'è un credentialId, salvalo
         if (result.credentialId) {
           localStorage.setItem("credentialId", result.credentialId);
         }
-        
-        setSignedIn(true);
       } else if (result.error) {
         setErrorMessage(result.error);
       }
@@ -1971,22 +1972,38 @@ const App: React.FC = () => {
   useEffect(() => {
     // Verifica lo stato di autenticazione all'avvio dell'app
     const checkAuth = async () => {
-      if (sdk && sdk.isLoggedIn()) {
-        console.log("Sessione utente trovata");
-        const user = sdk.gundb.getUser();
-        if (user && user.is) {
-          setUserAuthenticated(true);
-          setUserPub(user.is.pub);
-          // Altri stati da impostare
+      try {
+        console.log("Verifica dello stato di login...");
+        
+        if (!sdk) {
+          console.error("SDK non inizializzato");
+          setSignedIn(false);
+          return;
         }
-      } else {
-        console.log("Nessuna sessione utente trovata, necessario login");
-        setUserAuthenticated(false);
+        
+        if (sdk.isLoggedIn()) {
+          console.log("Sessione utente trovata");
+          const user = sdk.gundb.gun.user();
+          if (user && user.is) {
+            setSignedIn(true);
+            setUserpub(user.is.pub);
+            // Carica i wallet dopo aver verificato l'autenticazione
+            await loadWallets();
+          }
+        } else {
+          console.log("Nessuna sessione utente trovata, necessario login");
+          setSignedIn(false);
+        }
+      } catch (error) {
+        console.error("Errore nella verifica dell'autenticazione:", error);
+        setSignedIn(false);
       }
     };
     
-    checkAuth();
-  }, [sdk]);
+    if (sdkInitialized) {
+      checkAuth();
+    }
+  }, [sdkInitialized]);
 
   // Funzione per verificare se l'SDK è disponibile prima di usarlo
   const withSdk = (callback: (sdk: any) => any, fallback: any = null) => {
@@ -2012,9 +2029,7 @@ const App: React.FC = () => {
   const ShogunButtonSafe = ShogunButton as any;
 
   // Verifica se l'utente è autenticato
-  const isUserAuthenticated = () => {
-    return sdk ? sdk.isLoggedIn() : false;
-  };
+  const isUserAuthenticated = () => signedIn;
 
   const handleGenerateNewMnemonic = () => {
     if (!sdk) {

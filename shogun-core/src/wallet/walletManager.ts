@@ -205,17 +205,19 @@ export class WalletManager {
    * @returns Wallet derivato
    * @private
    */
-  private derivePrivateKeyFromMnemonic(mnemonic: string, path: string): ethers.Wallet {
+  private derivePrivateKeyFromMnemonic(mnemonic: string, path: string): HDNodeWallet {
     try {
       log(`Derivazione wallet dal path: ${path}`);
-      const hdNode = ethers.HDNodeWallet.fromPhrase(mnemonic);
-      const wallet = hdNode.derivePath(path);
+      const wallet = ethers.HDNodeWallet.fromMnemonic(
+        ethers.Mnemonic.fromPhrase(mnemonic),
+        path
+      );
       
       if (!wallet || !wallet.privateKey) {
         throw new Error(`Impossibile derivare il wallet per il path ${path}`);
       }
       
-      return wallet;
+      return wallet as HDNodeWallet;
     } catch (error) {
       console.error(`Errore nella derivazione del wallet per il path ${path}:`, error);
       throw new Error(`Impossibile derivare il wallet per il path ${path}`);

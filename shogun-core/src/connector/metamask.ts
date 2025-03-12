@@ -69,6 +69,9 @@ class MetaMask {
   /** Messaggio fisso per la firma */
   private MESSAGE_TO_SIGN = "I Love Shogun!";
 
+  private MAX_RETRIES = 3;
+  private RETRY_DELAY = 1000;
+
   constructor() {
     this.AUTH_DATA_TABLE =
       CONFIG.GUN_TABLES.AUTHENTICATIONS || "Authentications";
@@ -185,63 +188,98 @@ class MetaMask {
   }
 
   /**
-   * Genera credenziali di autenticazione per un indirizzo Ethereum
-   * @param address - Indirizzo Ethereum
-   * @returns Credenziali generate
-   * @throws {Error} Se il processo di firma fallisce
+   * Genera le credenziali per l'autenticazione con MetaMask
    */
-  public async generateCredentials(
-    address: string
-  ): Promise<MetaMaskCredentials> {
+  async generateCredentials(address: string): Promise<{ username: string; password: string }> {
     try {
-      // Prima connetti a MetaMask
-      const connection = await this.connectMetaMask();
-      
-      // Verifichiamo il risultato della connessione
-      if (!connection.success) {
-        throw new Error(connection.error || "Errore di connessione a MetaMask");
-      }
-      
-      // Verifica che l'indirizzo connesso corrisponda
-      const connectedAddress = this.validateAddress(connection.address);
-      
-      if (connectedAddress.toLowerCase() !== address.toLowerCase()) {
-        throw new Error("L'account selezionato non corrisponde all'indirizzo fornito");
+      if (!address) {
+        throw new Error("Indirizzo Ethereum richiesto");
       }
 
-      // Il messaggio da firmare
-      const messageToSign = this.MESSAGE_TO_SIGN;
-      log(`Richiesta firma del messaggio: "${messageToSign}"`);
+      log("Richiesta firma del messaggio: " + this.MESSAGE_TO_SIGN);
 
-      const ethereum = window.ethereum as EthereumProvider;
-      const signature = await ethereum.request({
-        method: "personal_sign",
-        params: [messageToSign, connectedAddress],
-      });
+      let signature = null;
+      let retries = 0;
 
-      // Verifichiamo la firma
+      while (!signature && retries < this.MAX_RETRIES) {
+        try {
+          // Richiedi la firma con timeout
+          signature = await this.requestSignatureWithTimeout(address, this.MESSAGE_TO_SIGN);
+        } catch (error) {
+          retries++;
+          if (retries < this.MAX_RETRIES) {
+            log(`Tentativo ${retries + 1} di ${this.MAX_RETRIES}...`);
+            await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY));
+          } else {
+            throw error;
+          }
+        }
+      }
+
       if (!signature) {
-        throw new Error("Firma non ottenuta");
+        throw new Error("Impossibile ottenere la firma dopo i tentativi");
       }
-      
+
       log("Firma ottenuta, generazione password...");
 
-      // Genera la password usando il metodo dedicato
-      const password = await this.generatePassword(signature);
-
-      // Usa l'username generato durante la connessione
-      const username = connection.username || `mm_${connectedAddress.toLowerCase()}`;
+      // Genera username e password deterministici
+      const username = `mm_${address.toLowerCase()}`;
+      const password = ethers.keccak256(
+        ethers.toUtf8Bytes(`${signature}:${address.toLowerCase()}`)
+      );
 
       return {
         username,
         password
       };
     } catch (error: any) {
-      logError("Errore nella generazione delle credenziali:", error);
-      throw new Error(
-        `Errore nella generazione delle credenziali: ${error.message || "Errore sconosciuto"}`
-      );
+      logError("Errore nella generazione delle credenziali MetaMask:", error);
+      throw new Error(`Errore MetaMask: ${error.message}`);
     }
+  }
+
+  /**
+   * Richiede la firma con timeout
+   */
+  private async requestSignatureWithTimeout(
+    address: string,
+    message: string,
+    timeout: number = 30000
+  ): Promise<string> {
+    return new Promise(async (resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error("Timeout nella richiesta della firma"));
+      }, timeout);
+
+      try {
+        if (!window.ethereum) {
+          throw new Error("MetaMask non trovato");
+        }
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        
+        // Verifica che l'indirizzo corrisponda
+        const signerAddress = await signer.getAddress();
+        if (signerAddress.toLowerCase() !== address.toLowerCase()) {
+          throw new Error("L'indirizzo del signer non corrisponde");
+        }
+
+        const signature = await signer.signMessage(message);
+        clearTimeout(timeoutId);
+        resolve(signature);
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Verifica se MetaMask è disponibile
+   */
+  isAvailable(): boolean {
+    return typeof window !== "undefined" && !!window.ethereum;
   }
 
   /**

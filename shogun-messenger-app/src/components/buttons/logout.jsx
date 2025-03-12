@@ -1,4 +1,4 @@
-import { authentication } from '@shogun/shogun-protocol';
+import { authentication } from 'shogun-protocol';
 
 let LogoutButton = () => {
   return (

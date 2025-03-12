@@ -1,5 +1,5 @@
 import { gunAvatar } from 'gun-avatar';
-import { friends, messaging } from '@shogun/shogun-protocol';
+import { friends, messaging } from 'shogun-protocol';
 import { useNavigation } from '../../contexts/navigationContext';
 import AddFriendButton from '../../components/buttons/addFriend';
 import CrossButton from '../../components/buttons/cross';

@@ -44,7 +44,6 @@ class Stealth {
   public readonly STEALTH_DATA_TABLE: string;
   private lastEphemeralKeyPair: any = null;
   private lastMethodUsed: string = "unknown";
-  private deriveWalletFromSecret!: (secret: string) => ethers.Wallet;
 
   constructor() {
     this.STEALTH_DATA_TABLE = "Stealth";

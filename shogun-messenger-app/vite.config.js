@@ -6,7 +6,7 @@ import solidPlugin from 'vite-plugin-solid';
 
 export default defineConfig({
   optimizeDeps: {
-    include: ['@shogun/shogun-core']
+    include: ['shogun-core']
   },
   resolve: {
     alias: {

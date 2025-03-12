@@ -1,4 +1,4 @@
-import { friends } from '@shogun/shogun-protocol';
+import { friends } from 'shogun-protocol';
 import { onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 

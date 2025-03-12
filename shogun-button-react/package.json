@@ -35,7 +35,6 @@
     "prettier": "^3.5.3"
   },
   "devDependencies": {
-    "ts-minimal": "file:../ts-minimal",
     "typescript": "^5.8.2"
   },
   "peerDependencies": {

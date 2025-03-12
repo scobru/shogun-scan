@@ -1,6 +1,6 @@
-import { authentication } from '@shogun/shogun-protocol';
+import { authentication } from 'shogun-protocol';
 import { createSignal, onMount } from 'solid-js';
-import { ShogunSDK } from '@shogun/shogun-core';
+import { ShogunCore } from 'shogun-core';
 import LoginWithShogunSolid from '../../components/LoginWithShogunSolid';
 
 let AuthenticationPage = () => {
@@ -9,7 +9,7 @@ let AuthenticationPage = () => {
   // Inizializza l'SDK di Shogun
   onMount(() => {
     console.log('Inizializzazione SDK...');
-    const sdk = new ShogunSDK({
+    const sdk = new ShogunCore({
       peers: ['http://localhost:8765/gun'],
       localStorage: false,
       radisk: false,

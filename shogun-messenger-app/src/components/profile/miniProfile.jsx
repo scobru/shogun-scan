@@ -1,5 +1,5 @@
 import { gunAvatar } from 'gun-avatar';
-import { user , gun } from '@shogun/shogun-protocol';
+import { user , gun } from 'shogun-protocol';
 import { useLocation } from '@solidjs/router';
 import { useNavigation } from '../../contexts/navigationContext';
 import { onMount } from 'solid-js';

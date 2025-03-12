@@ -2,11 +2,11 @@
 
 import { IGunInstance } from "gun"
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-import { ShogunSDK } from "@shogun/shogun-core"
+import { ShogunCore } from "shogun-core"
 
 type GunContextType = {
   gun: IGunInstance | null
-  sdk: ShogunSDK | null
+  sdk: ShogunCore | null
   user: any | null
   isAuthenticated: boolean
   setIsAuthenticated: (isAuthenticated: boolean) => void
@@ -85,9 +85,9 @@ export function GunProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Inizializza Gun con ShogunSDK
     try {
-      const shogunSDK = new ShogunSDK({
+      const shogunSDK = new ShogunCore({
         peers: ["http://localhost:8765/gun"],
-      }) as ShogunSDK
+      }) as ShogunCore
 
       // Verifica che l'SDK sia stato inizializzato correttamente
       if (!shogunSDK.gundb || !shogunSDK.gun) {

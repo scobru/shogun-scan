@@ -9,8 +9,7 @@
     "shogun-button-react",
     "shogun-wallet-app",
     "shogun-messenger-app",
-    "shogun-task-app",
-    "ts-minimal"
+    "shogun-task-app"
   ],
   "scripts": {
     "build-all": "cd shogun-core && yarn build && cd ../shogun-button-react && yarn build",

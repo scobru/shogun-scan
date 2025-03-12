@@ -1,4 +1,4 @@
-import { gun } from '@shogun/shogun-protocol';
+import { gun } from 'shogun-protocol';
 import { onMount, createSignal, createEffect } from 'solid-js';
 import { createStore } from 'solid-js/store';
 

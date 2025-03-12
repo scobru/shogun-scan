@@ -1,5 +1,5 @@
 import toBuffer from 'it-to-buffer';
-import { gun } from '@shogun/shogun-protocol';
+import { gun } from 'shogun-protocol';
 import { onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 

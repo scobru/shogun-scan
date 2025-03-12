@@ -1,10 +1,10 @@
-import { ShogunSDK } from "shogun-sdk";
+import { ShogunCore } from "shogun-core";
 import { isAuthenticated } from "./isAuthenticated";
 import { Subject } from "rxjs";
 import SEA from "gun/sea"; // Importa SEA direttamente per backup
 
 // Inizializza ShogunSDK con le stesse configurazioni
-export const shogunSDK = new ShogunSDK({
+export const shogunSDK = new ShogunCore({
   peers: ["http://localhost:8765/gun"],
   localStorage: false,
   radisk: false
