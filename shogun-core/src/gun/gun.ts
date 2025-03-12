@@ -6,45 +6,28 @@ import "gun/sea";
 import { IGunInstance } from "gun/types";
 import CONFIG from "../config";
 import { log, logError } from "../utils/logger";
-import { record, pipe, match } from "ts-minimal";
 
 /**
- * Definizione delle opzioni di GunDB usando record per una validazione tipo più concisa
+ * Definizione delle opzioni di GunDB
  */
-const GunDBOptionsSchema = record<{
+interface GunDBOptions {
   peers?: string[];
   localStorage?: boolean;
   sessionStorage?: boolean;
   radisk?: boolean;
   multicast?: boolean;
   axe?: boolean;
-}>({
-  peers: Array,
-  localStorage: Boolean,
-  sessionStorage: Boolean,
-  radisk: Boolean,
-  multicast: Boolean,
-  axe: Boolean
-});
-
-type GunDBOptions = Parameters<typeof GunDBOptionsSchema>[0];
+}
 
 /**
- * Risultato dell'autenticazione definito con record
+ * Risultato dell'autenticazione
  */
-const AuthResultSchema = record<{
+interface AuthResult {
   success: boolean;
   userPub?: string;
   username?: string;
   error?: string;
-}>({
-  success: Boolean,
-  userPub: String,
-  username: String,
-  error: String
-});
-
-type AuthResult = Parameters<typeof AuthResultSchema>[0];
+}
 
 /**
  * GunDB - Gestione semplificata di Gun con Auth avanzata
@@ -85,12 +68,11 @@ class GunDB {
     this.gun.on("auth", (ack: any) => {
       log("Evento auth ricevuto:", ack);
       
-      // Utilizziamo match invece di if-else per gestire l'esito dell'autenticazione
-      match(ack, {
-        when: (a) => !!a.err,
-        then: (a) => logError("Errore di autenticazione:", a.err),
-        otherwise: (a) => this.notifyAuthListeners(a.sea?.pub || "")
-      });
+      if (ack.err) {
+        logError("Errore di autenticazione:", ack.err);
+      } else {
+        this.notifyAuthListeners(ack.sea?.pub || "");
+      }
     });
   }
 
@@ -183,30 +165,21 @@ class GunDB {
 
       return new Promise((resolve) => {
         this.gun.user().create(username, password, async (ack: any) => {
-          // Utilizziamo pipe e match per gestire il flusso di registrazione in modo più funzionale
-          pipe(
-            ack,
-            (a) => match(a, {
-              when: (result) => !!result.err,
-              then: (result) => {
-                logError(`Errore registrazione: ${result.err}`);
-                resolve({ success: false, error: result.err });
-              },
-              otherwise: async () => {
-                // Login automatico dopo la registrazione
-                const loginResult = await this.login(username, password);
-                
-                // Log del risultato usando match
-                match(loginResult, {
-                  when: (r) => r.success,
-                  then: () => log("Registrazione e login completati con successo"),
-                  otherwise: () => logError("Registrazione completata ma login fallito")
-                });
-                
-                resolve(loginResult);
-              }
-            })
-          );
+          if (ack.err) {
+            logError(`Errore registrazione: ${ack.err}`);
+            resolve({ success: false, error: ack.err });
+          } else {
+            // Login automatico dopo la registrazione
+            const loginResult = await this.login(username, password);
+            
+            if (loginResult.success) {
+              log("Registrazione e login completati con successo");
+            } else {
+              logError("Registrazione completata ma login fallito");
+            }
+            
+            resolve(loginResult);
+          }
         });
       });
     } catch (error) {
@@ -230,42 +203,30 @@ class GunDB {
 
       return new Promise((resolve) => {
         this.gun.user().auth(username, password, (ack: any) => {
-          // Utilizziamo pipe e match per gestire il flusso di login in modo più funzionale
-          pipe(
-            ack,
-            (a) => match(a, {
-              when: (result) => !!result.err,
-              then: (result) => {
-                logError(`Errore login: ${result.err}`);
-                resolve({
-                  success: false,
-                  error: result.err,
-                });
-              },
-              otherwise: () => {
-                const user = this.gun.user();
-                
-                // Controlliamo se l'utente è autenticato
-                match(user, {
-                  when: (u) => !u.is,
-                  then: () => resolve({
-                    success: false,
-                    error: "Login fallito: utente non autenticato",
-                  }),
-                  otherwise: (u) => {
-                    log("Login completato con successo");
-                    // Assicuriamoci che u.is esista prima di accedervi
-                    const userPub = u.is?.pub || "";
-                    resolve({
-                      success: true,
-                      userPub,
-                      username,
-                    });
-                  }
-                });
-              }
-            })
-          );
+          if (ack.err) {
+            logError(`Errore login: ${ack.err}`);
+            resolve({
+              success: false,
+              error: ack.err,
+            });
+          } else {
+            const user = this.gun.user();
+            
+            if (!user.is) {
+              resolve({
+                success: false,
+                error: "Login fallito: utente non autenticato",
+              });
+            } else {
+              log("Login completato con successo");
+              const userPub = user.is?.pub || "";
+              resolve({
+                success: true,
+                userPub,
+                username,
+              });
+            }
+          }
         });
       });
     } catch (error) {
@@ -318,40 +279,31 @@ class GunDB {
    * Salva dati nel nodo dell'utente
    */
   async saveUserData(path: string, data: any): Promise<any> {
-    // Usa match per controllare lo stato di autenticazione
-    return match(this.gun.user()?.is?.pub, {
-      when: (pub) => !pub,
-      then: () => {
-        throw new Error("Utente non autenticato");
-      },
-      otherwise: () => {
-        return new Promise((resolve, reject) => {
-          const options = this.certificato
-            ? { opt: { cert: this.certificato } }
-            : undefined;
+    if (!this.gun.user()?.is?.pub) {
+      throw new Error("Utente non autenticato");
+    }
 
-          this.gun
-            .user()
-            .get(path)
-            .put(
-              data,
-              (ack: any) => {
-                match(ack, {
-                  when: (a) => a && a.err,
-                  then: (a) => {
-                    logError(`Errore salvataggio dati: ${a.err}`);
-                    reject(new Error(a.err));
-                  },
-                  otherwise: () => {
-                    log(`Dati salvati in ${path}`);
-                    resolve(data);
-                  }
-                });
-              },
-              options
-            );
-        });
-      }
+    return new Promise((resolve, reject) => {
+      const options = this.certificato
+        ? { opt: { cert: this.certificato } }
+        : undefined;
+
+      this.gun
+        .user()
+        .get(path)
+        .put(
+          data,
+          (ack: any) => {
+            if (ack && ack.err) {
+              logError(`Errore salvataggio dati: ${ack.err}`);
+              reject(new Error(ack.err));
+            } else {
+              log(`Dati salvati in ${path}`);
+              resolve(data);
+            }
+          },
+          options
+        );
     });
   }
 
@@ -359,32 +311,23 @@ class GunDB {
    * Recupera dati dal nodo dell'utente
    */
   async getUserData(path: string): Promise<any> {
-    // Usa match per controllare lo stato di autenticazione
-    return match(this.gun.user()?.is?.pub, {
-      when: (pub) => !pub,
-      then: () => {
-        throw new Error("Utente non autenticato");
-      },
-      otherwise: () => {
-        return new Promise((resolve) => {
-          this.gun
-            .user()
-            .get(path)
-            .once((data) => {
-              match(data, {
-                when: (d) => !d,
-                then: () => {
-                  log(`Nessun dato trovato in ${path}`);
-                  resolve(null);
-                },
-                otherwise: (d) => {
-                  log(`Dati recuperati da ${path}`);
-                  resolve(d);
-                }
-              });
-            });
+    if (!this.gun.user()?.is?.pub) {
+      throw new Error("Utente non autenticato");
+    }
+
+    return new Promise((resolve) => {
+      this.gun
+        .user()
+        .get(path)
+        .once((data) => {
+          if (!data) {
+            log(`Nessun dato trovato in ${path}`);
+            resolve(null);
+          } else {
+            log(`Dati recuperati da ${path}`);
+            resolve(data);
+          }
         });
-      }
     });
   }
 
@@ -403,17 +346,13 @@ class GunDB {
         .put(
           data,
           (ack: any) => {
-            match(ack, {
-              when: (a) => a && a.err,
-              then: (a) => {
-                logError(`Errore salvataggio dati pubblici: ${a.err}`);
-                reject(new Error(a.err));
-              },
-              otherwise: () => {
-                log(`Dati pubblici salvati in ${node}/${key}`);
-                resolve(data);
-              }
-            });
+            if (ack && ack.err) {
+              logError(`Errore salvataggio dati pubblici: ${ack.err}`);
+              reject(new Error(ack.err));
+            } else {
+              log(`Dati pubblici salvati in ${node}/${key}`);
+              resolve(data);
+            }
           },
           options
         );
@@ -429,17 +368,13 @@ class GunDB {
         .get(node)
         .get(key)
         .once((data) => {
-          match(data, {
-            when: (d) => !d,
-            then: () => {
-              log(`Nessun dato pubblico trovato in ${node}/${key}`);
-              resolve(null);
-            },
-            otherwise: (d) => {
-              log(`Dati pubblici recuperati da ${node}/${key}`);
-              resolve(d);
-            }
-          });
+          if (!data) {
+            log(`Nessun dato pubblico trovato in ${node}/${key}`);
+            resolve(null);
+          } else {
+            log(`Dati pubblici recuperati da ${node}/${key}`);
+            resolve(data);
+          }
         });
     });
   }
