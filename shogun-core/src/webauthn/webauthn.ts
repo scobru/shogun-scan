@@ -6,7 +6,6 @@ const MIN_USERNAME_LENGTH = 3;
 const MAX_USERNAME_LENGTH = 64;
 
 import { ethers } from "ethers";
-import { record, match, pipe } from "ts-minimal";
 
 /**
  * Extends Window interface to include WebauthnAuth
@@ -29,35 +28,22 @@ declare global {
 }
 
 /**
- * Definizione di schemi per la validazione
+ * Definizione di interfacce con tipi standard
  */
-const DeviceInfoSchema = record<{
+interface DeviceInfo {
   deviceId: string;
   timestamp: number;
   name: string;
   platform: string;
-}>({
-  deviceId: String,
-  timestamp: Number,
-  name: String,
-  platform: String
-});
+}
 
-type DeviceInfo = Parameters<typeof DeviceInfoSchema>[0];
-
-const WebAuthnCredentialsSchema = record<{
+interface WebAuthnCredentials {
   salt: string;
   timestamp: number;
   credentials: Record<string, DeviceInfo>;
-}>({
-  salt: String,
-  timestamp: Number,
-  credentials: Object
-});
+}
 
-type WebAuthnCredentials = Parameters<typeof WebAuthnCredentialsSchema>[0];
-
-const CredentialResultSchema = record<{
+interface CredentialResult {
   success: boolean;
   username?: string;
   password?: string;
@@ -65,17 +51,7 @@ const CredentialResultSchema = record<{
   deviceInfo?: DeviceInfo;
   error?: string;
   webAuthnCredentials?: WebAuthnCredentials;
-}>({
-  success: Boolean,
-  username: String,
-  password: String,
-  credentialId: String,
-  deviceInfo: Object,
-  error: String,
-  webAuthnCredentials: Object
-});
-
-type CredentialResult = Parameters<typeof CredentialResultSchema>[0];
+}
 
 /**
  * Genera un identificatore univoco per dispositivo
@@ -101,30 +77,27 @@ const getPlatformInfo = (): { name: string; platform: string } => {
   const platform = navigator.platform;
   const userAgent = navigator.userAgent;
   
-  return pipe(
-    { platform, userAgent },
-    (data) => match(data, {
-      when: () => /iPhone|iPad|iPod/.test(data.platform),
-      then: () => ({ name: "iOS Device", platform: data.platform }),
-      otherwise: (d) => match(d, {
-        when: () => /Android/.test(d.userAgent),
-        then: () => ({ name: "Android Device", platform: d.platform }),
-        otherwise: (d2) => match(d2, {
-          when: () => /Win/.test(d2.platform),
-          then: () => ({ name: "Windows Device", platform: d2.platform }),
-          otherwise: (d3) => match(d3, {
-            when: () => /Mac/.test(d3.platform),
-            then: () => ({ name: "Mac Device", platform: d3.platform }),
-            otherwise: (d4) => match(d4, {
-              when: () => /Linux/.test(d4.platform),
-              then: () => ({ name: "Linux Device", platform: d4.platform }),
-              otherwise: () => ({ name: "Unknown Device", platform: d4.platform })
-            })
-          })
-        })
-      })
-    })
-  );
+  if (/iPhone|iPad|iPod/.test(platform)) {
+    return { name: "iOS Device", platform };
+  }
+  
+  if (/Android/.test(userAgent)) {
+    return { name: "Android Device", platform };
+  }
+  
+  if (/Win/.test(platform)) {
+    return { name: "Windows Device", platform };
+  }
+  
+  if (/Mac/.test(platform)) {
+    return { name: "Mac Device", platform };
+  }
+  
+  if (/Linux/.test(platform)) {
+    return { name: "Linux Device", platform };
+  }
+  
+  return { name: "Unknown Device", platform };
 };
 
 /**
@@ -140,16 +113,11 @@ const uint8ArrayToHex = (arr: Uint8Array): string => {
  * Ottiene bytes casuali sicuri crittograficamente
  */
 const getRandomBytes = (length: number): Uint8Array => {
-  return pipe(
-    typeof window !== "undefined" && window.crypto,
-    (crypto) => match(crypto, {
-      when: (c) => !!c,
-      then: (c) => c.getRandomValues(new Uint8Array(length)),
-      otherwise: () => {
-        throw new Error("Nessuna implementazione crittografica disponibile");
-      }
-    })
-  );
+  if (typeof window !== "undefined" && window.crypto) {
+    return window.crypto.getRandomValues(new Uint8Array(length));
+  }
+  
+  throw new Error("Nessuna implementazione crittografica disponibile");
 };
 
 /**
@@ -180,31 +148,24 @@ const bufferToBase64 = (buffer: ArrayBuffer): string => {
  * Converte stringa base64 URL-safe in ArrayBuffer
  */
 const base64ToBuffer = (base64: string): ArrayBuffer => {
-  return pipe(
-    base64,
-    (b64) => match(b64, {
-      when: (s) => !/^[A-Za-z0-9\-_]*$/.test(s),
-      then: () => {
-        throw new Error("Invalid base64 string");
-      },
-      otherwise: (s) => {
-        const base64Url = s.replace(/-/g, "+").replace(/_/g, "/");
-        const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
-        const base64Padded = base64Url + padding;
+  if (!/^[A-Za-z0-9\-_]*$/.test(base64)) {
+    throw new Error("Invalid base64 string");
+  }
+  
+  const base64Url = base64.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (base64Url.length % 4)) % 4);
+  const base64Padded = base64Url + padding;
 
-        try {
-          const binary = atob(base64Padded);
-          const buffer = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            buffer[i] = binary.charCodeAt(i);
-          }
-          return buffer.buffer;
-        } catch (error) {
-          throw new Error("Failed to decode base64 string");
-        }
-      }
-    })
-  );
+  try {
+    const binary = atob(base64Padded);
+    const buffer = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      buffer[i] = binary.charCodeAt(i);
+    }
+    return buffer.buffer;
+  } catch (error) {
+    throw new Error("Failed to decode base64 string");
+  }
 };
 
 /**
@@ -241,32 +202,23 @@ class Webauthn {
    * Valida un username
    */
   validateUsername(username: string): void {
-    pipe(
-      username,
-      (uname) => match(uname, {
-        when: (u) => !u || typeof u !== "string",
-        then: () => {
-          throw new Error("Username must be a non-empty string");
-        },
-        otherwise: (u) => match(u, {
-          when: (u2) => u2.length < MIN_USERNAME_LENGTH || u2.length > MAX_USERNAME_LENGTH,
-          then: () => {
-            throw new Error(
-              `Username must be between ${MIN_USERNAME_LENGTH} and ${MAX_USERNAME_LENGTH} characters`
-            );
-          },
-          otherwise: (u3) => match(u3, {
-            when: (u4) => !/^[a-zA-Z0-9_-]+$/.test(u4),
-            then: () => {
-              throw new Error(
-                "Username can only contain letters, numbers, underscores and hyphens"
-              );
-            },
-            otherwise: () => {} // Username è valido
-          })
-        })
-      })
-    );
+    if (!username || typeof username !== "string") {
+      throw new Error("Username must be a non-empty string");
+    }
+    
+    if (username.length < MIN_USERNAME_LENGTH || username.length > MAX_USERNAME_LENGTH) {
+      throw new Error(
+        `Username must be between ${MIN_USERNAME_LENGTH} and ${MAX_USERNAME_LENGTH} characters`
+      );
+    }
+    
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      throw new Error(
+        "Username can only contain letters, numbers, underscores and hyphens"
+      );
+    }
+    
+    // Username è valido
   }
 
   /**
@@ -283,15 +235,13 @@ class Webauthn {
       isNewDevice
     );
     
-    return match(result.success, {
-      when: (success) => !success,
-      then: () => {
-        throw new Error(
-          result.error || "Errore durante la creazione dell'account"
-        );
-      },
-      otherwise: () => result
-    });
+    if (!result.success) {
+      throw new Error(
+        result.error || "Errore durante la creazione dell'account"
+      );
+    }
+    
+    return result;
   }
 
   /**
@@ -339,20 +289,13 @@ class Webauthn {
         publicKey: publicKeyCredentialCreationOptions
       });
 
-      return pipe(
-        credential,
-        (cred) => match(cred, {
-          when: (c) => !c,
-          then: () => {
-            throw new Error("Creazione credenziali fallita");
-          },
-          otherwise: (c) => {
-            console.log("Credenziali create con successo:", c);
-            this.credential = c;
-            return c;
-          }
-        })
-      );
+      if (!credential) {
+        throw new Error("Creazione credenziali fallita");
+      }
+      
+      console.log("Credenziali create con successo:", credential);
+      this.credential = credential;
+      return credential;
     } catch (error: any) {
       console.error("Errore dettagliato nella creazione delle credenziali:", error);
       throw new Error(`Errore nella creazione delle credenziali: ${error.message}`);
@@ -364,28 +307,23 @@ class Webauthn {
    */
   async generateCredentials(username: string, existingCredential?: any, isLogin = false): Promise<any> {
     try {
-      return pipe(
-        isLogin,
-        (login) => match(login, {
-          when: (l) => l,
-          then: () => this.verifyCredential(username),
-          otherwise: async () => {
-            const credential = await this.createCredential(username);
-            const credentialId = (credential as PublicKeyCredential).id;
-            
-            let publicKey = null;
-            if (credential && (credential as any).response?.getPublicKey) {
-              publicKey = (credential as any).response.getPublicKey();
-            }
+      if (isLogin) {
+        return this.verifyCredential(username);
+      } else {
+        const credential = await this.createCredential(username);
+        const credentialId = (credential as PublicKeyCredential).id;
+        
+        let publicKey = null;
+        if (credential && (credential as any).response?.getPublicKey) {
+          publicKey = (credential as any).response.getPublicKey();
+        }
 
-            return {
-              success: true,
-              credentialId,
-              publicKey
-            };
-          }
-        })
-      );
+        return {
+          success: true,
+          credentialId,
+          publicKey
+        };
+      }
     } catch (error: any) {
       console.error("Errore in generateCredentials:", error);
       return {
@@ -420,20 +358,17 @@ class Webauthn {
         publicKey: options
       });
 
-      return pipe(
-        assertion,
-        (assert) => match(assert, {
-          when: (a) => !a,
-          then: () => ({
-            success: false,
-            error: "Verifica delle credenziali fallita"
-          }),
-          otherwise: (a) => ({
-            success: true,
-            credentialId: (a as PublicKeyCredential).id
-          })
-        })
-      );
+      if (!assertion) {
+        return {
+          success: false,
+          error: "Verifica delle credenziali fallita"
+        };
+      }
+      
+      return {
+        success: true,
+        credentialId: (assertion as PublicKeyCredential).id
+      };
     } catch (error: any) {
       console.error("Errore nella verifica delle credenziali:", error);
       return {
@@ -447,24 +382,18 @@ class Webauthn {
    * Salva la credenziale nel database Gun
    */
   private async saveToGun(username: string, credential: any): Promise<void> {
-    pipe(
-      this.gunInstance,
-      (gun) => match(gun, {
-        when: (g) => !!g,
-        then: async (g) => {
-          try {
-            await g.get(`webauthn_${username}`).put({
-              credentialId: credential.id,
-              type: credential.type,
-              timestamp: Date.now()
-            });
-          } catch (error: any) {
-            console.error("Errore nel salvataggio delle credenziali su Gun:", error);
-          }
-        },
-        otherwise: () => {} // Nessuna azione se gunInstance non è disponibile
-      })
-    );
+    if (this.gunInstance) {
+      try {
+        await this.gunInstance.get(`webauthn_${username}`).put({
+          credentialId: credential.id,
+          type: credential.type,
+          timestamp: Date.now()
+        });
+      } catch (error: any) {
+        console.error("Errore nel salvataggio delle credenziali su Gun:", error);
+      }
+    }
+    // Nessuna azione se gunInstance non è disponibile
   }
 
   /**
@@ -475,25 +404,20 @@ class Webauthn {
     credentialId: string,
     credentials: WebAuthnCredentials
   ): Promise<{ success: boolean; updatedCredentials?: WebAuthnCredentials }> {
-    return pipe(
-      credentials,
-      (creds) => match(creds, {
-        when: (c) => !c || !c.credentials || !c.credentials[credentialId],
-        then: () => ({ success: false }),
-        otherwise: (c) => {
-          const updatedCreds = { ...c };
-          // Assicuriamoci che credentials esista prima di modificarlo
-          if (updatedCreds.credentials) {
-            delete updatedCreds.credentials[credentialId];
-          }
+    if (!credentials || !credentials.credentials || !credentials.credentials[credentialId]) {
+      return { success: false };
+    }
+    
+    const updatedCreds = { ...credentials };
+    // Assicuriamoci che credentials esista prima di modificarlo
+    if (updatedCreds.credentials) {
+      delete updatedCreds.credentials[credentialId];
+    }
 
-          return {
-            success: true,
-            updatedCredentials: updatedCreds,
-          };
-        }
-      })
-    );
+    return {
+      success: true,
+      updatedCredentials: updatedCreds,
+    };
   }
 
   /**
@@ -506,60 +430,46 @@ class Webauthn {
     try {
       this.validateUsername(username);
 
-      return pipe(
-        salt,
-        (s) => match(s, {
-          when: (salt) => !salt,
-          then: () => {
-            throw new Error(
-              "Nessuna credenziale WebAuthn trovata per questo username"
-            );
-          },
-          otherwise: async (salt) => {
-            const challenge = generateChallenge(username);
+      if (!salt) {
+        throw new Error(
+          "Nessuna credenziale WebAuthn trovata per questo username"
+        );
+      }
+      
+      const challenge = generateChallenge(username);
 
-            const assertionOptions: PublicKeyCredentialRequestOptions = {
-              challenge,
-              allowCredentials: [],
-              timeout: TIMEOUT_MS,
-              userVerification: "required" as UserVerificationRequirement,
-              rpId: this.rpId,
-            };
+      const assertionOptions: PublicKeyCredentialRequestOptions = {
+        challenge,
+        allowCredentials: [],
+        timeout: TIMEOUT_MS,
+        userVerification: "required" as UserVerificationRequirement,
+        rpId: this.rpId,
+      };
 
-            const abortController = new AbortController();
-            const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_MS);
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_MS);
 
-            try {
-              const assertion = (await navigator.credentials.get({
-                publicKey: assertionOptions,
-                signal: abortController.signal,
-              })) as PublicKeyCredential;
+      try {
+        const assertion = (await navigator.credentials.get({
+          publicKey: assertionOptions,
+          signal: abortController.signal,
+        })) as PublicKeyCredential;
 
-              return pipe(
-                assertion,
-                (assert) => match(assert, {
-                  when: (a) => !a,
-                  then: () => {
-                    throw new Error("Verifica WebAuthn fallita");
-                  },
-                  otherwise: (a) => {
-                    const { password } = generateCredentialsFromSalt(username, salt);
+        if (!assertion) {
+          throw new Error("Verifica WebAuthn fallita");
+        }
+        
+        const { password } = generateCredentialsFromSalt(username, salt);
 
-                    return {
-                      success: true,
-                      username,
-                      password,
-                      credentialId: bufferToBase64(a.rawId),
-                    };
-                  }
-                })
-              );
-            } finally {
-              clearTimeout(timeoutId);
-            }
-          }
-        })
-      );
+        return {
+          success: true,
+          username,
+          password,
+          credentialId: bufferToBase64(assertion.rawId),
+        };
+      } finally {
+        clearTimeout(timeoutId);
+      }
     } catch (error: unknown) {
       console.error("Errore login WebAuthn:", error);
       return {
