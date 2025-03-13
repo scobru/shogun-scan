@@ -5,18 +5,18 @@ contract GunL2 {
     mapping(address => uint256) public balanceGT; // Saldo GunToken (GT)
     mapping(address => uint256) public pendingWithdrawals; // Prelievi in attesa
 
-    uint256 public constant COLLATERAL_RATIO = 80; // Mint max 80% dell'ETH depositato
+    uint256 public constant COLLATERAL_RATIO = 100; // Mint 100% dell'ETH depositato (1:1)
     uint256 public totalETHDeposited;
 
     event Deposit(address indexed user, uint256 amount);
     event WithdrawRequest(address indexed user, uint256 amount);
     event WithdrawCompleted(address indexed user, uint256 amount);
 
-    // Deposito ETH -> Mint parziale di GT
+    // Deposito ETH -> Mint di GT in rapporto 1:1
     function deposit() public payable {
         require(msg.value > 0, "Devi depositare ETH");
 
-        uint256 mintAmount = (msg.value * COLLATERAL_RATIO) / 100;
+        uint256 mintAmount = msg.value; // Non c'è più bisogno di calcolare il COLLATERAL_RATIO
         balanceGT[msg.sender] += mintAmount;
         totalETHDeposited += msg.value;
 

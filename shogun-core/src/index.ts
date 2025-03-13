@@ -849,6 +849,68 @@ export class ShogunCore implements IShogunCore {
   async getGTTransactionHistory(userAddress: string): Promise<any[]> {
     return this.layer2.getTransactionHistory(userAddress);
   }
+
+  /**
+   * Update GT balance for a user - sync on-chain and off-chain balances
+   * @param userAddress User's address
+   * @param newBalance New balance to set or amount to add
+   * @param isIncrement If true, adds the amount to current balance; if false, sets balance to newBalance
+   * @returns Promise resolving with the updated balance
+   */
+  async updateGTBalance(userAddress: string, newBalance: number, isIncrement: boolean = false): Promise<number> {
+    return this.layer2.updateBalance(userAddress, newBalance, isIncrement);
+  }
+
+  /**
+   * Synchronize GT balance with blockchain (using FROZEN SPACE)
+   * @param userAddress User's address to synchronize
+   * @param contractAddress GunL2 contract address
+   * @returns Promise resolving with the synchronized balance
+   * @description Queries the blockchain for the current GT balance and updates the 
+   * FROZEN SPACE in GunDB to ensure data integrity between on-chain and off-chain storage.
+   */
+  async syncGTBalanceWithChain(
+    userAddress: string,
+    contractAddress: string
+  ): Promise<number> {
+    if (!this.provider) {
+      throw new Error("Ethereum provider not initialized");
+    }
+    
+    return this.layer2.syncBalanceWithChain(
+      userAddress,
+      this.provider as ethers.JsonRpcProvider,
+      contractAddress
+    );
+  }
+
+  /**
+   * Get balance sync status from FROZEN SPACE
+   * @param userAddress User's Ethereum address
+   * @returns Promise resolving with sync status including last sync time and block
+   * @description Returns information about when the GT balance was last synchronized 
+   * with the blockchain, helping to verify data freshness and integrity.
+   */
+  async getGTBalanceSyncStatus(userAddress: string): Promise<{
+    balance: number;
+    lastSyncTime?: number;
+    blockNumber?: number;
+    syncType?: string;
+  }> {
+    return this.layer2.getBalanceSyncStatus(userAddress);
+  }
+
+  /**
+   * Get GT balance sync history for a user
+   * @param userAddress User's Ethereum address
+   * @param limit Maximum number of sync events to retrieve
+   * @returns Promise resolving with sync history
+   * @description Retrieves a history of balance synchronization events, showing
+   * when and how the user's GT balance has been updated in FROZEN SPACE.
+   */
+  async getGTSyncHistory(userAddress: string, limit: number = 10): Promise<any[]> {
+    return this.layer2.getSyncHistory(userAddress, limit);
+  }
 }
 
 // Export all types
