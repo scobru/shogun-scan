@@ -16,6 +16,8 @@
     "start-relay": "node shogun-relay/start.js",
     "start-messenger": "cd shogun-messenger-app && yarn start",
     "start-wallet": "cd shogun-wallet-app && yarn dev",
-    "build-sdk": "cd shogun-core && yarn build"
+    "build-sdk": "cd shogun-core && yarn build",
+    "deploy-contracts": "cd shogun-contracts && yarn hardhat ignition deploy ./ignition/module/GunL2.sol",
+    "chain": "cd shogun-contracts && yarn hardhat chain"
   }
 } 
