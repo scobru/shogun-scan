@@ -35,6 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   // Sezioni dell'app
   const sections = [
     { id: "wallet", name: "Wallet", icon: "💰" },
+    { id: "layer2", name: "Layer2", icon: "⚡" },
     { id: "stealth", name: "Stealth", icon: "🕵️" },
     { id: "settings", name: "Impostazioni", icon: "⚙️" }
   ];

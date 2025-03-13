@@ -4,6 +4,7 @@ import { MetaMask } from "./connector/metamask";
 import { Stealth } from "./stealth/stealth";
 import { EventEmitter } from "events";
 import { Storage } from "./storage/storage";
+import { Layer2 } from "./L2/layer2";
 import {
   IShogunCore,
   ShogunSDKConfig,
@@ -25,6 +26,7 @@ export class ShogunCore implements IShogunCore {
   public webauthn: Webauthn;
   public metamask: MetaMask;
   public stealth: Stealth;
+  public layer2: Layer2;
   private storage: Storage;
   private eventEmitter: EventEmitter;
   private walletManager: WalletManager;
@@ -56,6 +58,9 @@ export class ShogunCore implements IShogunCore {
     this.webauthn = new Webauthn();
     this.metamask = new MetaMask();
     this.stealth = new Stealth();
+
+    // Inizializza Layer2 con gli stessi peer di GunDB
+    this.layer2 = new Layer2(config.gundb?.peers || config.peers || CONFIG.PEERS);
 
     // Inizializza il provider Ethereum
     if (config.providerUrl) {
@@ -779,6 +784,71 @@ export class ShogunCore implements IShogunCore {
       throw new Error("Failed to generate mnemonic phrase");
     }
   }
+
+  // Layer2 Methods
+  
+  /**
+   * Send GunTokens (GT) from one user to another
+   * @param sender Sender's address
+   * @param receiver Receiver's address
+   * @param amount Amount of GT to send
+   * @param privateKey Sender's private key for transaction signature
+   * @returns Promise resolving when transaction is complete
+   */
+  async sendGT(sender: string, receiver: string, amount: number, privateKey: string): Promise<void> {
+    return this.layer2.sendGT(sender, receiver, amount, privateKey);
+  }
+
+  /**
+   * Get GT balance of a user
+   * @param user User's address
+   * @returns Promise resolving with the user's balance
+   */
+  async getGTBalance(user: string): Promise<number> {
+    return this.layer2.getBalance(user);
+  }
+
+  /**
+   * Request withdrawal of tokens (interacts with smart contract)
+   * @param amount Amount to withdraw in ETH
+   * @param userAddress User's Ethereum address
+   * @param privateKey User's private key
+   * @param contractAddress Address of the smart contract
+   * @param contractABI ABI of the smart contract
+   * @returns Promise resolving when withdrawal request is sent
+   */
+  async requestWithdrawGT(
+    amount: number,
+    userAddress: string,
+    privateKey: string,
+    contractAddress: string,
+    contractABI: string | any[]
+  ): Promise<void> {
+    if (!this.provider) {
+      throw new Error("Ethereum provider not initialized");
+    }
+    
+    // Get provider URL from the initialized provider
+    const providerUrl = (this.provider as any).connection?.url || "http://localhost:8545";
+    
+    return this.layer2.requestWithdrawGT(
+      amount,
+      userAddress,
+      privateKey,
+      providerUrl,
+      contractAddress,
+      contractABI
+    );
+  }
+
+  /**
+   * Get transaction history for a user
+   * @param userAddress User's address
+   * @returns Promise resolving with user's transactions
+   */
+  async getGTTransactionHistory(userAddress: string): Promise<any[]> {
+    return this.layer2.getTransactionHistory(userAddress);
+  }
 }
 
 // Export all types
@@ -795,3 +865,4 @@ export {
 export { Webauthn } from "./webauthn/webauthn";
 export { Storage } from "./storage/storage";
 export { ShogunEventEmitter } from "./events";
+export { Layer2 } from "./L2/layer2";

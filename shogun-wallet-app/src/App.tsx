@@ -12,7 +12,7 @@ import { ethers } from "ethers";
 import { TokenService } from "./services/TokenService";
 import { TokenManager } from "./components/TokenManager";
 import StealthSection from "./components/StealthSection";
-import PaymentChannelManager from './components/PaymentChannelManager';
+import Layer2Section from "./components/Layer2Section";
 import { QRCode } from "react-qr-svg";
 
 // Inizializzazione del connettore Shogun
@@ -1913,6 +1913,17 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+        );
+      case "layer2":
+        return (
+          <Layer2Section
+            sdk={sdk}
+            selectedAddress={selectedAddress}
+            provider={provider}
+            contractAddress={connectorConfig.paymentChannelContract}
+            userEpub={userEpub}
+            setErrorMessage={setErrorMessage}
+          />
         );
       case "stealth":
         return (

@@ -19,12 +19,8 @@ function shogunConnector({
     // Configurazione principale per gun 
     peers: ["http://localhost:8765/gun"],
 
-    // Configurazione WebSocket esplicita
-    websocket: {
-      secure: websocketSecure,
-      mode: 'websocket',
-      path: '/gun'
-    },
+    // Configurazione WebSocket
+    websocket: websocketSecure, // Convertito in booleano
     
     // Sottoconfigurazioni opzionali per Gun
     gundb: {
@@ -38,11 +34,6 @@ function shogunConnector({
       prefix: appName || "shogun",
     },
     
-    // Configurazione di Hedgehog
-    hedgehog: {
-      appName: appName || "Shogun App",
-      storage: typeof localStorage !== 'undefined' ? localStorage : null
-    },
     
     // Configurazione di MetaMask
     metamask: {

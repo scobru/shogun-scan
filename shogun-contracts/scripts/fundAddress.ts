@@ -5,7 +5,10 @@ async function main() {
   const [sender] = await ethers.getSigners();
 
   // Address to fund
-  const receiverAddress = "0x7748fEd982C54e640F4F0D9a93f923D5Bd067aaD"; // Replace with target address
+  const receiverAddress = "0x0610DE02f233474f86eB6C036E8E8b228359De4f";
+  
+  // checksum the address 
+  const checksumAddress = ethers.getAddress(receiverAddress);
   
   // Amount to send in ETH
   const amountInEth = "1.0";
@@ -20,7 +23,7 @@ async function main() {
 
   // Send transaction
   const tx = await sender.sendTransaction({
-    to: receiverAddress,
+    to: checksumAddress,
     value: amountInWei
   });
 
