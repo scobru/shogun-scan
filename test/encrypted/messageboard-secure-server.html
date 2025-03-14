@@ -15,46 +15,91 @@
 </head>
 <body><pre id="log"></pre></body>
 <script>
-  log("*BUGOFF SECURE SERVER*");
-  log("\nmessageboard secure server\n");
+  // Simple logging function
+  function log() {
+    var args = Array.prototype.slice.call(arguments);
+    console.log.apply(null, args);
+    args = args.map(function(a) { if (typeof(a) == "string") return a; else return JSON.stringify(a); });
+    document.getElementById("log").textContent += args.join(" ") + "\n";
+  }
+
+  log("*PANPOT SECURE SERVER*");
+  log("\nMessaggi sicuri P2P\n");
   log("(view source to see the server code)\n");
 
-  // instantiate our bugoff instance
-  var seed = localStorage["bugoff-messageboard-seed"];
-  var b = new Bugoff(null, {seed: seed});
-  // save the seed for next time
-  localStorage["bugoff-messageboard-seed"] = b.bugout.seed;
-  
-  // Variable to track if we're ready
-  var isReady = false;
+  // Custom trackers that are more reliable
+  var customTrackers = [
+    "wss://tracker.openwebtorrent.com",
+    "wss://tracker.btorrent.xyz",
+    "wss://tracker.files.fm:7073/announce",
+    "wss://tracker.webtorrent.dev",
+    "wss://tracker.sloppyta.co:443/announce",
+    "wss://spacetradersapi-chatbox.herokuapp.com:443/announce"
+  ];
 
-  // Initialize SEA encryption
-  b.SEA().then(pair => {
-    log("SEA encryption initialized");
-    // log this server's address
-    log("address:", b.address);
-    log("announcing...");
-    
-    // Force proceed after some time if we don't get any connection
-    setTimeout(function() {
-      if (!isReady) {
-        log("Nessuna connessione rilevata, proseguimento forzato...");
-        forceServerReady();
-      }
-    }, 10000); // Wait 10 seconds before forcing ready state
-  });
+  // instantiate our bugout instance directly for better control
+  var seed = localStorage["bugout-messageboard-seed"];
+  var bugoutOpts = {
+    trackers: customTrackers,
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' }
+    ]
+  };
   
-  // Function to force server into ready state
-  function forceServerReady() {
-    if (!isReady) {
-      isReady = true;
+  // Add seed if exists
+  if (seed) {
+    bugoutOpts.seed = seed;
+  }
+  
+  log("Inizializzazione con trackers personalizzati...");
+  var b = new Bugout(bugoutOpts);
+  var serverAddress = b.address();
+  
+  // Save seed for next time
+  localStorage["bugout-messageboard-seed"] = b.seed;
+  log("Seed salvato:", b.seed.substring(0, 10) + "...");
+  
+  // SEA variables
+  var sea = null;
+  var peers = {};
+  
+  // Initialize SEA for encryption
+  async function initSEA() {
+    try {
+      sea = await SEA.pair();
+      log("Crittografia SEA inizializzata");
+      return sea;
+    } catch (e) {
+      log("Errore inizializzazione SEA:", e);
+      return null;
+    }
+  }
+
+  // Initialize SEA
+  initSEA().then(function(pair) {
+    // Log server's address
+    log("Indirizzo server:", serverAddress);
+    log("Annuncio in corso...");
+    
+    // Try to force announce after a delay
+    setTimeout(function() {
+      try {
+        if (b.torrent && b.torrent.discovery && typeof b.torrent.discovery.announce === 'function') {
+          log("Annuncio forzato ai tracker...");
+          b.torrent.discovery.announce();
+        }
+      } catch (e) {
+        log("Annuncio fallito:", e);
+      }
       
-      log("ready (forzato)");
+      // Show server ready message anyway
+      log("Server pronto!");
       
-      // link to the messageboard client URL
-      var clientURL = document.location.href.replace("-server", "") + "#" + b.address;
+      // Link to the client URL
+      var clientURL = document.location.href.replace("-server", "") + "#" + serverAddress;
       
-      // qrcode for the client URL
+      // QR code for the client URL
       if (window.innerWidth > 600) {
         log(qr(clientURL));
       } else {
@@ -62,39 +107,50 @@
       }
       
       log(clientURL + "\n");
-      log("Connect back to this secure server-in-a-tab using the link above.");
-      
-      // Force announce every minute to improve connectivity
-      setInterval(function() {
-        b.forceAnnounce();
-        log("Annuncio forzato ai tracker...");
-      }, 60000);
-    }
-  }
+      log("Connettiti al server usando il link qui sopra.");
+    }, 5000);
+  });
 
   // load messages from previous run
   var messages = [];
-  if (localStorage["bugoff-messageboard"]) {
+  if (localStorage["bugout-messageboard"]) {
     try {
-      messages = JSON.parse(localStorage["bugoff-messageboard"]);
+      messages = JSON.parse(localStorage["bugout-messageboard"]);
+      log("Messaggi caricati:", messages.length);
     } catch (e) {
-      log("Error loading previous messages:", e);
+      log("Errore caricamento messaggi:", e);
     }
   }
   if (typeof(messages) != "object" || !messages["length"]) {
     messages = [];
   }
 
-  /*** rpc calls ***/
+  // Register 'peer' RPC for key exchange
+  b.register('peer', function(address, remoteSea, cb) {
+    if (!remoteSea || !remoteSea.pub || !remoteSea.epub) {
+      log("Chiavi peer non valide da:", address);
+      if (cb) cb(false);
+      return;
+    }
+    
+    peers[address] = {pub: remoteSea.pub, epub: remoteSea.epub};
+    log("Chiavi ricevute da:", address);
+    
+    // Send our keys back if we have them
+    if (sea && cb) {
+      cb(sea);
+    } else {
+      if (cb) cb(true);
+    }
+  });
 
-  // simple "ping" rpc call
+  // Register standard APIs for the messageboard
   b.register("ping", function(address, args, cb) {
     args["pong"] = Math.random();
     cb(args);
   });
 
-  /*** messageboard server API ***/
-
+  // Post message API
   b.register("post", function(address, message, cb) {
     if (typeof(message) == "string" && message.length < 280) {
       // Extract nickname if present (format: "Nickname: message")
@@ -114,91 +170,62 @@
         nick: nickname
       };
       
-      log("messageboard:", m);
+      log("Nuovo messaggio:", m);
       messages.push(m);
       messages = messages.slice(Math.max(0, messages.length - 10));
-      localStorage["bugoff-messageboard"] = JSON.stringify(messages);
+      localStorage["bugout-messageboard"] = JSON.stringify(messages);
       cb(true);
       
-      // Send refresh notification to all connected clients
-      // Use the encrypted broadcast mechanism of Bugoff
+      // Send refresh notification to all clients
       b.send("refresh");
     } else {
       cb(false);
     }
   }, "Post a message to the board");
 
+  // List messages API
   b.register("list", function(address, args, cb) {
     cb(messages.slice().reverse());
   }, "List most recent messages");
 
-  /*** logging ***/
-
-  // log when network connectivity changes
-  var connected = false;
-  b.on("connections", function(c) {
-    log("connections:", c);
-    
-    if (c == 0 && connected == false) {
-      connected = true;
-      isReady = true;
-      log("ready");
-      // link to the messageboard client URL
-      var clientURL = document.location.href.replace("-server", "") + "#" + b.address;
-      // qrcode for the client URL
-      if (window.innerWidth > 600) {
-        log(qr(clientURL));
-      } else {
-        log();
-      }
-      log(clientURL + "\n");
-      log("Connect back to this secure server-in-a-tab using the link above.");
-    }
-  });
-  
-  // Listen for torrent initialization
-  b.bugout.on("torrentinitialized", function() {
-    log("Torrent inizializzato!");
-    
-    // Ensure tracker URLs are correct
-    log("Trackers configurati:", b.bugout.trackers);
-    
-    // Force announce after 5 seconds
-    setTimeout(function() {
-      b.forceAnnounce();
-      log("Annuncio forzato ai tracker...");
-    }, 5000);
-  });
-
-  // Listen for decrypted messages
-  b.bugout.on("decrypted", function(address, pubkeys, msg) { 
-    log("decrypted message:", address, msg); 
-  });
-
-  // log when a client makes an rpc call
-  b.on("rpc", function(address, call, args) { log("rpc:", address, call, args); });
-
-  // log when we see a new client address
+  // Event handlers
   b.on("seen", function(address) { 
-    log("seen:", address);
-    // If we see a peer but still not ready, force ready state
-    if (!isReady) {
-      forceServerReady();
+    log("Nuovo peer:", address);
+    
+    // Send our keys to new peer if available
+    if (sea) {
+      b.rpc(address, "peer", sea, function(result) {
+        if (result && result.pub) {
+          log("Scambio chiavi completato con:", address);
+          peers[address] = {pub: result.pub, epub: result.epub};
+        }
+      });
     }
   });
 
-  // Event listener for new peer registration
-  b.events.on("newPeer", function(peers) {
-    log("peers updated:", Object.keys(peers).length, "connected");
+  b.on("connections", function(count) {
+    log("Connessioni attive:", count);
   });
 
-  // simple logging function
-  function log() {
-    var args = Array.prototype.slice.call(arguments);
-    console.log.apply(null, args);
-    args = args.map(function(a) { if (typeof(a) == "string") return a; else return JSON.stringify(a); });
-    document.getElementById("log").textContent += args.join(" ") + "\n";
-  }
+  b.on("rpc", function(address, call, args) { 
+    log("RPC da", address + ":", call); 
+  });
+
+  b.on("message", function(address, message) { 
+    log("Messaggio da", address + ":", message); 
+  });
+
+  // Periodic announce to improve connections
+  setInterval(function() {
+    try {
+      if (b.torrent && b.torrent.discovery && typeof b.torrent.discovery.announce === 'function') {
+        b.torrent.discovery.announce();
+        log("Annuncio periodico...");
+      }
+    } catch (e) {
+      // Silent fail
+    }
+  }, 60000);
 
   // generate a text based qr code
   function qr(txt) {
