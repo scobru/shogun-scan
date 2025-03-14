@@ -19,8 +19,13 @@
     <p>Bugout message board example.</p>
     <p>connected: <span id="connected">no</span></p>
     <div id="ui" style="display: none">
-      <input id="message" maxlength="279" placeholder="Your message..." />
-      <button id="send">send</button>
+      <div class="input-group">
+        <input id="username" maxlength="30" placeholder="Il tuo username..." />
+      </div>
+      <div class="input-group">
+        <input id="message" maxlength="279" placeholder="Il tuo messaggio..." />
+        <button id="send">invia</button>
+      </div>
     </div>
     <pre id="messages"></pre>
     <p>
@@ -48,6 +53,12 @@
       b.SEA()
         .then(function () {
           console.log("SEA initialized with keypair");
+          
+          // Carica l'username salvato se disponibile
+          var savedUsername = localStorage["bugout-username"];
+          if (savedUsername) {
+            document.getElementById("username").value = savedUsername;
+          }
         })
         .catch(function (err) {
           console.error("Error initializing SEA:", err);
@@ -81,17 +92,25 @@
       window.location.hash.substr(1) || "bUH7ukDvd9R2xLLRKMKWZ1mGPkgdVfufye";
       
       var m = document.getElementById("message");
+      var usernameInput = document.getElementById("username");
+      
+      // Salva l'username in localStorage per riutilizzarlo in futuro
+      if (usernameInput.value) {
+        localStorage["bugout-username"] = usernameInput.value;
+      }
+      
+      // Usa l'username salvato o "Anonimo" se non specificato
+      var username = usernameInput.value || localStorage["bugout-username"] || "Anonimo";
+      
       if (m.value) {
         msglist.textContent = "Sending message...";
-        // Usa esattamente la stessa logica del file originale
-
-        // b.rpc("post", m.value, function () {
-        //   // Non facciamo nulla qui, il server invierà un messaggio "refresh"
-        //   // quando i messaggi cambiano, esattamente come nel file originale
-        // });
-
-        b.send(serveraddress, m.value)
-
+        
+        // Crea un messaggio formattato con username e testo
+        var formattedMessage = username + ": " + m.value;
+        
+        // Invia il messaggio mantenendo la struttura attuale
+        b.send(serveraddress, formattedMessage);
+        
         m.value = "";
       }
     };
@@ -154,14 +173,24 @@
     function updateMessagelist(messages) {
       msglist.textContent = messages
         .map(function (m) {
+          // Estrai username e messaggio se possibile
+          var messageText = m.m;
+          var sender = m.address;
+          
+          // Prova a estrarre l'username dal formato "username: messaggio"
+          var usernameMatch = messageText.match(/^([^:]+):\s*(.*)/);
+          if (usernameMatch) {
+            sender = usernameMatch[1];
+            messageText = usernameMatch[2];
+          }
+          
           return (
             new Date(m.t).toString() +
             "\n" +
-            "From: " +
-            m.address +
+            "Da: " + sender +
             "\n" +
             "\n" +
-            m.m +
+            messageText +
             "\n"
           );
         })
@@ -198,6 +227,10 @@
 
     input {
       width: 100%;
+      padding: 0.5em;
+      margin-bottom: 0.5em;
+      border-radius: 3px;
+      border: 1px solid #ccc;
     }
 
     button {
@@ -209,6 +242,15 @@
       font-size: 1.25em;
       float: right;
       margin-top: 0.5em;
+    }
+
+    .input-group {
+      margin-bottom: 1em;
+    }
+    
+    #username {
+      font-weight: bold;
+      background-color: #f5f5f5;
     }
   </style>
 </html>
