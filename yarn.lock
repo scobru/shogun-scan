@@ -3679,7 +3679,7 @@ bn.js@^4.0.0, bn.js@^4.1.0, bn.js@^4.11.8, bn.js@^4.11.9:
   resolved "https://registry.yarnpkg.com/bn.js/-/bn.js-4.12.1.tgz#215741fe3c9dba2d7e12c001d0cfdbae43975ba7"
   integrity sha512-k8TVBiPkPJT9uHLdOKfFpqcfprwBFOAAXXozRubr7R7PfIuKvQlzcI4M0pALeqXN09vdaMbUdUj+pass+uULAg==
 
-bn.js@^5.2.1:
+bn.js@^5.2.0, bn.js@^5.2.1:
   version "5.2.1"
   resolved "https://registry.yarnpkg.com/bn.js/-/bn.js-5.2.1.tgz#0bc527a6a0d18d0aa8d5b0538ce4a77dccfa7b70"
   integrity sha512-eXRvHzWyYPBuB4NBy0cmYQjGitUrtqwbvlzP3G6VFnNRbsZQIxQ10PbKKHt8gZ/HW/D/747aDl+QkDqg3KQLMQ==
@@ -3835,6 +3835,11 @@ buffer-from@^1.0.0:
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/buffer-from/-/buffer-from-1.1.2.tgz#2b146a6fd72e80b4f55d255f35ed59a3a9a41bd5"
   integrity sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==
+
+buffer-reverse@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/buffer-reverse/-/buffer-reverse-1.0.1.tgz#49283c8efa6f901bc01fa3304d06027971ae2f60"
+  integrity sha512-M87YIUBsZ6N924W57vDwT/aOu8hw7ZgdByz6ijksLjmHJELBASmYTTlNHRgjE+pTsT9oJXGaDSgqqwfdHotDUg==
 
 buffer-xor@^1.0.3:
   version "1.0.3"
@@ -4180,6 +4185,11 @@ crypto-browserify@^3.12.1:
     public-encrypt "^4.0.3"
     randombytes "^2.1.0"
     randomfill "^1.0.4"
+
+crypto-js@^4.2.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/crypto-js/-/crypto-js-4.2.0.tgz#4d931639ecdfd12ff80e8186dba6af2c2e856631"
+  integrity sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==
 
 crypto-random-string@^2.0.0:
   version "2.0.0"
@@ -6992,6 +7002,24 @@ k-bucket@^5.0.0, k-bucket@^5.1.0:
   dependencies:
     randombytes "^2.1.0"
 
+keccak256@^1.0.6:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/keccak256/-/keccak256-1.0.6.tgz#dd32fb771558fed51ce4e45a035ae7515573da58"
+  integrity sha512-8GLiM01PkdJVGUhR1e6M/AvWnSqYS0HaERI+K/QtStGDGlSTx2B1zTqZk4Zlqu5TxHJNTxWAdP9Y+WI50OApUw==
+  dependencies:
+    bn.js "^5.2.0"
+    buffer "^6.0.3"
+    keccak "^3.0.2"
+
+keccak@^3.0.2:
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/keccak/-/keccak-3.0.4.tgz#edc09b89e633c0549da444432ecf062ffadee86d"
+  integrity sha512-3vKuW0jV8J3XNTzvfyicFR5qvxrSAGl7KIhvgOu5cmWwM7tZRj3fMbj/pfIf4be7aznbc+prBWGjywox/g2Y6Q==
+  dependencies:
+    node-addon-api "^2.0.0"
+    node-gyp-build "^4.2.0"
+    readable-stream "^3.6.0"
+
 keypair@^1.0.1:
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/keypair/-/keypair-1.0.4.tgz#a749a45f388593f3950f18b3757d32a93bd8ce83"
@@ -7781,6 +7809,15 @@ merge2@^1.3.0:
   resolved "https://registry.yarnpkg.com/merge2/-/merge2-1.4.1.tgz#4368892f885e907455a6fd7dc55c0c9d404990ae"
   integrity sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==
 
+merkletreejs@^0.5.1:
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/merkletreejs/-/merkletreejs-0.5.1.tgz#cbb30f5db453b437510c0d32f91ec969a63c8e83"
+  integrity sha512-iR1MI07/HvioeZUvG9EQorcY6zSun8LCmW4jqNbHdecv2XsOt7qYMHWspcjY//lwaSM8/GUMX7ehpm/+UvqrqQ==
+  dependencies:
+    buffer-reverse "^1.0.1"
+    crypto-js "^4.2.0"
+    treeify "^1.1.0"
+
 methods@~1.1.2:
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/methods/-/methods-1.1.2.tgz#5529a4d67654134edcc5266656835b0f851afcee"
@@ -8212,6 +8249,11 @@ next@14.2.16:
     "@next/swc-win32-arm64-msvc" "14.2.16"
     "@next/swc-win32-ia32-msvc" "14.2.16"
     "@next/swc-win32-x64-msvc" "14.2.16"
+
+node-addon-api@^2.0.0:
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-2.0.2.tgz#432cfa82962ce494b132e9d72a15b29f71ff5d32"
+  integrity sha512-Ntyt4AIXyaLIuMHF6IOoTakB3K+RWxwtsHNRxllEoA6vPwP9o4866g6YWDLUdnucilZhmkxiHwHr11gAENw+QA==
 
 node-fetch@^2.6.1, node-fetch@^2.6.8:
   version "2.7.0"
@@ -9958,20 +10000,20 @@ shebang-regex@^3.0.0:
   version "0.1.0"
   dependencies:
     prettier "^3.5.3"
-    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-react-0.1.0-7f666912-3ee4-48e0-9ac3-a51801c148c6-1741817570641/node_modules/shogun-core"
+    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-react-0.1.0-440ddb6c-f4b2-4679-9147-ee5c7ddffe2e-1741897259876/node_modules/shogun-core"
 
 "shogun-button@file:shogun-button-react":
   version "0.1.0"
   dependencies:
     prettier "^3.5.3"
-    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-0.1.0-7f666912-3ee4-48e0-9ac3-a51801c148c6-1741817570641/node_modules/shogun-core"
+    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-button-0.1.0-440ddb6c-f4b2-4679-9147-ee5c7ddffe2e-1741897259876/node_modules/shogun-core"
 
 "shogun-core@file:shogun-core":
   version "0.1.0"
   dependencies:
     base64url "^3.0.1"
     ethers "^6.11.1"
-    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-core-0.1.0-4b55a055-5eaa-4fb1-bd7b-673fa4a47765-1741817570643/node_modules/gun"
+    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-core-0.1.0-f4f4d319-e782-4a57-b0f5-7e251166302d-1741897259874/node_modules/gun"
     prettier "^3.5.3"
 
 "shogun-protocol@file:shogun-protocol":
@@ -9979,12 +10021,12 @@ shebang-regex@^3.0.0:
   dependencies:
     axios "^0.24.0"
     ethers "^6.0.0"
-    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-149aa374-db49-401e-ab98-15648e842192-1741817570642/node_modules/gun"
+    gun "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-3853d8b4-ec75-4980-8318-907611bd2e1a-1741897259878/node_modules/gun"
     gun-avatar "^1.3.5"
     hyperswarm-web "^2.1.1"
     jose "^5.1.0"
     rxjs "^7.4.0"
-    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-149aa374-db49-401e-ab98-15648e842192-1741817570642/node_modules/shogun-core"
+    shogun-core "file:C:/Users/scobr/AppData/Local/Yarn/Cache/v6/npm-shogun-protocol-0.1.4-3853d8b4-ec75-4980-8318-907611bd2e1a-1741897259878/node_modules/shogun-core"
     slugid "^3.0.0"
     sodium-universal "^3.0.4"
     uuid "^8.3.2"
@@ -10650,6 +10692,11 @@ tr46@~0.0.3:
   version "0.0.3"
   resolved "https://registry.yarnpkg.com/tr46/-/tr46-0.0.3.tgz#8184fd347dac9cdc185992f3a6622e14b9d9ab6a"
   integrity sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==
+
+treeify@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/treeify/-/treeify-1.1.0.tgz#4e31c6a463accd0943879f30667c4fdaff411bb8"
+  integrity sha512-1m4RA7xVAJrSGrrXGs0L3YTwyvBs2S8PbRHaLZAkFw7JR8oIFwYtysxlBZhYIa7xSyiYJKZ3iGrrk55cGA3i9A==
 
 truncate-utf8-bytes@^1.0.0:
   version "1.0.2"

@@ -133,6 +133,9 @@ export interface ShogunSDKConfig {
   providerUrl?: string;
   /** Indirizzo del contratto per i canali di pagamento */
   paymentChannelContract?: string;
+  radisk?: boolean;
+  localStorage?: boolean;
+  stateAuthority?: string;
 }
 
 export interface WalletInfo {

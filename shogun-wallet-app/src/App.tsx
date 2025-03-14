@@ -15,16 +15,15 @@ import StealthSection from "./components/StealthSection";
 import Layer2Section from "./components/Layer2Section";
 import { QRCode } from "react-qr-svg";
 
-// Inizializzazione del connettore Shogun
+// Modifica la configurazione per utilizzare il provider locale
 const connectorConfig = {
   appName: "Shogun Wallet",
-  appDescription: "Wallet per criptovalute basato su Shogun",
-  appUrl: "http://localhost:3000",
-  showMetamask: true,
-  showWebauthn: true,
-  darkMode: true,
-  websocketSecure: false, // Usa WebSocket non sicuro
-  paymentChannelContract: "0x5FbDB2315678afecb367f032d93F642f64180aa3" // Indirizzo del contratto singleton
+  appDescription: "Un wallet Layer2 per GunDB",
+  appUrl: "http://localhost:5173",
+  paymentChannelContract: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 ",
+  providerUrl: "http://localhost:8545", // Uso provider locale Hardhat
+  gunPeers: ["http://localhost:8765/gun"],
+  stateAuthority: "http://localhost:8765" // Usiamo lo stesso server GUN come State Authority
 };
 
 // Creazione del connettore Shogun per il pulsante con controllo errori
@@ -1909,21 +1908,11 @@ const App: React.FC = () => {
                   address={selectedAddress}
                   provider={provider}
                   networkId={selectedRpc} // Passa la rete selezionata
+                  privateKey={derivedWallets.find(w => w.address === selectedAddress)?.wallet?.privateKey || ""}
                 />
               </div>
             )}
           </div>
-        );
-      case "layer2":
-        return (
-          <Layer2Section
-            sdk={sdk}
-            selectedAddress={selectedAddress}
-            provider={provider}
-            contractAddress={connectorConfig.paymentChannelContract}
-            userEpub={userEpub}
-            setErrorMessage={setErrorMessage}
-          />
         );
       case "stealth":
         return (

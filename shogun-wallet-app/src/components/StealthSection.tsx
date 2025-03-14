@@ -398,21 +398,21 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
   };
 
   return (
-    <div className="py-4">
-      <h2 className="text-2xl font-bold mb-6">Indirizzi Stealth</h2>
+    <div className="py-6 px-4">
+      <h2 className="text-2xl font-bold mb-8">Indirizzi Stealth</h2>
       
-      <div className="p-4 bg-blue-900 rounded-lg mb-6">
-        <p>
+      <div className="p-6 bg-blue-900 rounded-lg mb-8">
+        <p className="text-base">
           Gli <strong>indirizzi stealth</strong> permettono di ricevere pagamenti in modo anonimo, generando un indirizzo usa-e-getta
           per ogni transazione. Solo il destinatario può determinare la chiave privata corrispondente.
         </p>
       </div>
       
-      <div className="flex space-x-4 mb-6">
+      <div className="flex space-x-5 mb-8">
         <button
-          className={`flex-1 p-3 rounded ${
-            showStealthBox ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
-          }`}
+          className={`flex-1 py-4 px-5 rounded-md ${
+            showStealthBox ? "bg-blue-600 font-medium" : "bg-gray-700 hover:bg-gray-600"
+          } transition-colors`}
           onClick={() => {
             setShowStealthBox(true);
             setShowStealthOpener(false);
@@ -422,9 +422,9 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
           Genera Indirizzo
         </button>
         <button
-          className={`flex-1 p-3 rounded ${
-            showStealthOpener ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
-          }`}
+          className={`flex-1 py-4 px-5 rounded-md ${
+            showStealthOpener ? "bg-blue-600 font-medium" : "bg-gray-700 hover:bg-gray-600"
+          } transition-colors`}
           onClick={() => {
             setShowStealthOpener(true);
             setShowStealthBox(false);
@@ -434,9 +434,9 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
           Apri Indirizzo
         </button>
         <button
-          className={`flex-1 p-3 rounded ${
-            showHistory ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
-          }`}
+          className={`flex-1 py-4 px-5 rounded-md ${
+            showHistory ? "bg-blue-600 font-medium" : "bg-gray-700 hover:bg-gray-600"
+          } transition-colors`}
           onClick={() => {
             setShowHistory(true);
             setShowStealthBox(false);
@@ -449,28 +449,28 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
       
       {/* Sezione Storico */}
       {showHistory && (
-        <div className="bg-gray-800 rounded-lg p-6 mb-4">
-          <h3 className="text-xl font-bold mb-4">Storico Indirizzi Stealth</h3>
+        <div className="bg-gray-800 rounded-lg p-7 mb-6">
+          <h3 className="text-xl font-bold mb-6">Storico Indirizzi Stealth</h3>
           
           {stealthHistory.length === 0 ? (
-            <p className="text-gray-400">Nessun indirizzo stealth nello storico.</p>
+            <p className="text-gray-400 py-3">Nessun indirizzo stealth nello storico.</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {stealthHistory.map((item, index) => (
-                <div key={index} className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
+                <div key={index} className="bg-gray-700 rounded-lg p-5">
+                  <div className="flex justify-between items-start mb-3">
                     <div className="font-mono text-sm break-all">
                       <span className="text-gray-400">Indirizzo:</span> {item.address}
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-3">
                       <button
-                        className="p-1 bg-blue-600 rounded hover:bg-blue-700 text-xs"
+                        className="px-3 py-1.5 bg-blue-600 rounded hover:bg-blue-700 text-xs transition-colors"
                         onClick={() => useStealthFromHistory(item)}
                       >
                         Usa
                       </button>
                       <button
-                        className="p-1 bg-red-600 rounded hover:bg-red-700 text-xs"
+                        className="px-3 py-1.5 bg-red-600 rounded hover:bg-red-700 text-xs transition-colors"
                         onClick={() => removeFromHistory(item.address)}
                       >
                         Elimina
@@ -478,9 +478,9 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
                     </div>
                   </div>
                   
-                  <div className="text-xs mb-2">
+                  <div className="text-xs mb-3">
                     <span className="text-gray-400">Chiave effimera:</span>
-                    <div className="font-mono text-sm break-all">{item.ephemeralKey}</div>
+                    <div className="font-mono text-sm break-all mt-1 p-2 bg-gray-800 rounded">{item.ephemeralKey}</div>
                   </div>
                   
                   <div className="text-xs text-gray-400">
@@ -492,9 +492,9 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
           )}
           
           {stealthHistory.length > 0 && (
-            <div className="mt-4">
+            <div className="mt-6">
               <button
-                className="p-2 bg-red-600 rounded hover:bg-red-700 text-sm"
+                className="px-4 py-2.5 bg-red-600 rounded hover:bg-red-700 text-sm transition-colors"
                 onClick={() => {
                   if (window.confirm("Sei sicuro di voler cancellare tutto lo storico?")) {
                     localStorage.removeItem("stealthHistory");
@@ -511,21 +511,21 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
       
       {/* Panel per generare un indirizzo stealth */}
       {showStealthBox && (
-        <div className="bg-gray-800 rounded-lg p-6 mb-4">
-          <h3 className="text-xl font-bold mb-4">Genera un indirizzo stealth</h3>
-          <div className="mb-4">
-            <label className="block text-gray-400 mb-2">
+        <div className="bg-gray-800 rounded-lg p-7 mb-6">
+          <h3 className="text-xl font-bold mb-6">Genera un indirizzo stealth</h3>
+          <div className="mb-5">
+            <label className="block text-gray-400 mb-3">
               Chiave pubblica del destinatario
             </label>
             <input
-              className="w-full p-3 bg-gray-700 rounded"
+              className="w-full py-3.5 px-4 bg-gray-700 rounded"
               value={recipientPublicKey}
               onChange={(e) => setRecipientPublicKey(e.target.value)}
               placeholder="Inserisci la chiave pubblica del destinatario..."
             />
           </div>
           <button
-            className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
+            className="w-full py-4 bg-blue-600 rounded hover:bg-blue-700 mb-5 transition-colors"
             onClick={generateStealthAddress}
             disabled={generatingStealthAddress}
           >
@@ -533,17 +533,17 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
           </button>
           
           {stealthAddress && (
-            <div className="mt-4">
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Indirizzo Stealth</label>
+            <div className="mt-6">
+              <div className="mb-5">
+                <label className="block text-gray-400 mb-3">Indirizzo Stealth</label>
                 <div className="flex">
                   <input
-                    className="flex-1 p-3 bg-gray-700 rounded-l"
+                    className="flex-1 py-3.5 px-4 bg-gray-700 rounded-l"
                     value={stealthAddress}
                     readOnly
                   />
                   <button
-                    className="p-3 bg-blue-600 rounded-r"
+                    className="px-4 bg-blue-600 rounded-r hover:bg-blue-700 transition-colors"
                     onClick={() => {
                       navigator.clipboard.writeText(stealthAddress);
                       setErrorMessage("Indirizzo stealth copiato negli appunti!");
@@ -554,16 +554,16 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
                   </button>
                 </div>
               </div>
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Chiave Pubblica Effimera</label>
+              <div className="mb-5">
+                <label className="block text-gray-400 mb-3">Chiave Pubblica Effimera</label>
                 <div className="flex">
                   <input
-                    className="flex-1 p-3 bg-gray-700 rounded-l"
+                    className="flex-1 py-3.5 px-4 bg-gray-700 rounded-l"
                     value={ephemeralPublicKey}
                     readOnly
                   />
                   <button
-                    className="p-3 bg-blue-600 rounded-r"
+                    className="px-4 bg-blue-600 rounded-r hover:bg-blue-700 transition-colors"
                     onClick={() => {
                       navigator.clipboard.writeText(ephemeralPublicKey);
                       setErrorMessage("Chiave pubblica effimera copiata negli appunti!");
@@ -574,7 +574,7 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
                   </button>
                 </div>
               </div>
-              <div className="p-4 bg-yellow-800 rounded mt-4">
+              <div className="p-5 bg-yellow-800 rounded mt-5">
                 <p className="font-bold mb-2">Importante:</p>
                 <p>
                   Condividi sia l'indirizzo stealth che la chiave pubblica effimera con il destinatario.
@@ -588,21 +588,21 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
       
       {/* Panel per aprire un indirizzo stealth */}
       {showStealthOpener && (
-        <div className="bg-gray-800 rounded-lg p-6 mb-4">
-          <h3 className="text-xl font-bold mb-4">Apri un indirizzo stealth</h3>
-          <div className="mb-4">
-            <label className="block text-gray-400 mb-2">Indirizzo Stealth</label>
+        <div className="bg-gray-800 rounded-lg p-7 mb-6">
+          <h3 className="text-xl font-bold mb-6">Apri un indirizzo stealth</h3>
+          <div className="mb-5">
+            <label className="block text-gray-400 mb-3">Indirizzo Stealth</label>
             <input
-              className="w-full p-3 bg-gray-700 rounded"
+              className="w-full py-3.5 px-4 bg-gray-700 rounded"
               value={stealthToOpen}
               onChange={(e) => setStealthToOpen(e.target.value)}
               placeholder="0x..."
             />
           </div>
-          <div className="mb-4">
-            <label className="block text-gray-400 mb-2">Chiave Pubblica Effimera</label>
+          <div className="mb-5">
+            <label className="block text-gray-400 mb-3">Chiave Pubblica Effimera</label>
             <input
-              className="w-full p-3 bg-gray-700 rounded"
+              className="w-full py-3.5 px-4 bg-gray-700 rounded"
               value={ephemeralKeyToOpen}
               onChange={(e) => setEphemeralKeyToOpen(e.target.value)}
               placeholder="Inserisci la chiave pubblica effimera..."
@@ -610,29 +610,29 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
           </div>
           
           <button 
-            className="text-sm text-blue-400 mb-4 hover:underline"
+            className="text-sm text-blue-400 mb-5 hover:underline px-1 py-1"
             onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
           >
             {showAdvancedOptions ? "Nascondi opzioni avanzate" : "Mostra opzioni avanzate"}
           </button>
           
           {showAdvancedOptions && (
-            <div className="mb-4">
-              <label className="block text-gray-400 mb-2">Chiave Privata (solo recupero)</label>
+            <div className="mb-5">
+              <label className="block text-gray-400 mb-3">Chiave Privata (solo recupero)</label>
               <input
-                className="w-full p-3 bg-gray-700 rounded"
+                className="w-full py-3.5 px-4 bg-gray-700 rounded"
                 value={privateKeyOverride}
                 onChange={(e) => setPrivateKeyOverride(e.target.value)}
                 placeholder="Inserisci chiave privata se nota..."
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-2 px-1">
                 Usa questo campo solo se conosci già la chiave privata dell'indirizzo stealth.
               </p>
             </div>
           )}
           
           <button
-            className="w-full p-3 bg-blue-600 rounded hover:bg-blue-700 mb-4"
+            className="w-full py-4 bg-blue-600 rounded hover:bg-blue-700 mb-5 transition-colors"
             onClick={openStealthAddress}
             disabled={openingStealthAddress}
           >
@@ -640,20 +640,20 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
           </button>
           
           {openedStealthWallet && (
-            <div className="mt-4">
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Chiave Privata Recuperata</label>
-                <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs">
+            <div className="mt-6">
+              <div className="mb-5">
+                <label className="block text-gray-400 mb-3">Chiave Privata Recuperata</label>
+                <div className="py-3.5 px-4 bg-gray-700 rounded break-all font-mono text-xs">
                   {openedStealthWallet.privateKey}
                 </div>
               </div>
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Indirizzo Wallet</label>
-                <div className="p-3 bg-gray-700 rounded font-mono">
+              <div className="mb-5">
+                <label className="block text-gray-400 mb-3">Indirizzo Wallet</label>
+                <div className="py-3.5 px-4 bg-gray-700 rounded font-mono">
                   {openedStealthWallet.address}
                 </div>
               </div>
-              <div className="p-4 bg-red-800 rounded mt-4">
+              <div className="p-5 bg-red-800 rounded mt-5">
                 <p className="font-bold mb-2">Attenzione:</p>
                 <p>
                   La chiave privata è visualizzata in chiaro. Assicurati di essere in un ambiente sicuro
@@ -665,14 +665,14 @@ const StealthSection: React.FC<StealthSectionProps> = ({ sdk, userEpub, setError
         </div>
       )}
       
-      <div className="bg-blue-800 rounded-lg p-6 mt-6">
-        <h3 className="text-xl font-bold mb-2">Le tue chiavi stealth</h3>
+      <div className="bg-blue-800 rounded-lg p-7 mt-8">
+        <h3 className="text-xl font-bold mb-4">Le tue chiavi stealth</h3>
         <div className="mb-4">
-          <label className="block text-gray-300 mb-1">Chiave pubblica (pub)</label>
-          <div className="p-3 bg-gray-700 rounded break-all font-mono text-xs relative">
+          <label className="block text-gray-300 mb-3">Chiave pubblica (pub)</label>
+          <div className="py-3.5 px-4 bg-gray-700 rounded break-all font-mono text-xs relative">
             {userEpub}
             <button 
-              className="absolute top-2 right-2 p-1 bg-gray-600 rounded hover:bg-gray-500"
+              className="absolute top-3 right-3 px-3 py-1.5 bg-gray-600 rounded hover:bg-gray-500 transition-colors"
               onClick={() => {
                 navigator.clipboard.writeText(userEpub);
                 setErrorMessage("Chiave pubblica copiata negli appunti!");

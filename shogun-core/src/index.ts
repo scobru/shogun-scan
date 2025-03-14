@@ -4,7 +4,6 @@ import { MetaMask } from "./connector/metamask";
 import { Stealth } from "./stealth/stealth";
 import { EventEmitter } from "events";
 import { Storage } from "./storage/storage";
-import { Layer2 } from "./L2/layer2";
 import {
   IShogunCore,
   ShogunSDKConfig,
@@ -26,7 +25,6 @@ export class ShogunCore implements IShogunCore {
   public webauthn: Webauthn;
   public metamask: MetaMask;
   public stealth: Stealth;
-  public layer2: Layer2;
   private storage: Storage;
   private eventEmitter: EventEmitter;
   private walletManager: WalletManager;
@@ -58,9 +56,6 @@ export class ShogunCore implements IShogunCore {
     this.webauthn = new Webauthn();
     this.metamask = new MetaMask();
     this.stealth = new Stealth();
-
-    // Inizializza Layer2 con gli stessi peer di GunDB
-    this.layer2 = new Layer2(config.gundb?.peers || config.peers || CONFIG.PEERS);
 
     // Inizializza il provider Ethereum
     if (config.providerUrl) {
@@ -784,133 +779,6 @@ export class ShogunCore implements IShogunCore {
       throw new Error("Failed to generate mnemonic phrase");
     }
   }
-
-  // Layer2 Methods
-  
-  /**
-   * Send GunTokens (GT) from one user to another
-   * @param sender Sender's address
-   * @param receiver Receiver's address
-   * @param amount Amount of GT to send
-   * @param privateKey Sender's private key for transaction signature
-   * @returns Promise resolving when transaction is complete
-   */
-  async sendGT(sender: string, receiver: string, amount: number, privateKey: string): Promise<void> {
-    return this.layer2.sendGT(sender, receiver, amount, privateKey);
-  }
-
-  /**
-   * Get GT balance of a user
-   * @param user User's address
-   * @returns Promise resolving with the user's balance
-   */
-  async getGTBalance(user: string): Promise<number> {
-    return this.layer2.getBalance(user);
-  }
-
-  /**
-   * Request withdrawal of tokens (interacts with smart contract)
-   * @param amount Amount to withdraw in ETH
-   * @param userAddress User's Ethereum address
-   * @param privateKey User's private key
-   * @param contractAddress Address of the smart contract
-   * @param contractABI ABI of the smart contract
-   * @returns Promise resolving when withdrawal request is sent
-   */
-  async requestWithdrawGT(
-    amount: number,
-    userAddress: string,
-    privateKey: string,
-    contractAddress: string,
-    contractABI: string | any[]
-  ): Promise<void> {
-    if (!this.provider) {
-      throw new Error("Ethereum provider not initialized");
-    }
-    
-    // Get provider URL from the initialized provider
-    const providerUrl = (this.provider as any).connection?.url || "http://localhost:8545";
-    
-    return this.layer2.requestWithdrawGT(
-      amount,
-      userAddress,
-      privateKey,
-      providerUrl,
-      contractAddress,
-      contractABI
-    );
-  }
-
-  /**
-   * Get transaction history for a user
-   * @param userAddress User's address
-   * @returns Promise resolving with user's transactions
-   */
-  async getGTTransactionHistory(userAddress: string): Promise<any[]> {
-    return this.layer2.getTransactionHistory(userAddress);
-  }
-
-  /**
-   * Update GT balance for a user - sync on-chain and off-chain balances
-   * @param userAddress User's address
-   * @param newBalance New balance to set or amount to add
-   * @param isIncrement If true, adds the amount to current balance; if false, sets balance to newBalance
-   * @returns Promise resolving with the updated balance
-   */
-  async updateGTBalance(userAddress: string, newBalance: number, isIncrement: boolean = false): Promise<number> {
-    return this.layer2.updateBalance(userAddress, newBalance, isIncrement);
-  }
-
-  /**
-   * Synchronize GT balance with blockchain (using FROZEN SPACE)
-   * @param userAddress User's address to synchronize
-   * @param contractAddress GunL2 contract address
-   * @returns Promise resolving with the synchronized balance
-   * @description Queries the blockchain for the current GT balance and updates the 
-   * FROZEN SPACE in GunDB to ensure data integrity between on-chain and off-chain storage.
-   */
-  async syncGTBalanceWithChain(
-    userAddress: string,
-    contractAddress: string
-  ): Promise<number> {
-    if (!this.provider) {
-      throw new Error("Ethereum provider not initialized");
-    }
-    
-    return this.layer2.syncBalanceWithChain(
-      userAddress,
-      this.provider as ethers.JsonRpcProvider,
-      contractAddress
-    );
-  }
-
-  /**
-   * Get balance sync status from FROZEN SPACE
-   * @param userAddress User's Ethereum address
-   * @returns Promise resolving with sync status including last sync time and block
-   * @description Returns information about when the GT balance was last synchronized 
-   * with the blockchain, helping to verify data freshness and integrity.
-   */
-  async getGTBalanceSyncStatus(userAddress: string): Promise<{
-    balance: number;
-    lastSyncTime?: number;
-    blockNumber?: number;
-    syncType?: string;
-  }> {
-    return this.layer2.getBalanceSyncStatus(userAddress);
-  }
-
-  /**
-   * Get GT balance sync history for a user
-   * @param userAddress User's Ethereum address
-   * @param limit Maximum number of sync events to retrieve
-   * @returns Promise resolving with sync history
-   * @description Retrieves a history of balance synchronization events, showing
-   * when and how the user's GT balance has been updated in FROZEN SPACE.
-   */
-  async getGTSyncHistory(userAddress: string, limit: number = 10): Promise<any[]> {
-    return this.layer2.getSyncHistory(userAddress, limit);
-  }
 }
 
 // Export all types
@@ -927,4 +795,3 @@ export {
 export { Webauthn } from "./webauthn/webauthn";
 export { Storage } from "./storage/storage";
 export { ShogunEventEmitter } from "./events";
-export { Layer2 } from "./L2/layer2";

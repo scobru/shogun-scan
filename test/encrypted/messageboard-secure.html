@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <meta content="yes" name="mobile-web-app-capable">
+  <meta content="black" name="apple-mobile-web-app-status-bar-style">
+  <meta content="yes" name="apple-mobile-web-app-capable">
+  <title>PanPot Client</title>
+  <!-- Import Bugout dependency -->
+  <script src="https://chr15m.github.io/bugout/bugout.min.js"></script>
+  <!-- Import SEA for encryption -->
+  <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+  <!-- Import Bugoff -->
+  <script src="bugoff-browser.js"></script>
+</head>
+<body><pre id="log">*BUGOFF SECURE CLIENT*
+
+messageboard secure client
+</pre>
+
+<div id="connection-status" class="status-indicator disconnected">
+  <span id="status-text">Disconnesso</span>
+</div>
+
+<div id="nickname-setup" style="margin-top: 20px;">
+  <input id="nickname" placeholder="Inserisci il tuo nickname..." maxlength="20"/>
+  <button id="save-nickname">Salva</button>
+</div>
+
+<div id="ui" style="display: none; margin-top: 20px;">
+  <input id="message" maxlength="279" placeholder="Il tuo messaggio sicuro..."/>
+  <button id="send">Invia</button>
+</div>
+
+<div id="debugging" style="margin-top: 20px; display: none;">
+  <button id="retry-connection">Forza riconnessione</button>
+  <button id="toggle-debug">Mostra Debug</button>
+  <pre id="debug-log" style="display: none; background: #222; color: #0f0; padding: 10px; margin-top: 10px;"></pre>
+</div>
+
+</body>
+<script>
+// Get server address from URL hash or use default
+var serveraddress = window.location.hash.substr(1);
+var nickname = localStorage["bugoff-nickname"] || "";
+
+// Setup nickname if available
+if (nickname) {
+  document.getElementById("nickname").value = nickname;
+}
+
+// Save nickname
+document.getElementById("save-nickname").onclick = function() {
+  var n = document.getElementById("nickname").value.trim();
+  if (n) {
+    nickname = n;
+    localStorage["bugoff-nickname"] = nickname;
+    log("Nickname impostato: " + nickname);
+  }
+};
+
+// Simple logging function (same as server)
+function log() {
+  var args = Array.prototype.slice.call(arguments);
+  console.log.apply(null, args);
+  args = args.map(function(a) { if (typeof(a) == "string") return a; else return JSON.stringify(a); });
+  document.getElementById("log").textContent += args.join(" ") + "\n";
+  
+  // Also log to debug log
+  if (document.getElementById("debug-log")) {
+    document.getElementById("debug-log").textContent += args.join(" ") + "\n";
+  }
+}
+
+// Custom trackers that are more reliable
+var customTrackers = [
+  "wss://tracker.openwebtorrent.com",
+  "wss://tracker.btorrent.xyz",
+  "wss://tracker.files.fm:7073/announce",
+  "wss://tracker.webtorrent.dev",
+  "wss://tracker.sloppyta.co:443/announce",
+  "wss://spacetradersapi-chatbox.herokuapp.com:443/announce"
+];
+
+if (!serveraddress) {
+  log("Nessun indirizzo server specificato. Usa un URL server valido con #address");
+  document.getElementById("debugging").style.display = "block";
+} else {
+  log("Connessione a " + serveraddress + "...\n(Può richiedere uno o due minuti)");
+
+  // Initialize Bugoff with the server address and custom trackers
+  var b = new Bugoff(serveraddress, {
+    trackers: customTrackers
+  });
+  var torrentInitialized = false;
+  var connectionAttempts = 0;
+  var maxConnectionAttempts = 10;
+
+  // Initialize SEA encryption
+  b.SEA().then(pair => {
+    log("Crittografia pronta (chiave pubblica: " + pair.pub.substring(0, 12) + "...)");
+    console.log("SEA encryption initialized with keypair:", pair);
+  });
+
+  // Listen for the torrent being initialized
+  b.bugout.on("torrentinitialized", function() {
+    log("Torrent inizializzato!");
+    debugLog("Trackers: " + b.bugout.trackers.join(", "));
+    
+    torrentInitialized = true;
+    
+    // Now it's safe to attempt connection
+    tryConnection();
+  });
+  
+  // Function to try connection with retry mechanism
+  function tryConnection() {
+    if (connectionAttempts < maxConnectionAttempts) {
+      connectionAttempts++;
+      log("Tentativo di connessione " + connectionAttempts + "/" + maxConnectionAttempts + "...");
+      debugLog("Tentativo di connessione diretta: " + serveraddress);
+      
+      // Attempt direct connection
+      b.attemptDirectConnection(serveraddress);
+      
+      // Try to announce if possible
+      try {
+        if (b.bugout && b.bugout.torrent && b.bugout.torrent.ready) {
+          b.forceAnnounce();
+          debugLog("Announce forzato");
+        } else {
+          debugLog("Torrent non pronto per announce");
+        }
+      } catch (e) {
+        debugLog("Errore durante announce: " + e.message);
+      }
+      
+      // Schedule next attempt
+      setTimeout(function() {
+        if (!connected) {
+          tryConnection();
+        }
+      }, 5000); // Try every 5 seconds
+    } else {
+      log("Raggiunto numero massimo di tentativi. Ricarica la pagina per riprovare.");
+      document.getElementById("debugging").style.display = "block";
+    }
+  }
+
+  // Try first connection after a delay
+  setTimeout(function() {
+    if (!torrentInitialized) {
+      log("Attesa inizializzazione torrent...");
+      
+      // If torrent isn't initialized after 5 seconds, start connection attempts anyway
+      setTimeout(function() {
+        if (!connected) {
+          tryConnection();
+        }
+      }, 5000);
+    }
+  }, 5000);
+
+  // events
+
+  // if the user clicks the send button
+  document.getElementById("send").onclick = function(ev) {
+    var m = document.getElementById("message");
+    if (m.value) {
+      log("Invio messaggio crittografato...");
+      // Add nickname to message
+      var messageWithNick = (nickname ? nickname + ": " : "") + m.value;
+      b.rpc(serveraddress, "post", messageWithNick, function (result) {
+        if (result) {
+          console.log("Message sent successfully");
+          // Keep the UI visible and clear just the message input
+          m.value = "";
+          // No need to refresh messages as the server will send a refresh signal
+        } else {
+          log("Errore nell'invio del messaggio!");
+        }
+      });
+      m.value = "";
+    }
+  };
+
+  // watch for connection to the server
+  b.bugout.on("server", function() {
+    log("Connesso al server: " + serveraddress);
+    // Always show the UI when connected
+    document.getElementById("ui").style.display = "block";
+    refreshMessages();
+    
+    // Reset reconnection attempts counter when successfully connected
+    reconnectionAttempts = 0;
+    
+    // Enable debug features
+    document.getElementById("debugging").style.display = "block";
+  });
+
+  // Track connection status
+  var connected = false;
+  var reconnectionAttempts = 0;
+  var maxReconnectionAttempts = 5;
+  
+  // Handle connection events
+  b.on("wireseen", function(count) {
+    connected = count > 0;
+    log("connessioni: " + (count || 0));
+    
+    // Update connection status indicator
+    updateConnectionStatus(connected);
+    
+    if (connected) {
+      // Show the UI when connected
+      document.getElementById("ui").style.display = "block";
+    }
+  });
+  
+  b.on("wireleft", function(count) {
+    log("connessioni: " + (count || 0));
+    connected = count > 0;
+    
+    // Update connection status indicator
+    updateConnectionStatus(connected);
+    
+    // If disconnected, try to reconnect
+    if (!connected && reconnectionAttempts < maxReconnectionAttempts) {
+      reconnectionAttempts++;
+      log("Disconnesso, tentativo di riconnessione " + reconnectionAttempts + "/" + maxReconnectionAttempts + "...");
+      
+      setTimeout(function() {
+        if (!connected) {
+          log("Tentativo di riconnessione...");
+          tryConnection();
+        }
+      }, 5000 * reconnectionAttempts); // Progressive backoff
+    }
+  });
+
+  // Handle decrypted messages
+  b.bugout.on("decrypted", function(address, pubkeys, message) {
+    console.log("Decrypted message:", message);
+    if (message === "refresh") {
+      refreshMessages();
+    }
+  });
+
+  // New peer events
+  b.events.on("newPeer", function(peers) {
+    console.log("Peers updated:", peers);
+    log("peers aggiornati: " + Object.keys(peers).length + " connessi");
+  });
+
+  // utility functions
+
+  function refreshMessages() {
+    // Clear previous messages
+    clearLog();
+    
+    log("*BUGOFF SECURE CLIENT*");
+    log();
+    log("messageboard secure client");
+    log();
+    
+    if (nickname) {
+      log("Nickname impostato: " + nickname);
+    }
+    
+    log("Aggiornamento messaggi crittografati...");
+    
+    // get a list of the messages
+    b.rpc(serveraddress, "list", null, function(messages) {
+      if (!messages || !messages.length) {
+        log("Nessun messaggio disponibile.");
+        return;
+      }
+      
+      // Display only the most recent message (first in the reversed list)
+      var lastMessage = messages[0];
+      log((new Date(lastMessage.t)).toString());
+      
+      // Show nickname if available, otherwise show partial address
+      if (lastMessage.nick) {
+        log("Da: " + lastMessage.nick + " (" + lastMessage.address.substring(0, 8) + "...)");
+      } else {
+        log("Da: " + lastMessage.address.substring(0, 16) + "...");
+      }
+      log();
+      log(lastMessage.m);
+      log();
+    });
+  }
+  
+  // Function to clear the log
+  function clearLog() {
+    document.getElementById("log").textContent = "";
+  }
+
+  // Add event listener to send message when Enter key is pressed
+  document.getElementById("message").addEventListener("keyup", function(event) {
+    // Number 13 is the "Enter" key on the keyboard
+    if (event.keyCode === 13) {
+      // Cancel the default action, if needed
+      event.preventDefault();
+      // Trigger the button element with a click
+      document.getElementById("send").click();
+    }
+  });
+
+  // Function to update connection status indicator
+  function updateConnectionStatus(isConnected) {
+    var statusIndicator = document.getElementById("connection-status");
+    var statusText = document.getElementById("status-text");
+    
+    if (isConnected) {
+      statusIndicator.className = "status-indicator connected";
+      statusText.textContent = "Connesso";
+    } else {
+      statusIndicator.className = "status-indicator disconnected";
+      statusText.textContent = "Disconnesso";
+    }
+  }
+  
+  // Debug functions
+  function debugLog(msg) {
+    console.log("[DEBUG] " + msg);
+    var debugLog = document.getElementById("debug-log");
+    if (debugLog) {
+      debugLog.textContent += "[DEBUG] " + msg + "\n";
+    }
+  }
+  
+  // Manual reconnection button
+  document.getElementById("retry-connection").addEventListener("click", function() {
+    log("Tentativo manuale di riconnessione...");
+    tryConnection();
+  });
+  
+  // Toggle debug log visibility
+  document.getElementById("toggle-debug").addEventListener("click", function() {
+    var debugLog = document.getElementById("debug-log");
+    if (debugLog.style.display === "none") {
+      debugLog.style.display = "block";
+      this.textContent = "Nascondi Debug";
+    } else {
+      debugLog.style.display = "none";
+      this.textContent = "Mostra Debug";
+    }
+  });
+}
+</script>
+<style>
+  body { 
+    background-color: #333; 
+    max-width: 800px;
+    font-family: monospace;
+    margin: auto;
+    padding: 0.5em;
+  }
+  
+  pre { 
+    color: #eee; 
+    white-space: pre-wrap; 
+    word-wrap: break-word; 
+    line-height: 1em;
+    width: 100%;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.5em;
+    margin-bottom: 0.5em;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    background-color: #444;
+    color: #eee;
+    font-family: monospace;
+  }
+  
+  button {
+    border-radius: 5px;
+    background-color: #008C28;
+    color: white;
+    border: none;
+    padding: 0.25em 1em;
+    font-size: 1em;
+    float: right;
+    margin: 0.5em 0;
+    cursor: pointer;
+    font-family: monospace;
+  }
+
+  #nickname-setup, #ui, #debugging {
+    width: 100%;
+    margin-bottom: 1em;
+    overflow: hidden;
+  }
+  
+  .status-indicator {
+    padding: 0.5em;
+    margin: 0.5em 0;
+    border-radius: 3px;
+    text-align: center;
+    font-weight: bold;
+  }
+  
+  .status-indicator.connected {
+    background-color: #008C28;
+    color: white;
+  }
+  
+  .status-indicator.disconnected {
+    background-color: #CC0000;
+    color: white;
+  }
+  
+  #retry-connection {
+    background-color: #0066CC;
+    float: left;
+  }
+  
+  #toggle-debug {
+    background-color: #666;
+    float: right;
+  }
+</style>
+</html>

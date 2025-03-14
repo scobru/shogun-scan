@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <meta content="yes" name="mobile-web-app-capable">
+  <meta content="black" name="apple-mobile-web-app-status-bar-style">
+  <meta content="yes" name="apple-mobile-web-app-capable">
+  <title>Bugout messageboard example</title>
+  <script src="https://chr15m.github.io/bugout/bugout.min.js"></script>
+</head>
+<body>
+<img src="../bugout-logo.svg"/>
+<p>Bugout message board example.</p>
+<p>connected: <span id="connected">no</span></p>
+<div id="ui" style="display: none">
+  <input id="message" maxlength="279" placeholder="Your message..."/>
+  <button id="send">send</button>
+</div>
+<pre id="messages"></pre>
+<p><a href="messageboard-server.html" target="_NEW">Fire up your own copy of the server.</a></p>
+<p>Subscribe for updates and new releases at <a href="https://bugout.network/">bugout.network</a>.</p>
+</body>
+<script>
+var serveraddress = window.location.hash.substr(1) || "bUH7ukDvd9R2xLLRKMKWZ1mGPkgdVfufye";
+var b = new Bugout(serveraddress);
+
+var msglist = document.getElementById("messages");
+msglist.textContent = "Connecting to " + serveraddress + "...\n(Can take a minute or two)";
+
+// events
+
+// if the user clicks the send button
+document.getElementById("send").onclick = function(ev) {
+  var m = document.getElementById("message");
+  if (m.value) {
+    msglist.textContent = "Sending message...";
+    b.rpc("post", m.value, function () {
+      // refreshMessages();
+      // server will send refresh message if messages are changed
+    });
+    m.value = "";
+  }
+}
+
+// watch for connection to the server
+b.on("server", function() {
+  refreshMessages();
+});
+
+// if the server tells us to refresh messages
+b.on("message", function(address, message) {
+  if (message == "refresh") {
+    refreshMessages();
+  }
+});
+
+// if we see a wire join or leave
+b.on("wireseen", updateWires);
+b.on("wireleft", updateWires);
+
+function updateWires(count) {
+  if (count) {
+    document.getElementById("ui").style.display = "block";
+  }
+  document.getElementById("connected").textContent = count ? "yes (" + count + ")" : "no";
+}
+
+// utility functions
+
+function refreshMessages() {
+  msglist.textContent = "Refreshing messages...";
+  // get a list of the messages
+  b.rpc("list", null, function(messages) {
+    updateMessagelist(messages);
+  });
+}
+
+function updateMessagelist(messages) {
+  msglist.textContent =
+    messages.map(function (m) {
+      return (new Date(m.t)).toString() + "\n" +
+      "From: " + m.address + "\n" +
+      "\n" + m.m + "\n";
+    }).join("\n\n");
+}
+</script>
+<style>
+  * { 
+    box-sizing: border-box;
+  }
+
+  body {
+    max-width: 800px;
+    font-family: Arial;
+    font-size: 1.25em;
+    text-align: center;
+    margin: auto;
+    width: 100%;
+    padding: 0.5em;
+  }
+
+  img {
+    max-width: 100%;
+  }
+
+  pre {
+    width: 100%;
+    padding: 0.5em;
+    border-radius: 3px;
+    text-align: left;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  input {
+    width: 100%;
+  }
+  
+  button {
+    border-radius: 5px;
+    background-color: #008C28;
+    color: white;
+    border: none;
+    padding: 0.25em 1em;
+    font-size: 1.25em;
+    float: right;
+    margin-top: 0.5em;
+  }
+
+</style>
+</html>

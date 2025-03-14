@@ -5,7 +5,7 @@ async function main() {
   const [sender] = await ethers.getSigners();
 
   // Address to fund
-  const receiverAddress = "0x0610DE02f233474f86eB6C036E8E8b228359De4f";
+  const receiverAddress = "0x83efFda20a7bd11717345dF4fF7759814317D90a";
   
   // checksum the address 
   const checksumAddress = ethers.getAddress(receiverAddress);

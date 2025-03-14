@@ -7,11 +7,12 @@ interface TokenManagerProps {
   address: string;
   provider: ethers.JsonRpcProvider;
   networkId?: string;
+  privateKey: string;
 }
 
 type TabType = 'tokens' | 'send' | 'receive';
 
-export const TokenManager: React.FC<TokenManagerProps> = ({ address, provider, networkId }) => {
+export const TokenManager: React.FC<TokenManagerProps> = ({ address, provider, networkId, privateKey }) => {
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
   const [balances, setBalances] = useState<TokenBalance[]>([]);
   const [newTokenAddress, setNewTokenAddress] = useState('');
@@ -138,10 +139,98 @@ export const TokenManager: React.FC<TokenManagerProps> = ({ address, provider, n
     }
   };
 
-  const handleSendSubmit = (e: React.FormEvent) => {
+  const handleSendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Implementazione dell'invio da fare
-    alert(`Invio di ${sendAmount} ${sendToken === 'eth' ? 'ETH' : sendToken} a ${sendAddress}`);
+    
+    if (!sendAmount || !sendAddress || !provider) {
+      setError('Inserisci un importo e un indirizzo validi');
+      return;
+    }
+    
+    // Conferma dall'utente
+    if (!window.confirm(`Conferma invio di ${sendAmount} ${sendToken === 'eth' ? 'ETH' : 
+      tokens.find(t => t.address === sendToken)?.symbol || sendToken} a ${sendAddress}`)) {
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Verifica che la privateKey sia valida e nel formato corretto
+      if (!privateKey || privateKey.trim() === '') {
+        throw new Error('Chiave privata non disponibile. Impossibile firmare la transazione.');
+      }
+      
+      // Assicuriamoci che la chiave privata sia nel formato corretto
+      let formattedPrivateKey = privateKey;
+      if (!formattedPrivateKey.startsWith('0x')) {
+        formattedPrivateKey = '0x' + formattedPrivateKey;
+      }
+      
+      // Crea il wallet dell'utente con la chiave privata
+      const wallet = new ethers.Wallet(formattedPrivateKey, provider);
+      
+      // Verifica che l'indirizzo del wallet corrisponda all'indirizzo fornito
+      if (wallet.address.toLowerCase() !== address.toLowerCase()) {
+        console.warn('Il wallet generato ha un indirizzo diverso da quello atteso', {
+          expected: address,
+          actual: wallet.address
+        });
+      }
+      
+      let tx;
+      
+      // Invio di ETH nativo
+      if (sendToken === 'eth') {
+        // Preparazione della transazione
+        tx = await wallet.sendTransaction({
+          to: sendAddress,
+          value: ethers.parseEther(sendAmount),
+        });
+      } 
+      // Invio di token ERC-20
+      else {
+        // Trova il token nell'elenco
+        const tokenInfo = tokens.find(t => t.address === sendToken);
+        
+        if (!tokenInfo) {
+          throw new Error('Token non trovato');
+        }
+        
+        // Crea un'istanza del contratto del token
+        const tokenContract = new ethers.Contract(
+          sendToken,
+          ['function transfer(address to, uint256 amount) returns (bool)'],
+          wallet
+        );
+        
+        // Calcola l'importo in base alle decimals del token
+        const amount = ethers.parseUnits(sendAmount, tokenInfo.decimals);
+        
+        // Esegui il metodo transfer del token
+        tx = await tokenContract.transfer(sendAddress, amount);
+      }
+      
+      // Attendi la conferma della transazione
+      await tx.wait();
+      
+      // Mostra messaggio di successo
+      alert(`Transazione completata! Hash: ${tx.hash}`);
+      
+      // Pulisci il form
+      setSendAmount('');
+      setSendAddress('');
+      
+      // Aggiorna i saldi
+      await loadBalances(tokenService!);
+      
+    } catch (error: any) {
+      console.error('Errore durante l\'invio:', error);
+      setError(`Errore: ${error.message || 'Errore sconosciuto'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Rendering delle tabs

@@ -5,7 +5,8 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
 const GunL2 = buildModule("GunL2", (m) => {
 
-  const layer2 = m.contract("GunL2");
+  // hardhat signer
+  const layer2 = m.contract("GunL2", ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"]);
 
   return { layer2 };
 });
