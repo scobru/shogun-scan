@@ -1,0 +1,214 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <meta content="yes" name="mobile-web-app-capable" />
+    <meta content="black" name="apple-mobile-web-app-status-bar-style" />
+    <meta content="yes" name="apple-mobile-web-app-capable" />
+    <title>Bugout messageboard example</title>
+    <script src="https://cdn.jsdelivr.net/npm/eventemitter3@4.0.0/index.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+    <script src="https://chr15m.github.io/bugout/bugout.min.js"></script>
+    <script src="./bugoff.js"></script>
+  </head>
+  <body>
+    <img src="../bugout-logo.svg" />
+    <p>Bugout message board example.</p>
+    <p>connected: <span id="connected">no</span></p>
+    <div id="ui" style="display: none">
+      <input id="message" maxlength="279" placeholder="Your message..." />
+      <button id="send">send</button>
+    </div>
+    <pre id="messages"></pre>
+    <p>
+      <a href="messageboard-server.html" target="_NEW"
+        >Fire up your own copy of the server.</a
+      >
+    </p>
+    <p>
+      Subscribe for updates and new releases at
+      <a href="https://bugout.network/">bugout.network</a>.
+    </p>
+  </body>
+  <script>
+    var serveraddress =
+      window.location.hash.substr(1) || "bUH7ukDvd9R2xLLRKMKWZ1mGPkgdVfufye";
+    var b;
+    var msglist = document.getElementById("messages");
+    var clientAddress = "";
+
+    try {
+      // Inizializza Bugoff con l'indirizzo del server
+      b = new Bugoff(serveraddress);
+      
+      // Inizializza SEA per la crittografia
+      b.SEA()
+        .then(function () {
+          console.log("SEA initialized with keypair");
+        })
+        .catch(function (err) {
+          console.error("Error initializing SEA:", err);
+        });
+
+      msglist.textContent =
+        "Connecting to " + serveraddress + "...\n(Can take a minute or two)";
+    } catch (error) {
+      console.error("Error connecting to server:", error);
+      msglist.textContent =
+        "Error connecting to server: " +
+        error.message +
+        "\nTrying to connect without encryption...";
+
+      // Try to connect without encryption as fallback
+      try {
+        b = new Bugout(serveraddress);
+        console.log("Connected to server without encryption");
+        msglist.textContent = "Connected to " + serveraddress + " without encryption\n(Can take a minute or two)";
+      } catch (fallbackError) {
+        console.error("Fatal error connecting to server:", fallbackError);
+        msglist.textContent = "Fatal error connecting to server: " + fallbackError.message;
+      }
+    }
+    
+    // events
+
+    // if the user clicks the send button
+    document.getElementById("send").onclick = function (ev) {
+      var serveraddress =
+      window.location.hash.substr(1) || "bUH7ukDvd9R2xLLRKMKWZ1mGPkgdVfufye";
+      
+      var m = document.getElementById("message");
+      if (m.value) {
+        msglist.textContent = "Sending message...";
+        // Usa esattamente la stessa logica del file originale
+
+        // b.rpc("post", m.value, function () {
+        //   // Non facciamo nulla qui, il server invierà un messaggio "refresh"
+        //   // quando i messaggi cambiano, esattamente come nel file originale
+        // });
+
+        b.send(serveraddress, m.value)
+
+        m.value = "";
+      }
+    };
+
+    // watch for connection to the server
+    b.on("server", function () {
+      refreshMessages();
+    });
+
+    // if the server tells us to refresh messages
+    b.on("message", function (address, message) {
+      if (message == "refresh") {
+        refreshMessages();
+      }
+    });
+
+    // Gestisci messaggi decriptati (specifico di Bugoff)
+    b.on("decrypted", function (address, pubkeys, message) {
+      console.log("Decrypted message from:", address);
+      // Se il messaggio decriptato è "refresh", aggiorna la lista
+      if (message === "refresh") {
+        refreshMessages();
+      }
+    });
+
+    // Add error handling for network issues
+    b.on("close", function () {
+      console.error("Connection closed");
+      document.getElementById("connected").textContent = "no (disconnected)";
+    });
+
+    b.on("error", function (error) {
+      console.error("Connection error:", error);
+      document.getElementById("connected").textContent = "no (error)";
+    });
+
+    // if we see a wire join or leave
+    b.on("wireseen", updateWires);
+    b.on("wireleft", updateWires);
+
+    function updateWires(count) {
+      if (count) {
+        document.getElementById("ui").style.display = "block";
+      }
+      document.getElementById("connected").textContent = count
+        ? "yes (" + count + ")"
+        : "no";
+    }
+
+    // utility functions
+
+    function refreshMessages() {
+      msglist.textContent = "Refreshing messages...";
+      // get a list of the messages - esattamente come nel file originale
+      b.rpc("list", null, function (messages) {
+        updateMessagelist(messages);
+      });
+    }
+
+    function updateMessagelist(messages) {
+      msglist.textContent = messages
+        .map(function (m) {
+          return (
+            new Date(m.t).toString() +
+            "\n" +
+            "From: " +
+            m.address +
+            "\n" +
+            "\n" +
+            m.m +
+            "\n"
+          );
+        })
+        .join("\n\n");
+    }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      max-width: 800px;
+      font-family: Arial;
+      font-size: 1.25em;
+      text-align: center;
+      margin: auto;
+      width: 100%;
+      padding: 0.5em;
+    }
+
+    img {
+      max-width: 100%;
+    }
+
+    pre {
+      width: 100%;
+      padding: 0.5em;
+      border-radius: 3px;
+      text-align: left;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+
+    input {
+      width: 100%;
+    }
+
+    button {
+      border-radius: 5px;
+      background-color: #008c28;
+      color: white;
+      border: none;
+      padding: 0.25em 1em;
+      font-size: 1.25em;
+      float: right;
+      margin-top: 0.5em;
+    }
+  </style>
+</html>
