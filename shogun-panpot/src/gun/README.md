@@ -1,6 +1,6 @@
 # Chat Decentralizzata P2P Multi-Stanza con Crittografia
 
-Questa applicazione dimostra una chat decentralizzata dove ogni client agisce come un nodo peer-to-peer (P2P) con GunDB, supporta la creazione di stanze multiple e include crittografia end-to-end sia per i messaggi della stanza che per i messaggi privati tra utenti.
+PAN POT è un'applicazione di chat decentralizzata dove ogni client agisce come un nodo peer-to-peer (P2P) con GunDB, supporta la creazione di stanze multiple e include crittografia end-to-end sia per i messaggi della stanza che per i messaggi privati tra utenti.
 
 ## Architettura
 
@@ -29,6 +29,7 @@ L'architettura è completamente decentralizzata:
 - Memorizzazione locale dei dati
 - Funzionamento anche in presenza di interruzioni del server tracker
 - Visualizzazione del numero di peer connessi
+- Generazione di codici QR per la condivisione facilitata delle stanze
 
 ## Come funziona la crittografia
 
@@ -52,7 +53,7 @@ L'architettura è completamente decentralizzata:
 1. Assicurati di avere Node.js installato
 2. Installa le dipendenze:
    ```
-   npm install express gun
+   npm install
    ```
 3. Avvia il server tracker:
    ```
@@ -91,6 +92,23 @@ L'architettura è completamente decentralizzata:
 4. I messaggi e i dati vengono sincronizzati direttamente tra i client
 5. Anche se il server tracker viene disconnesso, i client già connessi possono continuare a comunicare
 
+## Struttura del codice
+
+- **client.html**: Contiene l'interfaccia utente e la logica JavaScript dell'applicazione
+- **server.js**: Il server "tracker" che facilita la connessione tra i peer
+- **shogun-core.js**: Libreria core con funzioni di supporto
+- **shogun.svg**: Logo dell'applicazione
+- **package.json**: Dipendenze e configurazione del progetto
+
+## Tecnologie utilizzate
+
+- **GunDB**: Database decentralizzato per la sincronizzazione dei dati in tempo reale
+- **SEA**: Modulo di Gun per Security, Encryption, and Authorization
+- **WebRTC**: Permette la comunicazione peer-to-peer nel browser
+- **Express**: Framework Node.js per il server tracker
+- **QRCode.js**: Libreria per la generazione di codici QR
+- **IndexedDB (via GunDB)**: Storage locale persistente
+
 ## Considerazioni sulla sicurezza
 
 - La chat utilizza crittografia end-to-end tramite Gun SEA
@@ -98,4 +116,14 @@ L'architettura è completamente decentralizzata:
 - I messaggi appaiono crittografati nel database locale e durante la trasmissione
 - Anche il server tracker non può decifrare i messaggi
 - I messaggi privati utilizzano la stessa chiave di crittografia della stanza
-- In una versione di produzione, considerare ulteriori meccanismi di autenticazione e controllo degli accessi 
+- In una versione di produzione, considerare ulteriori meccanismi di autenticazione e controllo degli accessi
+
+## Miglioramenti futuri
+
+- Aggiungere autenticazione degli utenti
+- Implementare la verifica delle chiavi pubbliche
+- Aggiungere la possibilità di inviare file
+- Migliorare la gestione degli utenti offline
+- Implementare notifiche per nuovi messaggi
+- Ottimizzare le prestazioni per stanze con molti utenti
+- Aggiungere supporto per chiamate audio/video 
