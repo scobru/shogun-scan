@@ -117,6 +117,18 @@ export interface IShogunCore {
 }
 
 /**
+ * Configurazione per WebAuthn
+ */
+export interface WebauthnConfig {
+  /** Abilita WebAuthn */
+  enabled?: boolean;
+  /** Nome dell'entità di verifica */
+  rpName?: string;
+  /** ID dell'entità di verifica */
+  rpId?: string;
+}
+
+/**
  * Configurazione dell'SDK Shogun
  */
 export interface ShogunSDKConfig {
@@ -133,9 +145,19 @@ export interface ShogunSDKConfig {
   providerUrl?: string;
   /** Indirizzo del contratto per i canali di pagamento */
   paymentChannelContract?: string;
+  /** Abilita il radisk per lo storage su disco */
   radisk?: boolean;
+  /** Abilita localStorage */
   localStorage?: boolean;
+  /** Autorità di stato */
   stateAuthority?: string;
+  /** Configurazione WebAuthn */
+  webauthn?: WebauthnConfig;
+  /** Configurazione per MetaMask */
+  metamask?: {
+    /** Abilita MetaMask */
+    enabled?: boolean;
+  };
 }
 
 export interface WalletInfo {

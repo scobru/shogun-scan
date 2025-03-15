@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1.0"
+    />
+    <title>Chat P2P Crittografata con GunDB</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #333;
+        color: #eee;
+        margin: 0 auto;
+        padding: 20px;
+        max-width: 800px;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        line-height: 1em;
+      }
+
+      #chat,
+      #privateChat {
+        border: 1px solid #555;
+        background-color: #222;
+        height: 300px;
+        overflow-y: scroll;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+      }
+
+      .message {
+        margin: 5px 0;
+        background-color: #3a3a3a;
+        padding: 5px;
+        border-radius: 3px;
+      }
+
+      .private-message {
+        margin: 5px 0;
+        background-color: #253242;
+        padding: 5px;
+        border-radius: 5px;
+        border-left: 3px solid #0066cc;
+      }
+
+      .user {
+        font-weight: bold;
+        color: #4caf50;
+      }
+      .time {
+        color: #999;
+        font-size: 0.8em;
+      }
+
+      .encrypted-badge {
+        display: inline-block;
+        background-color: #4caf50;
+        color: white;
+        border-radius: 3px;
+        padding: 2px 5px;
+        font-size: 0.7em;
+        margin-left: 5px;
+      }
+
+      .private-badge {
+        display: inline-block;
+        background-color: #0066cc;
+        color: white;
+        border-radius: 3px;
+        padding: 2px 5px;
+        font-size: 0.7em;
+        margin-left: 5px;
+      }
+
+      #peers {
+        margin-top: 10px;
+        font-size: 0.8em;
+        color: #999;
+      }
+
+      #status {
+        margin-bottom: 10px;
+        color: #4caf50;
+      }
+
+      input,
+      textarea {
+        background-color: #222;
+        color: #eee;
+        border: 1px solid #555;
+        padding: 8px;
+        margin-right: 5px;
+        border-radius: 3px;
+      }
+
+      #chatForm input,
+      #privateMessageForm input {
+        width: 80%;
+      }
+
+      button {
+        padding: 8px 15px;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #45a049;
+      }
+
+      .mode-selector {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+
+      .mode-selector button {
+        margin: 0 10px;
+        width: 150px;
+      }
+
+      #shareLink {
+        display: none;
+        padding: 10px;
+        background-color: #222;
+        border: 1px solid #555;
+        border-radius: 5px;
+        margin-bottom: 20px;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      h2,
+      h3 {
+        margin-top: 0;
+        color: #4caf50;
+      }
+
+      #roomInfo {
+        margin-bottom: 15px;
+        font-weight: bold;
+      }
+
+      #encryptionStatus {
+        color: #4caf50;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .error {
+        color: #f44336;
+        margin: 5px 0;
+      }
+
+      .tab-container {
+        margin-bottom: 20px;
+      }
+
+      .tab-button {
+        background-color: #222;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 10px 20px;
+        transition: 0.3s;
+        border-radius: 5px 5px 0 0;
+        margin-right: 5px;
+        color: #eee;
+      }
+
+      .tab-button:hover {
+        background-color: #444;
+      }
+
+      .tab-button.active {
+        background-color: #4caf50;
+        color: white;
+      }
+
+      .tab-content {
+        display: none;
+        padding: 10px 0;
+      }
+
+      .user-list {
+        margin-bottom: 10px;
+        border: 1px solid #555;
+        background-color: #222;
+        padding: 10px;
+        border-radius: 5px;
+        max-height: 100px;
+        overflow-y: auto;
+      }
+
+      .user-item {
+        padding: 5px;
+        cursor: pointer;
+        border-radius: 3px;
+      }
+
+      .user-item:hover {
+        background-color: #3a3a3a;
+      }
+
+      .user-item.selected {
+        background-color: #253242;
+      }
+
+      #qrcode-container {
+        text-align: center;
+        margin: 10px 0;
+      }
+
+      canvas {
+        margin: 0 auto;
+      }
+
+      .qr-code-text {
+        margin-top: 10px;
+        font-size: 0.9em;
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Chat Decentralizzata P2P</h2>
+
+    <!-- Selezione della modalità -->
+    <div class="mode-selector" id="modeSelector">
+      <button id="createRoomBtn">Crea Nuova Stanza</button>
+      <button id="joinRoomBtn">Unisciti a Stanza</button>
+    </div>
+
+    <!-- Form per unirsi ad una stanza -->
+    <div id="joinForm" class="hidden">
+      <input
+        type="text"
+        id="roomId"
+        placeholder="Inserisci l'ID della stanza"
+        style="width: 70%"
+      />
+      <button id="joinRoomSubmit">Unisciti</button>
+    </div>
+
+    <!-- Link da condividere per la stanza creata -->
+    <div id="shareLink" class="hidden">
+      <p>Condividi questo link per invitare altri alla tua stanza:</p>
+      <input type="text" id="shareLinkInput" readonly style="width: 100%" />
+      <div style="margin-top: 5px; font-size: 0.8em; color: #999">
+        <span
+          >⚠️ Il link contiene la chiave di crittografia. Condividilo solo con
+          chi vuoi che partecipi alla chat.</span
+        >
+      </div>
+      <div id="qrcode-container">
+        <!-- QR code sarà generato qui -->
+      </div>
+      <button id="copyLink" style="margin-top: 10px">Copia Link</button>
+    </div>
+
+    <!-- Informazioni sulla stanza corrente e stato crittografia -->
+    <div id="roomInfo" class="hidden">
+      Stanza: <span id="currentRoomId"></span>
+    </div>
+    <div id="encryptionStatus" class="hidden">
+      🔒 Messaggi crittografati end-to-end
+    </div>
+
+    <div id="status">Seleziona un'opzione</div>
+    <div id="peers" class="hidden">Peer connessi: 0</div>
+
+    <!-- Configurazione identità utente -->
+    <div id="userSetup" class="hidden" style="margin-bottom: 15px">
+      <input
+        type="text"
+        id="username"
+        placeholder="Nome utente"
+        required
+        style="width: 50%"
+      />
+      <button id="setUsername">Imposta Nome Utente</button>
+    </div>
+
+    <!-- Tabs per chat della stanza e messaggi privati -->
+    <div id="chatTabs" class="tab-container hidden">
+      <button class="tab-button active" onclick="showTab('roomChatTab')">
+        Chat Stanza
+      </button>
+      <button class="tab-button" onclick="showTab('privateChatTab')">
+        Messaggi Privati
+      </button>
+    </div>
+
+    <!-- Tab content per la chat della stanza -->
+    <div id="roomChatTab" class="tab-content" style="display: block">
+      <!-- Area dove verranno visualizzati i messaggi della stanza -->
+      <div id="chat"></div>
+
+      <!-- Form per l'invio dei messaggi della stanza -->
+      <form id="chatForm">
+        <input
+          type="text"
+          id="message"
+          placeholder="Messaggio"
+          required
+          style="width: 80%"
+        />
+        <button type="submit">Invia</button>
+      </form>
+    </div>
+
+    <!-- Tab content per i messaggi privati -->
+    <div id="privateChatTab" class="tab-content">
+      <h3>Utenti nella stanza</h3>
+      <div id="userList" class="user-list">
+        <div class="user-item">Nessun utente disponibile</div>
+      </div>
+
+      <div id="privateChat"></div>
+
+      <form id="privateMessageForm">
+        <input
+          type="text"
+          id="privateMessage"
+          placeholder="Messaggio privato"
+          required
+          style="width: 80%"
+          disabled
+        />
+        <button type="submit" disabled>Invia</button>
+      </form>
+    </div>
+
+    <!-- Includi GunDB e le sue estensioni -->
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/radix.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/radisk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/store.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/rindexed.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/webrtc.js"></script>
+    <!-- Includi QRCode.js per la generazione di QR code -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@latest/build/qrcode.min.js"></script>
+    <script src="./shogun-core.js"></script>
+
+    <script>
+      // Genera un ID univoco per questo peer
+      const peerId =
+        localStorage.getItem("chatPeerId") ||
+        Math.random().toString(36).substring(2, 15);
+      // Salva l'ID del peer nel localStorage
+      localStorage.setItem("chatPeerId", peerId);
+
+      // Cache per evitare duplicazione dei messaggi
+      const processedMessages = new Set();
+      const processedPrivateMessages = new Set();
+
+      // Variabili globali
+      let gun;
+      let chat;
+      let users;
+      let privateMessages;
+      let currentRoomId = "";
+      let encryptionKey = ""; // Chiave per crittografare/decrittografare i messaggi
+      let username = localStorage.getItem("chatUsername") || ""; // Recupera il nome utente dal localStorage
+      let selectedUser = null; // Utente selezionato per i messaggi privati
+
+      // Controlla se c'è un room ID e encryption key nell'URL
+      const urlParams = parseUrlHash();
+
+      if (urlParams.roomId) {
+        // Se c'è un room ID nell'URL, uniamoci subito a quella stanza
+        document.getElementById("modeSelector").style.display = "none";
+        joinRoom(urlParams.roomId, urlParams.key);
+      }
+
+      // Funzione per cambiare tab
+      function showTab(tabId) {
+        const tabs = document.getElementsByClassName("tab-content");
+        for (let i = 0; i < tabs.length; i++) {
+          tabs[i].style.display = "none";
+        }
+
+        const buttons = document.getElementsByClassName("tab-button");
+        for (let i = 0; i < buttons.length; i++) {
+          buttons[i].classList.remove("active");
+        }
+
+        document.getElementById(tabId).style.display = "block";
+
+        // Attiva il pulsante corrispondente
+        const index = tabId === "roomChatTab" ? 0 : 1;
+        buttons[index].classList.add("active");
+      }
+
+      // Funzione per analizzare i parametri dall'hash dell'URL
+      function parseUrlHash() {
+        const hash = window.location.hash.substring(1);
+        const parts = hash.split("&");
+        const params = {};
+
+        if (parts[0] && !parts[0].includes("=")) {
+          // Formato semplice: #roomId oppure #roomId&key=xyz
+          params.roomId = parts[0];
+
+          // Cerca se c'è un parametro key
+          const keyParam = parts.find((p) => p.startsWith("key="));
+          if (keyParam) {
+            params.key = keyParam.split("=")[1];
+          }
+        } else {
+          // Formato con parametri: #roomId=abc&key=xyz
+          parts.forEach((part) => {
+            const keyValue = part.split("=");
+            if (keyValue.length === 2) {
+              params[keyValue[0]] = keyValue[1];
+            }
+          });
+        }
+
+        return params;
+      }
+
+      // Funzione per generare QR code
+      function generateQRCode(text) {
+        const container = document.getElementById("qrcode-container");
+        container.innerHTML = ""; // Pulisci il contenitore
+
+        // Genera il QR code
+        QRCode.toCanvas(
+          text,
+          {
+            width: 200,
+            margin: 1,
+            color: {
+              dark: "#4CAF50",
+              light: "#ffffff",
+            },
+          },
+          function (error, canvas) {
+            if (error) {
+              console.error("Errore nella generazione del QR code:", error);
+              return;
+            }
+            container.appendChild(canvas);
+
+            // Aggiungi un testo di spiegazione
+            const explanation = document.createElement("div");
+            explanation.className = "qr-code-text";
+            explanation.textContent =
+              "Scansiona questo QR code per unirti alla stanza";
+            container.appendChild(explanation);
+          }
+        );
+
+        // Genera anche una versione testuale per console o ambienti limitati
+        if (window.innerWidth > 600) {
+          console.log(generateTextQR(text));
+        }
+      }
+
+      // Funzione per generare un QR code testuale (simile a quello nel messageboard-server)
+      function generateTextQR(txt) {
+        try {
+          const q = QRCode.create(txt);
+          let code = "\n\n";
+          for (let i = 0; i < 2; i++) {
+            code += "  ████";
+            for (let j = 0; j < q.modules.size; j++) {
+              code += "██";
+            }
+            code += "████\n";
+          }
+          for (let i = 0; i < q.modules.size; i++) {
+            code += "  ████";
+            for (let j = 0; j < q.modules.size; j++) {
+              code += q.modules.data[i * q.modules.size + j] ? "  " : "██";
+            }
+            code += "████\n";
+          }
+          for (let i = 0; i < 2; i++) {
+            code += "  ████";
+            for (let j = 0; j < q.modules.size; j++) {
+              code += "██";
+            }
+            code += "████\n";
+          }
+          return code + "\n\n";
+        } catch (error) {
+          console.error(
+            "Errore nella generazione del QR code testuale:",
+            error
+          );
+          return "";
+        }
+      }
+
+      // Event listener per i pulsanti di selezione modalità
+      document
+        .getElementById("createRoomBtn")
+        .addEventListener("click", createNewRoom);
+      document
+        .getElementById("joinRoomBtn")
+        .addEventListener("click", function () {
+          document.getElementById("modeSelector").style.display = "none";
+          document.getElementById("joinForm").classList.remove("hidden");
+          document.getElementById("status").textContent =
+            "Inserisci l'ID della stanza per unirti";
+        });
+
+      document
+        .getElementById("joinRoomSubmit")
+        .addEventListener("click", function () {
+          const roomId = document.getElementById("roomId").value.trim();
+          if (roomId) {
+            joinRoom(roomId);
+          } else {
+            alert("Per favore inserisci un ID stanza valido.");
+          }
+        });
+
+      document
+        .getElementById("copyLink")
+        .addEventListener("click", function () {
+          const shareLinkInput = document.getElementById("shareLinkInput");
+          shareLinkInput.select();
+          document.execCommand("copy");
+          document.getElementById("copyLink").textContent = "Copiato!";
+          setTimeout(() => {
+            document.getElementById("copyLink").textContent = "Copia Link";
+          }, 2000);
+        });
+
+      // Event listener per impostare il nome utente
+      document
+        .getElementById("setUsername")
+        .addEventListener("click", function () {
+          setUsername();
+        });
+
+      // Funzione per impostare il nome utente
+      function setUsername() {
+        const newUsername = document.getElementById("username").value.trim();
+
+        if (!newUsername) {
+          alert("Per favore inserisci un nome utente.");
+          return;
+        }
+
+        username = newUsername;
+
+        // Salva il nome utente nel localStorage
+        localStorage.setItem("chatUsername", username);
+
+        // Salva l'utente nel nodo degli utenti
+        if (users) {
+          users.get(peerId).put({
+            id: peerId,
+            name: username,
+            online: true,
+            lastSeen: Date.now(),
+          });
+          
+          // Verifica che l'utente sia registrato correttamente
+          setTimeout(() => {
+            users.get(peerId).once((data) => {
+              if (data && data.name === username) {
+                console.log("Utente registrato correttamente:", data);
+              } else {
+                console.warn("L'utente potrebbe non essere stato registrato correttamente:", data);
+                // Riprova a registrare l'utente
+                users.get(peerId).put({
+                  id: peerId,
+                  name: username,
+                  online: true,
+                  lastSeen: Date.now(),
+                });
+              }
+            });
+          }, 500);
+        } else {
+          console.error("Il nodo users non è stato inizializzato");
+        }
+
+        // Disabilita l'input e il pulsante del nome utente
+        document.getElementById("username").disabled = true;
+        document.getElementById("setUsername").disabled = true;
+        document.getElementById("setUsername").textContent = "Nome Utente Impostato";
+
+        // Abilita i form di messaggi
+        document.getElementById("message").disabled = false;
+        document.getElementById("chatForm").querySelector("button").disabled = false;
+        
+        // Invia un messaggio di sistema per informare che l'utente è entrato
+        try {
+          const timestamp = Date.now();
+          const systemMsgId = `system_${timestamp}`;
+          const systemMsg = `${username} è entrato nella chat`;
+          
+          if (encryptionKey) {
+            // Messaggio di sistema crittografato
+            (async function() {
+              const messageData = {
+                user: "Sistema",
+                text: systemMsg,
+                timestamp: timestamp,
+                system: true
+              };
+              
+              const encrypted = await SEA.encrypt(messageData, encryptionKey);
+              
+              chat.get(systemMsgId).put({
+                encrypted: encrypted
+              });
+            })();
+          } else {
+            // Messaggio di sistema in chiaro
+            chat.get(systemMsgId).put({
+              user: "Sistema",
+              text: systemMsg,
+              timestamp: timestamp,
+              system: true
+            });
+          }
+        } catch (e) {
+          console.error("Errore nell'invio del messaggio di sistema:", e);
+        }
+      }
+
+      // Funzione per generare una chiave di crittografia casuale
+      function generateEncryptionKey() {
+        // Genera una stringa casuale di 32 caratteri (più sicura di una password semplice)
+        const chars =
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let key = "";
+        for (let i = 0; i < 32; i++) {
+          key += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return key;
+      }
+
+      // Funzione per creare una nuova stanza
+      function createNewRoom() {
+        // Genera un ID casuale per la stanza
+        const roomId = Math.random().toString(36).substring(2, 12);
+
+        // Genera una chiave di crittografia per la stanza
+        const key = generateEncryptionKey();
+
+        currentRoomId = roomId;
+        encryptionKey = key;
+
+        // Aggiungi l'ID stanza e la chiave all'URL
+        window.location.hash = `${roomId}&key=${key}`;
+
+        // Inizializza la chat per questa stanza
+        initializeChat(roomId);
+
+        // Mostra il link da condividere
+        document.getElementById("modeSelector").style.display = "none";
+        document.getElementById("shareLink").style.display = "block";
+        document.getElementById("shareLinkInput").value = window.location.href;
+
+        // Genera il QR code
+        generateQRCode(window.location.href);
+
+        // Aggiorna lo stato
+        document.getElementById("status").textContent =
+          "Hai creato una nuova stanza crittografata!";
+        document.getElementById("roomInfo").classList.remove("hidden");
+        document.getElementById("currentRoomId").textContent = roomId;
+        document.getElementById("encryptionStatus").classList.remove("hidden");
+
+        // Mostra l'interfaccia della chat
+        showChatInterface();
+      }
+
+      // Funzione per unirsi a una stanza esistente
+      function joinRoom(roomId, key) {
+        currentRoomId = roomId;
+
+        if (key) {
+          // Se abbiamo una chiave, la usiamo per la crittografia
+          encryptionKey = key;
+          document
+            .getElementById("encryptionStatus")
+            .classList.remove("hidden");
+        } else {
+          // Nessuna chiave fornita, i messaggi non saranno decrittografati
+          encryptionKey = "";
+          document.getElementById("encryptionStatus").classList.add("hidden");
+          document.getElementById("encryptionStatus").textContent =
+            "⚠️ Chiave di crittografia mancante, impossibile decifrare i messaggi";
+          document.getElementById("encryptionStatus").style.color = "#f44336";
+        }
+
+        // Aggiorna l'URL con l'ID stanza e la chiave se disponibile
+        if (key) {
+          window.location.hash = `${roomId}&key=${key}`;
+        } else {
+          window.location.hash = roomId;
+        }
+
+        // Inizializza la chat per questa stanza
+        initializeChat(roomId);
+
+        // Aggiorna lo stato
+        document.getElementById("status").textContent =
+          "Connessione alla stanza...";
+        document.getElementById("joinForm").classList.add("hidden");
+        document.getElementById("roomInfo").classList.remove("hidden");
+        document.getElementById("currentRoomId").textContent = roomId;
+
+        // Mostra l'interfaccia della chat
+        showChatInterface();
+      }
+
+      // Funzione per mostrare l'interfaccia della chat
+      function showChatInterface() {
+        document.getElementById("userSetup").classList.remove("hidden");
+        document.getElementById("chatTabs").classList.remove("hidden");
+        document.getElementById("roomChatTab").style.display = "block";
+        document.getElementById("peers").classList.remove("hidden");
+
+        // Recupera il nome utente dal localStorage se esiste
+        if (username) {
+          document.getElementById("username").value = username;
+          document.getElementById("username").disabled = true;
+          document.getElementById("setUsername").disabled = true;
+          document.getElementById("setUsername").textContent = "Nome Utente Impostato";
+
+          // Abilita i form di messaggi
+          document.getElementById("message").disabled = false;
+          document.getElementById("chatForm").querySelector("button").disabled = false;
+
+          // Registra l'utente nel nodo degli utenti
+          if (users) {
+            users.get(peerId).put({
+              id: peerId,
+              name: username,
+              online: true,
+              lastSeen: Date.now(),
+            });
+          }
+        }
+      }
+
+      // Funzione per inizializzare la chat con Gun per una stanza specifica
+      function initializeChat(roomId) {
+        // Inizializza Gun con storage locale e WebRTC per P2P
+        const config = {
+          peers: [`http://localhost:8765/gun`], // Il tracker centrale
+          localStorage: true, // Utilizziamo localStorage
+          radisk: true, // Abilita il storage su disco (IndexedDB)
+          multicast: false, // Disabilita multicast
+          rtc: { 
+            iceServers: [
+              { urls: "stun:stun.l.google.com:19302" },
+              { urls: "stun:stun1.l.google.com:19302" },
+              { urls: "stun:stun2.l.google.com:19302" }
+            ] 
+          }
+        };
+
+        // Chiudi l'istanza precedente di Gun se esiste
+        if (gun) {
+          try {
+            gun.user().leave();
+          } catch(e) { 
+            console.log("Nessun utente da disconnettere");
+          }
+        }
+
+        gun = Gun(config);
+
+        // Aggiungi un identificatore univoco al peer
+        gun.on('opt', function(opt){
+          if(opt.once){ return }
+          opt.once = true;
+          
+          // Assicurati che il peer ID sia settato
+          if(opt.pid){
+            peerId = opt.pid;
+            console.log("ID Peer:", peerId);
+          }
+        });
+
+        // Seleziona il nodo per la chat della stanza specifica
+        chat = gun.get(`chat-room-${roomId}`);
+
+        // Seleziona il nodo per gli utenti della stanza
+        users = gun.get(`users-${roomId}`);
+
+        // Seleziona il nodo per i messaggi privati
+        privateMessages = gun.get(`private-messages-${roomId}`);
+
+        // Mostra lo stato della connessione
+        gun.on("hi", (peer) => {
+          console.log("Peer connesso:", peer);
+          document.getElementById("status").textContent =
+            "Connesso al tracker!";
+          updatePeerCount();
+        });
+
+        gun.on("bye", (peer) => {
+          console.log("Peer disconnesso:", peer);
+          updatePeerCount();
+        });
+
+        // Gestisci la disconnessione
+        window.addEventListener("beforeunload", function () {
+          if (username) {
+            // Imposta l'utente come offline quando si esce
+            users.get(peerId).put({
+              online: false,
+              lastSeen: Date.now(),
+            });
+          }
+        });
+
+        // Pulisci la chat precedente se ce n'è una
+        document.getElementById("chat").innerHTML = "";
+        document.getElementById("privateChat").innerHTML = "";
+
+        // Ascolta in tempo reale i nuovi messaggi della stanza
+        chat.map().on(function (data, key) {
+          if (data) {
+            // Elabora il messaggio (potrebbe essere crittografato)
+            processMessage(data, key);
+          }
+        });
+
+        // Ascolta la lista degli utenti
+        users.map().on(function (userData, userId) {
+          if (userData && userData.name) {
+            updateUserList(userData, userId);
+          }
+        });
+
+        // Ascolta i messaggi privati
+        privateMessages.map().on(function (data, key) {
+          if (data) {
+            processPrivateMessage(data, key);
+          }
+        });
+
+        // Registra l'utente corrente se è già impostato
+        if (username) {
+          users.get(peerId).put({
+            id: peerId,
+            name: username,
+            online: true,
+            lastSeen: Date.now(),
+          });
+        }
+      }
+
+      // Funzione per aggiornare la lista degli utenti
+      function updateUserList(userData, userId) {
+        // Non mostrare sé stessi nella lista
+        if (userId === peerId) return;
+
+        const userList = document.getElementById("userList");
+
+        // Controlla se l'utente è già nella lista
+        let userElement = document.querySelector(
+          `.user-item[data-id="${userId}"]`
+        );
+
+        if (!userElement) {
+          // Se l'utente non esiste, crea un nuovo elemento
+          userElement = document.createElement("div");
+          userElement.className = "user-item";
+          userElement.setAttribute("data-id", userId);
+          userElement.addEventListener("click", function () {
+            selectUserForPrivateMessage(userId, userData.name);
+          });
+
+          userList.appendChild(userElement);
+        }
+
+        // Aggiorna lo stato online/offline
+        const onlineStatus = userData.online ? "🟢" : "⚪";
+        userElement.textContent = `${onlineStatus} ${userData.name}`;
+
+        // Rimuovi il messaggio "Nessun utente disponibile" se ci sono utenti
+        const noUsersMessage = userList.querySelector(
+          ".user-item:not([data-id])"
+        );
+        if (noUsersMessage && userList.children.length > 1) {
+          userList.removeChild(noUsersMessage);
+        }
+      }
+
+      // Funzione per selezionare un utente per i messaggi privati
+      function selectUserForPrivateMessage(userId, userName) {
+        selectedUser = {
+          id: userId,
+          name: userName,
+        };
+
+        // Evidenzia l'utente selezionato
+        const userItems = document.querySelectorAll(".user-item");
+        userItems.forEach((item) => item.classList.remove("selected"));
+
+        const selectedItem = document.querySelector(
+          `.user-item[data-id="${userId}"]`
+        );
+        if (selectedItem) {
+          selectedItem.classList.add("selected");
+        }
+
+        // Pulisci la chat privata e carica i messaggi con questo utente
+        document.getElementById("privateChat").innerHTML = "";
+        loadPrivateMessages(userId);
+
+        // Abilita l'invio di messaggi privati
+        document.getElementById("privateMessage").disabled = false;
+        document.getElementById("privateMessageForm")
+          .querySelector("button").disabled = false;
+        document.getElementById("privateMessage").placeholder =
+          `Messaggio per ${userName}`;
+      }
+
+      // Funzione per caricare i messaggi privati con un utente specifico
+      function loadPrivateMessages(userId) {
+        // Identifica la conversazione tra i due utenti (ordina gli ID per garantire consistenza)
+        const conversationId = [peerId, userId].sort().join("_");
+
+        // Carica i messaggi di questa conversazione
+        privateMessages
+          .get(conversationId)
+          .map()
+          .on(function (data, key) {
+            if (data) {
+              processPrivateMessage(data, key, conversationId);
+            }
+          });
+      }
+
+      // Funzione per elaborare un messaggio privato
+      async function processPrivateMessage(data, key, conversationIdParam) {
+        // Creare un ID completo per identificare il messaggio in modo univoco
+        const conversationId =
+          conversationIdParam ||
+          (data.from && data.to ? [data.from, data.to].sort().join("_") : "");
+        const fullKey = `${conversationId}_${key}`;
+
+        // Evita di processare messaggi già visti
+        if (processedPrivateMessages.has(fullKey)) return;
+        processedPrivateMessages.add(fullKey);
+
+        try {
+          // Verifica se il messaggio è per/da questo utente
+          if (data.to === peerId || data.from === peerId) {
+            let decryptedContent;
+
+            // Prova a decrittografare il messaggio
+            if (data.encrypted && encryptionKey) {
+              decryptedContent = await SEA.decrypt(
+                data.encrypted,
+                encryptionKey
+              );
+            }
+
+            if (decryptedContent) {
+              // Determinare il nome dell'utente con cui stiamo chattando
+              const otherUserId = data.from === peerId ? data.to : data.from;
+              const direction = data.from === peerId ? "sent" : "received";
+
+              // Ottieni il nome dell'utente
+              users.get(otherUserId).once(function (userData) {
+                const otherUserName = userData
+                  ? userData.name
+                  : "Utente sconosciuto";
+
+                // Se questo è l'utente selezionato, o è un messaggio che abbiamo inviato a qualcuno
+                if (
+                  selectedUser &&
+                  (selectedUser.id === otherUserId || data.from === peerId)
+                ) {
+                  addPrivateMessage(
+                    data.from === peerId ? "Tu" : otherUserName,
+                    decryptedContent.text,
+                    decryptedContent.timestamp,
+                    direction
+                  );
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Errore nel processare il messaggio privato:", error);
+        }
+      }
+
+      // Funzione per elaborare un messaggio (crittografato o meno)
+      async function processMessage(data, key) {
+        // Se non c'è un payload, ignora
+        if (!data) return;
+
+        // Stampa il messaggio ricevuto per debug
+        console.log("Ricevuto messaggio con chiave:", key, "dati:", JSON.stringify(data).substring(0, 100));
+
+        // Verifica se il messaggio è già stato elaborato usando la chiave completa invece dell'ID generato
+        if (processedMessages.has(key)) {
+          return; // Salta questo messaggio se è già stato elaborato
+        }
+
+        try {
+          // Controlla se il messaggio è crittografato
+          if (data.encrypted && encryptionKey) {
+            // Decrittografa il messaggio
+            const decrypted = await SEA.decrypt(data.encrypted, encryptionKey);
+            console.log("Messaggio decrittografato:", decrypted ? "successo" : "fallito");
+
+            if (
+              decrypted &&
+              decrypted.user &&
+              decrypted.text &&
+              decrypted.timestamp
+            ) {
+              // Messaggio decrittografato con successo
+              addMessage(
+                decrypted.user,
+                decrypted.text,
+                decrypted.timestamp,
+                key,
+                true,
+                decrypted.system || false
+              );
+              // Aggiungi subito alla cache per evitare duplicazioni
+              processedMessages.add(key);
+            }
+          } else if (data.user && data.text && data.timestamp) {
+            // Messaggio non crittografato
+            console.log("Messaggio in chiaro ricevuto:", data.text);
+            addMessage(
+              data.user, 
+              data.text, 
+              data.timestamp, 
+              key, 
+              false, 
+              data.system || false
+            );
+            // Aggiungi subito alla cache per evitare duplicazioni
+            processedMessages.add(key);
+          }
+        } catch (error) {
+          console.error("Errore nel processare il messaggio:", error);
+
+          // Mostra un messaggio di errore nella chat
+          const chatDiv = document.getElementById("chat");
+          const errorDiv = document.createElement("div");
+          errorDiv.className = "error";
+          errorDiv.textContent = `Impossibile decifrare un messaggio. La chiave potrebbe essere sbagliata.`;
+          chatDiv.appendChild(errorDiv);
+
+          // Aggiungi comunque alla cache per evitare duplicazioni di errori
+          processedMessages.add(key);
+        }
+      }
+
+      // Ottieni il contatore dei peer
+      let peerCount = 0;
+      function updatePeerCount() {
+        // Ottieni i peer connessi da Gun
+        const gunPeers = gun?._.opt?.peers || {};
+        
+        // Filtra i peer attivi (elimina quelli disconnessi)
+        const activePeers = Object.entries(gunPeers).filter(([id, peer]) => {
+          return peer && peer.wire && peer.wire.hied !== 'bye';
+        });
+        
+        peerCount = activePeers.length;
+        
+        // Aggiorna l'interfaccia
+        document.getElementById("peers").textContent = `Peer connessi: ${peerCount}`;
+        console.log("Peer attivi:", activePeers.map(p => p[0]));
+      }
+
+      // Aggiorna il contatore dei peer ogni secondo
+      setInterval(() => {
+        if (gun) updatePeerCount();
+      }, 1000);
+
+      // Funzione per aggiungere un messaggio all'interfaccia
+      function addMessage(user, text, timestamp, id, isEncrypted, isSystem) {
+        // Crea un identificatore univoco per questo messaggio
+        const messageId = id || `${user}_${timestamp}_${text.substring(0, 10)}`;
+
+        // Controlla se il messaggio è già stato elaborato
+        if (processedMessages.has(messageId)) {
+          return; // Salta questo messaggio se è già stato elaborato
+        }
+
+        // Aggiungi alla cache dei messaggi elaborati - adesso questo viene fatto nel processMessage
+        // per evitare duplicazioni durante l'elaborazione asincrona
+
+        const chatDiv = document.getElementById("chat");
+        const messageDiv = document.createElement("div");
+        
+        // Stile diverso per messaggi di sistema
+        if (user === "Sistema" || isSystem) {
+          messageDiv.className = "message system-message";
+          messageDiv.style.backgroundColor = "#2c3e50";
+          messageDiv.style.color = "#ecf0f1";
+          messageDiv.style.textAlign = "center";
+          messageDiv.style.fontStyle = "italic";
+        } else {
+          messageDiv.className = "message";
+        }
+        
+        messageDiv.setAttribute("data-id", messageId);
+
+        const time = new Date(timestamp).toLocaleTimeString();
+        let html;
+        
+        if (user === "Sistema" || isSystem) {
+          html = `<span class="time">[${time}]</span> ${text}`;
+        } else {
+          html = `<span class="time">[${time}]</span> <span class="user">${user}: </span>${text}`;
+        }
+
+        // Aggiungi badge di crittografia se il messaggio è crittografato
+        if (isEncrypted && !(user === "Sistema" || isSystem)) {
+          html += `<span class="encrypted-badge">🔒</span>`;
+        }
+
+        messageDiv.innerHTML = html;
+
+        chatDiv.appendChild(messageDiv);
+        // Auto-scroll in fondo alla chat
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+      }
+
+      // Funzione per aggiungere un messaggio privato all'interfaccia
+      function addPrivateMessage(user, text, timestamp, direction) {
+        const privateChatDiv = document.getElementById("privateChat");
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "private-message";
+
+        const time = new Date(timestamp).toLocaleTimeString();
+        let html = `<span class="time">[${time}]</span> <span class="user">${user}: </span>${text}`;
+        html += `<span class="private-badge">🔐</span>`;
+
+        messageDiv.innerHTML = html;
+
+        // Aggiungere stile diverso per messaggi inviati/ricevuti
+        if (direction === "sent") {
+          messageDiv.style.marginLeft = "20px";
+          messageDiv.style.borderLeftColor = "#4CAF50";
+        } else {
+          messageDiv.style.marginRight = "20px";
+          messageDiv.style.borderLeftColor = "#0066cc";
+        }
+
+        privateChatDiv.appendChild(messageDiv);
+        // Auto-scroll in fondo alla chat privata
+        privateChatDiv.scrollTop = privateChatDiv.scrollHeight;
+      }
+
+      // Gestione dell'invio dei messaggi della stanza
+      document
+        .getElementById("chatForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          if (!chat) {
+            alert("Devi prima creare o unirti a una stanza!");
+            return;
+          }
+
+          if (!username) {
+            alert(
+              "Per favore imposta un nome utente prima di inviare messaggi."
+            );
+            return;
+          }
+
+          const text = document.getElementById("message").value.trim();
+          if (!text) return;
+
+          // Crea un ID univoco per il messaggio
+          const timestamp = Date.now();
+          const msgId = `${peerId}_${timestamp}`;
+
+          try {
+            if (encryptionKey) {
+              // Crea un oggetto con i dati del messaggio
+              const messageData = {
+                user: username,
+                text: text,
+                timestamp: timestamp,
+                from: peerId,
+              };
+
+              // Crittografa il messaggio
+              const encrypted = await SEA.encrypt(messageData, encryptionKey);
+
+              // Aggiungi immediatamente il messaggio all'interfaccia per feedback immediato
+              // e poi registralo nella cache per evitare duplicazioni
+              addMessage(username, text, timestamp, msgId, true, false);
+              processedMessages.add(msgId);
+
+              // Salva solo la versione crittografata
+              chat.get(msgId).put({
+                encrypted: encrypted,
+              });
+            } else {
+              // Aggiungi immediatamente il messaggio all'interfaccia
+              addMessage(username, text, timestamp, msgId, false, false);
+              processedMessages.add(msgId);
+
+              // Senza chiave, salva in chiaro
+              chat.get(msgId).put({
+                user: username,
+                text: text,
+                timestamp: timestamp,
+                from: peerId,
+              });
+            }
+
+            // Pulisce il campo del messaggio
+            document.getElementById("message").value = "";
+          } catch (error) {
+            console.error("Errore durante l'invio del messaggio:", error);
+            alert("Errore durante l'invio del messaggio crittografato");
+          }
+        });
+
+      // Gestione dell'invio dei messaggi privati
+      document
+        .getElementById("privateMessageForm")
+        .addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          if (!selectedUser) {
+            alert("Seleziona un utente a cui inviare il messaggio privato.");
+            return;
+          }
+
+          if (!username) {
+            alert(
+              "Per favore imposta un nome utente prima di inviare messaggi."
+            );
+            return;
+          }
+
+          const text = document.getElementById("privateMessage").value.trim();
+          if (!text) return;
+
+          // Crea un ID univoco per il messaggio
+          const timestamp = Date.now();
+          const msgId = `${peerId}_${timestamp}`;
+
+          try {
+            // Crea l'oggetto con i dati del messaggio
+            const messageData = {
+              text: text,
+              timestamp: timestamp,
+            };
+
+            let encrypted;
+            if (encryptionKey) {
+              // Crittografa il messaggio con la chiave della stanza
+              encrypted = await SEA.encrypt(messageData, encryptionKey);
+            }
+
+            // Identifica la conversazione tra i due utenti (ordina gli ID per garantire consistenza)
+            const conversationId = [peerId, selectedUser.id].sort().join("_");
+
+            // Mostra subito il messaggio nell'interfaccia
+            addPrivateMessage("Tu", text, timestamp, "sent");
+
+            // Registra questo ID nel set dei messaggi privati processati prima dell'invio
+            const fullMsgId = `${conversationId}_${msgId}`;
+            processedPrivateMessages.add(fullMsgId);
+
+            // Salva il messaggio nel nodo dei messaggi privati
+            privateMessages.get(conversationId).get(msgId).put({
+              from: peerId,
+              to: selectedUser.id,
+              encrypted: encrypted,
+              timestamp: timestamp,
+            });
+
+            // Pulisce il campo del messaggio
+            document.getElementById("privateMessage").value = "";
+          } catch (error) {
+            console.error(
+              "Errore durante l'invio del messaggio privato:",
+              error
+            );
+            alert("Errore durante l'invio del messaggio privato crittografato");
+          }
+        });
+
+      // Limita la dimensione della cache per evitare problemi di memoria
+      setInterval(() => {
+        // Mantieni solo gli ultimi 100 messaggi nella cache
+        if (processedMessages.size > 100) {
+          const toRemove = Array.from(processedMessages).slice(
+            0,
+            processedMessages.size - 100
+          );
+          toRemove.forEach((id) => processedMessages.delete(id));
+        }
+
+        // Stessa cosa per i messaggi privati
+        if (processedPrivateMessages.size > 100) {
+          const toRemove = Array.from(processedPrivateMessages).slice(
+            0,
+            processedPrivateMessages.size - 100
+          );
+          toRemove.forEach((id) => processedPrivateMessages.delete(id));
+        }
+      }, 60000); // Controlla ogni minuto
+    </script>
+  </body>
+</html>

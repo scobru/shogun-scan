@@ -69,3 +69,97 @@ Contributions are welcome! If you would like to contribute to the project, pleas
 
 MIT
 
+## Utilizzo in ambiente browser
+
+Shogun Core può essere utilizzato direttamente nei browser web moderni. Questo rende possibile creare applicazioni decentralizzate che funzionano interamente dal browser del client.
+
+### Installazione
+
+Puoi includere Shogun Core in due modi:
+
+#### 1. Utilizzando tag script
+
+```html
+<script src="path/to/shogun-core.js"></script>
+```
+
+#### 2. Utilizzando npm/yarn in un progetto frontend
+
+```bash
+npm install shogun-core
+# oppure
+yarn add shogun-core
+```
+
+E poi importarlo nelle tue applicazioni:
+
+```javascript
+// ESM
+import { ShogunCore, initShogunBrowser } from 'shogun-core';
+
+// CommonJS
+const { ShogunCore, initShogunBrowser } = require('shogun-core');
+```
+
+### Esempi di utilizzo nel browser
+
+```javascript
+// Inizializza Shogun con configurazione ottimizzata per browser
+const shogun = initShogunBrowser({
+  peers: ['https://your-gun-relay.com/gun'],
+  websocket: true, // Usa WebSocket per la comunicazione
+  // Configurazione WebAuthn per autenticazione biometrica/device
+  webauthn: {
+    enabled: true,
+    rpName: 'La Tua App',
+    rpId: window.location.hostname
+  }
+});
+
+// Registrazione
+async function signup() {
+  try {
+    const result = await shogun.signUp('username', 'password');
+    console.log('Registrazione completata:', result);
+  } catch (error) {
+    console.error('Errore durante la registrazione:', error);
+  }
+}
+
+// Login
+async function login() {
+  try {
+    const result = await shogun.login('username', 'password');
+    console.log('Login completato:', result);
+  } catch (error) {
+    console.error('Errore durante il login:', error);
+  }
+}
+
+// Creazione di un wallet
+async function createWallet() {
+  if (!shogun.isLoggedIn()) {
+    console.error('Devi effettuare il login prima!');
+    return;
+  }
+  
+  try {
+    const wallet = await shogun.createWallet();
+    console.log('Wallet creato:', wallet);
+  } catch (error) {
+    console.error('Errore durante la creazione del wallet:', error);
+  }
+}
+```
+
+Per un esempio completo, consulta il file [examples/browser-example.html](examples/browser-example.html).
+
+### Note sulla compatibilità
+
+La versione browser di Shogun Core:
+
+- Supporta tutti i browser moderni (Chrome, Firefox, Safari, Edge)
+- Include polyfill necessari per funzionalità node.js utilizzate da GunDB
+- Ottimizza automaticamente le impostazioni per l'ambiente browser
+- Fornisce supporto per WebAuthn quando disponibile nel browser
+

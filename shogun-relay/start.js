@@ -50,6 +50,8 @@ const gun = new Gun({
   wire:true
 });
 
+
+
 // Rendi l'istanza accessibile
 global.gun = gun;
 
