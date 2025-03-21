@@ -1,47 +1,137 @@
 # Shogun SDK
 
+## Table of Contents
+- [Overview](#overview)
+- [Why Choose Shogun?](#why-choose-shogun)
+  - [The Web3 Challenge](#the-web3-challenge)
+  - [The Shogun Solution](#the-shogun-solution)
+- [Core Features](#core-features)
+  - [Authentication](#authentication)
+  - [Storage](#storage)
+  - [Wallet Management](#wallet-management)
+  - [Security](#security)
+- [Technologies Used](#technologies-used)
+  - [Core Technologies](#core-technologies)
+  - [Security & Cryptography](#security--cryptography)
+  - [Development & Build Tools](#development--build-tools)
+  - [Browser Support](#browser-support)
+- [Getting Started](#getting-started)
+  - [Installation](#installation)
+  - [Basic Usage](#basic-usage)
+- [Use Cases](#use-cases)
+- [Documentation](#documentation)
+- [Browser Integration](#browser-integration)
+  - [Setup](#setup)
+  - [Examples](#examples)
+  - [Compatibility](#compatibility)
+- [Contributing](#contribute)
+- [License](#license)
+
 ## Overview
 
-Welcome to the Shogun SDK! This powerful and user-friendly SDK is designed to simplify decentralized authentication and wallet management. With support for various authentication methods including standard username/password, MetaMask, and WebAuthn, Shogun SDK integrates seamlessly with GunDB for decentralized user authentication. Whether you're building a new application or enhancing an existing one, Shogun SDK provides the tools you need to manage user authentication and crypto wallets efficiently.
+Welcome to the Shogun SDK! This powerful and user-friendly SDK is designed to simplify decentralized authentication and wallet management in Web3 applications. Whether you're building a new dApp or enhancing an existing one, Shogun SDK provides the tools you need for secure and efficient crypto operations.
 
-## Key Features
+## Why Choose Shogun?
 
-- **Multi-layer Authentication**: Supports username/password, MetaMask, and WebAuthn.
-- **Wallet Management**: Easily manage crypto wallets, mnemonics, and keys.
-- **GunDB Integration**: Decentralized user authentication with GunDB.
-- **Stealth Addresses**: Create and manage stealth addresses for enhanced privacy.
-- **Storage Solutions**: Simple key-value storage with support for localStorage.
+### The Web3 Challenge
 
-## Installation
+In today's Web3 landscape, developers face significant challenges in managing user authentication and crypto operations while maintaining security and usability. Traditional solutions often require compromises between security, usability, and decentralization.
 
+### The Shogun Solution
+
+Shogun combines GunDB's decentralization, modern authentication standards, and the Ethereum ecosystem into a comprehensive SDK that prioritizes both security and user experience.
+
+## Core Features
+
+### Authentication
+- **Multi-layer Support**: 
+  - WebAuthn for biometric and hardware authentication
+  - MetaMask integration
+  - Traditional username/password
+- **Flexible Implementation**: Adapt to different user needs and security requirements
+
+### Storage
+- **Decentralized with GunDB**:
+  - True data decentralization
+  - Offline resilience
+  - Real-time synchronization
+- **Local Storage Support**: Efficient client-side data persistence
+
+### Wallet Management
+- **BIP-44 Standard**: Compatible with major wallet services
+- **Stealth Addresses**: Enhanced transaction privacy
+- **Backup & Recovery**: Robust security measures
+
+### Security
+- **End-to-End Encryption**: Protected sensitive data
+- **Modern Standards**: WebAuthn and best practices
+- **Audit Trail**: Complete operation tracking
+
+## Technologies Used
+
+### Core Technologies
+
+- **TypeScript**: Built with TypeScript for enhanced type safety and developer experience
+- **GunDB**: Decentralized graph database for P2P data storage and synchronization
+- **ethers.js**: Complete Ethereum wallet implementation and utilities
+- **WebAuthn**: W3C standard for passwordless authentication
+
+### Security & Cryptography
+
+- **SEA.js**: GunDB's Security, Encryption, & Authorization module
+- **BIP-44**: Standard protocol for deterministic wallet generation
+- **Stealth Address Protocol**: Enhanced privacy for cryptocurrency transactions
+
+### Development & Build Tools
+
+- **Webpack**: Module bundling for browser compatibility
+- **TypeDoc**: Automated documentation generation
+- **Prettier**: Code formatting and style consistency
+
+### Browser Support
+
+- **WebCrypto API**: Native cryptographic operations
+- **IndexedDB/LocalStorage**: Client-side data persistence
+- **WebSocket**: Real-time P2P communication
+
+## Getting Started
+
+### Installation
 ```bash
 npm install shogun-core
-# o
+# or
 yarn add shogun-core
 ```
 
-## Basic Usage Example   
-
+### Basic Usage
 ```typescript
-import { ShogunSDK } from 'shogun-core';
+import { ShogunCore } from "shogun-core";
 
-// Initialize the SDK
-const shogun = new ShogunSDK({
-  peers: ['https://your-gun-peer.com/gun'],
-  localStorage: true
+// Initialize SDK
+const shogun = new ShogunCore({
+  peers: ["https://your-gun-peer.com/gun"],
+  localStorage: true,
 });
 
-// Authentication with username/password
-const loginResult = await shogun.login('username', 'password');
+// Authentication examples
+const webAuthnLogin = await shogun.loginWithWebAuthn('username');
+const metaMaskLogin = await shogun.loginWithMetaMask('address');
+const passwordLogin = await shogun.login('username', 'password');
 
-// Or with MetaMask
-const metaMaskLoginResult = await shogun.loginWithMetaMask('ethereumAddress');
-
-// Or with WebAuthn
-const webAuthnLoginResult = await shogun.loginWithWebAuthn('username');
+// Wallet operations
+const wallet = await shogun.createWallet();
 ```
 
-## Full Documentation
+## Use Cases
+
+Shogun is particularly suitable for:
+
+- **dApps**: Decentralized applications requiring user authentication and wallet management.
+- **Web Wallets**: Implementation of crypto wallets directly in the browser.
+- **Social dApps**: Social applications requiring decentralized storage and crypto identities.
+- **Privacy-Focused Apps**: Applications needing stealth features and advanced privacy.
+
+## Documentation
 
 Shogun SDK includes a complete technical documentation generated with TSDoc:
 
@@ -49,11 +139,99 @@ Shogun SDK includes a complete technical documentation generated with TSDoc:
 - **Main classes**: View `./docs/classes/` for details on the main classes
 - **Interfaces**: View `./docs/interfaces/` for details on the interfaces
 
-## System Requirements and Compatibility
+## Browser Integration
 
-- **Modern browsers** with support for WebAuthn (Chrome, Firefox, Edge, Safari)
-- **Node.js** 14 or higher
-- Compatible with **ethers.js** v6
+Shogun Core can be used directly in modern web browsers. This makes it possible to create decentralized applications that run entirely from the client's browser.
+
+### Setup
+
+You can include Shogun Core in two ways:
+
+#### 1. Using script tags
+
+```html
+<script src="path/to/shogun-core.js"></script>
+```
+
+#### 2. Using npm/yarn in a frontend project
+
+```bash
+npm install shogun-core
+# or
+yarn add shogun-core
+```
+
+And then import it in your applications:
+
+```javascript
+// ESM
+import { ShogunCore, initShogunBrowser } from "shogun-core";
+
+// CommonJS
+const { ShogunCore, initShogunBrowser } = require("shogun-core");
+```
+
+### Examples
+
+```javascript
+// Initialize Shogun with browser-optimized configuration
+const shogun = initShogunBrowser({
+  peers: ["https://your-gun-relay.com/gun"],
+  websocket: true, // Use WebSocket for communication
+  // WebAuthn configuration for biometric/device authentication
+  webauthn: {
+    enabled: true,
+    rpName: "Your App",
+    rpId: window.location.hostname,
+  },
+});
+
+// Registration
+async function signup() {
+  try {
+    const result = await shogun.signUp("username", "password");
+    console.log("Registration completed:", result);
+  } catch (error) {
+    console.error("Error during registration:", error);
+  }
+}
+
+// Login
+async function login() {
+  try {
+    const result = await shogun.login("username", "password");
+    console.log("Login completed:", result);
+  } catch (error) {
+    console.error("Error during login:", error);
+  }
+}
+
+// Creating a wallet
+async function createWallet() {
+  if (!shogun.isLoggedIn()) {
+    console.error("You must log in first!");
+    return;
+  }
+
+  try {
+    const wallet = await shogun.createWallet();
+    console.log("Wallet created:", wallet);
+  } catch (error) {
+    console.error("Error while creating wallet:", error);
+  }
+}
+```
+
+For a complete example, check the [examples/browser-example.html](examples/browser-example.html) file.
+
+### Compatibility
+
+The browser version of Shogun Core:
+
+- Supports all modern browsers (Chrome, Firefox, Safari, Edge)
+- Includes necessary polyfills for node.js functionalities used by GunDB
+- Automatically optimizes settings for the browser environment
+- Provides WebAuthn support when available in the browser
 
 ## Contribute
 
@@ -68,98 +246,3 @@ Contributions are welcome! If you would like to contribute to the project, pleas
 ## License
 
 MIT
-
-## Utilizzo in ambiente browser
-
-Shogun Core può essere utilizzato direttamente nei browser web moderni. Questo rende possibile creare applicazioni decentralizzate che funzionano interamente dal browser del client.
-
-### Installazione
-
-Puoi includere Shogun Core in due modi:
-
-#### 1. Utilizzando tag script
-
-```html
-<script src="path/to/shogun-core.js"></script>
-```
-
-#### 2. Utilizzando npm/yarn in un progetto frontend
-
-```bash
-npm install shogun-core
-# oppure
-yarn add shogun-core
-```
-
-E poi importarlo nelle tue applicazioni:
-
-```javascript
-// ESM
-import { ShogunCore, initShogunBrowser } from 'shogun-core';
-
-// CommonJS
-const { ShogunCore, initShogunBrowser } = require('shogun-core');
-```
-
-### Esempi di utilizzo nel browser
-
-```javascript
-// Inizializza Shogun con configurazione ottimizzata per browser
-const shogun = initShogunBrowser({
-  peers: ['https://your-gun-relay.com/gun'],
-  websocket: true, // Usa WebSocket per la comunicazione
-  // Configurazione WebAuthn per autenticazione biometrica/device
-  webauthn: {
-    enabled: true,
-    rpName: 'La Tua App',
-    rpId: window.location.hostname
-  }
-});
-
-// Registrazione
-async function signup() {
-  try {
-    const result = await shogun.signUp('username', 'password');
-    console.log('Registrazione completata:', result);
-  } catch (error) {
-    console.error('Errore durante la registrazione:', error);
-  }
-}
-
-// Login
-async function login() {
-  try {
-    const result = await shogun.login('username', 'password');
-    console.log('Login completato:', result);
-  } catch (error) {
-    console.error('Errore durante il login:', error);
-  }
-}
-
-// Creazione di un wallet
-async function createWallet() {
-  if (!shogun.isLoggedIn()) {
-    console.error('Devi effettuare il login prima!');
-    return;
-  }
-  
-  try {
-    const wallet = await shogun.createWallet();
-    console.log('Wallet creato:', wallet);
-  } catch (error) {
-    console.error('Errore durante la creazione del wallet:', error);
-  }
-}
-```
-
-Per un esempio completo, consulta il file [examples/browser-example.html](examples/browser-example.html).
-
-### Note sulla compatibilità
-
-La versione browser di Shogun Core:
-
-- Supporta tutti i browser moderni (Chrome, Firefox, Safari, Edge)
-- Include polyfill necessari per funzionalità node.js utilizzate da GunDB
-- Ottimizza automaticamente le impostazioni per l'ambiente browser
-- Fornisce supporto per WebAuthn quando disponibile nel browser
-

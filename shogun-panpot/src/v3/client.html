@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
@@ -67,12 +67,13 @@
         position: relative;
         transition: all 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
       }
-      
+
       .app-header:hover {
-        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.25), 0 0 15px rgba(66, 133, 244, 0.1);
+        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.25),
+          0 0 15px rgba(66, 133, 244, 0.1);
         transform: translateY(-2px);
       }
-      
+
       .app-header img {
         height: 100px;
         width: auto;
@@ -80,17 +81,17 @@
         filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
         transition: transform 0.5s ease, filter 0.5s ease;
       }
-      
+
       .app-header:hover img {
         filter: drop-shadow(0 4px 6px rgba(66, 133, 244, 0.3));
         transform: scale(1.03);
       }
-      
+
       .app-header .title-group {
         display: flex;
         flex-direction: column;
       }
-      
+
       .app-header h1 {
         font-size: 2.2rem;
         font-weight: 700;
@@ -100,12 +101,12 @@
         letter-spacing: 1px;
         transition: color 0.3s ease, text-shadow 0.3s ease;
       }
-      
+
       .app-header:hover h1 {
         color: var(--primary-color);
         text-shadow: 0 2px 10px rgba(66, 133, 244, 0.2);
       }
-      
+
       .app-header h2 {
         font-size: 1rem;
         font-weight: 500;
@@ -114,11 +115,11 @@
         letter-spacing: 0.5px;
         transition: color 0.3s ease;
       }
-      
+
       .app-header:hover h2 {
         color: #d8a6ff;
       }
-      
+
       .encryption-badge {
         background-color: rgba(16, 185, 129, 0.15);
         color: var(--success);
@@ -133,14 +134,14 @@
         transition: all 0.3s ease;
         border: 1px solid transparent;
       }
-      
+
       .app-header:hover .encryption-badge {
         background-color: rgba(16, 185, 129, 0.2);
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(16, 185, 129, 0.2);
         border: 1px solid rgba(16, 185, 129, 0.3);
       }
-      
+
       .encryption-badge svg {
         width: 18px;
         height: 18px;
@@ -165,7 +166,8 @@
 
       #chat:hover,
       #privateChat:hover {
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 0 10px rgba(66, 133, 244, 0.05);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2),
+          0 0 10px rgba(66, 133, 244, 0.05);
         border-color: rgba(66, 133, 244, 0.2);
       }
 
@@ -201,7 +203,8 @@
 
       .message:hover {
         background-color: #303030;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 0 4px rgba(66, 133, 244, 0.1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15),
+          0 0 4px rgba(66, 133, 244, 0.1);
         transform: translateY(-1px);
       }
 
@@ -229,7 +232,7 @@
         border-left: none !important;
         transition: all 0.2s ease;
       }
-      
+
       .system-message:hover {
         background-color: #2a2a2a !important;
         color: var(--text-light) !important;
@@ -248,10 +251,11 @@
         word-break: break-word;
         transition: all 0.2s ease;
       }
-      
+
       .private-message:hover {
         background-color: rgba(59, 130, 246, 0.15);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 0 4px rgba(59, 130, 246, 0.1);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15),
+          0 0 4px rgba(59, 130, 246, 0.1);
         transform: translateY(-1px);
       }
 
@@ -278,7 +282,7 @@
         vertical-align: middle;
         transition: all 0.2s ease;
       }
-      
+
       .encrypted-badge:hover {
         background-color: rgba(16, 185, 129, 0.3);
         transform: translateY(-1px);
@@ -295,7 +299,7 @@
         vertical-align: middle;
         transition: all 0.2s ease;
       }
-      
+
       .private-badge:hover {
         background-color: rgba(59, 130, 246, 0.3);
         transform: translateY(-1px);
@@ -312,7 +316,7 @@
         border: 1px solid transparent;
         transition: all 0.3s ease;
       }
-      
+
       #peers:hover {
         background-color: #252525;
         border-color: rgba(66, 133, 244, 0.2);
@@ -347,7 +351,7 @@
         box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
         transform: translateY(-1px);
       }
-      
+
       input:hover,
       textarea:hover {
         border-color: rgba(66, 133, 244, 0.5);
@@ -391,9 +395,9 @@
         transform: none !important;
         box-shadow: none !important;
       }
-      
+
       button:after {
-        content: '';
+        content: "";
         position: absolute;
         top: 50%;
         left: 50%;
@@ -405,11 +409,11 @@
         transform: scale(1, 1) translate(-50%, -50%);
         transform-origin: 50% 50%;
       }
-      
+
       button:focus:not(:active)::after {
         animation: ripple 1s ease-out;
       }
-      
+
       @keyframes ripple {
         0% {
           opacity: 0.5;
@@ -437,7 +441,7 @@
         border-radius: 12px;
         transition: all 0.3s ease;
       }
-      
+
       .mode-selector button:hover {
         transform: translateY(-3px);
         box-shadow: 0 8px 20px rgba(66, 133, 244, 0.3);
@@ -456,7 +460,8 @@
         background-color: var(--dark-card);
         border: 1px solid rgba(66, 133, 244, 0.2);
         border-radius: 16px;
-        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 15px rgba(66, 133, 244, 0.2);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5),
+          0 0 15px rgba(66, 133, 244, 0.2);
       }
 
       .close-button {
@@ -505,10 +510,11 @@
         transition: all 0.3s ease;
         border: 1px solid transparent;
       }
-      
+
       #roomInfo:hover {
         border-color: rgba(66, 133, 244, 0.3);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 8px rgba(66, 133, 244, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15),
+          0 0 8px rgba(66, 133, 244, 0.1);
         transform: translateY(-2px);
       }
 
@@ -520,7 +526,7 @@
         border-radius: 4px;
         transition: all 0.3s ease;
       }
-      
+
       #roomInfo:hover #currentRoomId {
         background-color: rgba(192, 132, 252, 0.2);
       }
@@ -536,11 +542,12 @@
         transition: all 0.3s ease;
         border: 1px solid transparent;
       }
-      
+
       #encryptionStatus:hover {
         background-color: rgba(16, 185, 129, 0.15);
         border-color: rgba(16, 185, 129, 0.3);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 8px rgba(16, 185, 129, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1),
+          0 0 8px rgba(16, 185, 129, 0.1);
         transform: translateY(-2px);
       }
 
@@ -555,10 +562,11 @@
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         transition: all 0.3s ease;
       }
-      
+
       .error:hover {
         background-color: rgba(239, 68, 68, 0.15);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 8px rgba(239, 68, 68, 0.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15),
+          0 0 8px rgba(239, 68, 68, 0.1);
         transform: translateY(-1px);
       }
 
@@ -583,7 +591,7 @@
         color: var(--secondary-text);
         transition: all 0.3s ease;
       }
-      
+
       .share-warning:hover {
         background-color: rgba(245, 158, 11, 0.15);
         color: var(--text-light);
@@ -607,7 +615,7 @@
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         transition: all 0.3s ease;
       }
-      
+
       #qrcode-container:hover .qr-badge {
         transform: translateY(-2px) scale(1.05);
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
@@ -623,10 +631,11 @@
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         transition: all 0.3s ease;
       }
-      
+
       #qrcode-container:hover {
         transform: translateY(-3px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2), 0 0 10px rgba(66, 133, 244, 0.2);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2),
+          0 0 10px rgba(66, 133, 244, 0.2);
       }
 
       canvas {
@@ -685,8 +694,8 @@
         border-radius: 10px;
         transition: all 0.3s ease;
       }
-      
-      #shareLinkInput:hover, 
+
+      #shareLinkInput:hover,
       #shareLinkInput:focus {
         border-color: rgba(66, 133, 244, 0.5);
         background-color: rgba(31, 41, 55, 0.9);
@@ -702,10 +711,11 @@
         border: 1px solid transparent;
         transition: all 0.3s ease;
       }
-      
+
       #joinForm:hover {
         border-color: rgba(66, 133, 244, 0.2);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2), 0 0 10px rgba(66, 133, 244, 0.1);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2),
+          0 0 10px rgba(66, 133, 244, 0.1);
         transform: translateY(-2px);
       }
 
@@ -718,10 +728,11 @@
         border: 1px solid transparent;
         transition: all 0.3s ease;
       }
-      
+
       #userSetup:hover {
         border-color: rgba(66, 133, 244, 0.2);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2), 0 0 10px rgba(66, 133, 244, 0.1);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2),
+          0 0 10px rgba(66, 133, 244, 0.1);
         transform: translateY(-2px);
       }
 
@@ -742,10 +753,11 @@
         border: 1px solid transparent;
         transition: all 0.3s ease;
       }
-      
+
       .user-list:hover {
         border-color: rgba(66, 133, 244, 0.2);
-        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15), 0 0 8px rgba(66, 133, 244, 0.1);
+        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15),
+          0 0 8px rgba(66, 133, 244, 0.1);
       }
 
       .user-item {
@@ -818,32 +830,32 @@
         font-weight: bold;
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
       }
-      
+
       @media (max-width: 600px) {
         body {
           padding: 10px;
         }
-        
+
         .app-header {
           padding: 15px;
           flex-direction: column;
           text-align: center;
         }
-        
+
         .app-header img {
           margin-right: 0;
           margin-bottom: 10px;
         }
-        
+
         .encryption-badge {
           margin: 10px auto 0;
         }
-        
+
         .mode-selector {
           flex-direction: column;
           gap: 10px;
         }
-        
+
         .mode-selector button {
           width: 100%;
         }
@@ -852,8 +864,6 @@
   </head>
   <body>
     <div class="container">
-     
-
       <div class="app-header">
         <img src="./shogun.svg" alt="Shogun Logo" />
         <div class="title-group">
@@ -861,16 +871,21 @@
           <h2>P2P encrypted communication</h2>
         </div>
         <div class="encryption-badge">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            fill="currentColor"
+            viewBox="0 0 16 16"
+          >
+            <path
+              d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"
+            />
           </svg>
           Encrypted
         </div>
       </div>
 
-      
-      
-      
       <!-- Selezione della modalità -->
       <div class="mode-selector" id="modeSelector">
         <button id="createRoomBtn">Create New Room</button>
@@ -899,8 +914,8 @@
         </button>
         <h3 class="share-title">Invite people to this room</h3>
         <p class="share-description">
-          Invite other people to this room by sharing the link below
-          or scanning the QR code.
+          Invite other people to this room by sharing the link below or scanning
+          the QR code.
         </p>
         <input
           type="text"
@@ -910,8 +925,8 @@
         />
         <div class="share-warning">
           <span
-            >⚠️ Attention: The link contains the encryption key.
-            Share it only with who you want to participate in the chat.</span
+            >⚠️ Attention: The link contains the encryption key. Share it only
+            with who you want to participate in the chat.</span
           >
         </div>
         <div id="qrcode-container">
@@ -1042,52 +1057,53 @@
       // Funzioni globali per gestire il pannello di condivisione
       window.showSharePanel = function () {
         console.log("Attivazione pannello di condivisione");
-        
+
         // Usa l'approccio diretto per mostrare il pannello
         showDirectlySharePanel();
       };
-      
+
       // Funzione alternativa per mostrare il pannello direttamente
       function showDirectlySharePanel() {
-          console.log("Show ");
-        
+        console.log("Show ");
+
         // Ottieni riferimenti agli elementi
         var sharePanel = document.getElementById("shareLink");
         var overlay = document.getElementById("shareOverlay");
-        
+
         // Debugging
         console.log("Pannello ottenuto:", sharePanel);
         console.log("Overlay ottenuto:", overlay);
-        
+
         if (!sharePanel) {
           console.error("Elemento pannello non trovato!");
           return;
         }
-        
+
         // Rimuovi la classe hidden
         sharePanel.classList.remove("hidden");
-        
+
         // Prima mostra l'overlay
         overlay.style.display = "flex";
-        overlay.innerHTML = "<div style='padding: 20px; background-color: rgba(255,255,255,0.8); color: black; border-radius: 10px;'>Caricamento pannello...</div>";
-        
+        overlay.innerHTML =
+          "<div style='padding: 20px; background-color: rgba(255,255,255,0.8); color: black; border-radius: 10px;'>Caricamento pannello...</div>";
+
         // Poi mostra il pannello
-        setTimeout(function() {
+        setTimeout(function () {
           // Imposta tutti i parametri di visibilità
           sharePanel.style.display = "block";
           sharePanel.style.visibility = "visible";
           sharePanel.style.opacity = "1";
           sharePanel.style.zIndex = "2000";
-          
+
           console.log("Pannello mostrato:", sharePanel.style.display);
           console.log("Classi pannello:", sharePanel.className);
-          
+
           // Aggiorna il link
           var shareLinkInput = document.getElementById("shareLinkInput");
           if (shareLinkInput) {
             shareLinkInput.value = window.location.href;
           }
-          
+
           // Genera il QR code
           try {
             window.generateQRCode(window.location.href);
@@ -1095,7 +1111,7 @@
           } catch (e) {
             console.error("Errore generazione QR:", e);
           }
-          
+
           // Pulisci l'overlay
           overlay.innerHTML = "";
         }, 300);
@@ -1104,10 +1120,10 @@
       window.hideSharePanel = function () {
         var sharePanel = document.getElementById("shareLink");
         var overlay = document.getElementById("shareOverlay");
-        
+
         sharePanel.style.display = "none";
         overlay.style.display = "none";
-        
+
         // Non aggiungiamo la classe hidden qui, altrimenti sarà difficile mostrarlo di nuovo
       };
 
@@ -1308,7 +1324,24 @@
           return;
         }
 
-        username = newUsername;
+        // Verifica se l'username è già in uso
+        let duplicateCount = 0;
+        let usernameTaken = false;
+        
+        users.map().once((userData) => {
+          if (userData && userData.name === newUsername && userData.id !== peerId) {
+            usernameTaken = true;
+            duplicateCount++;
+          }
+        });
+
+        // Se l'username è già in uso, aggiungi un numero
+        if (usernameTaken) {
+          username = `${newUsername}#${duplicateCount + 1}`;
+          alert(`Il nome utente "${newUsername}" è già in uso. Ti è stato assegnato "${username}"`);
+        } else {
+          username = newUsername;
+        }
 
         // Salva il nome utente nel localStorage
         localStorage.setItem("chatUsername", username);
@@ -1319,7 +1352,7 @@
             id: peerId,
             name: username,
             online: true,
-            lastSeen: Date.now(),
+            lastSeen: Date.now()
           });
 
           // Verifica che l'utente sia registrato correttamente
@@ -1341,7 +1374,7 @@
                 });
               }
             });
-          }, 500);
+          }, 2000);
         } else {
           console.error("Il nodo users non è stato inizializzato");
         }
@@ -1354,8 +1387,9 @@
 
         // Abilita i form di messaggi
         document.getElementById("message").disabled = false;
-        document.getElementById("chatForm").querySelector("button").disabled =
-          false;
+        document
+          .getElementById("chatForm")
+          .querySelector("button").disabled = false;
 
         // Invia un messaggio di sistema per informare che l'utente è entrato
         try {
@@ -1487,12 +1521,21 @@
 
         // Mostra l'interfaccia della chat
         showChatInterface();
-        
+
         // Debug - verifica che gli elementi siano effettivamente visibili
         console.log("Elementi visibili dopo joinRoom:");
-        console.log("- userSetup visible:", !document.getElementById("userSetup").classList.contains("hidden"));
-        console.log("- username disabled:", document.getElementById("username").disabled);
-        console.log("- setUsername disabled:", document.getElementById("setUsername").disabled);
+        console.log(
+          "- userSetup visible:",
+          !document.getElementById("userSetup").classList.contains("hidden")
+        );
+        console.log(
+          "- username disabled:",
+          document.getElementById("username").disabled
+        );
+        console.log(
+          "- setUsername disabled:",
+          document.getElementById("setUsername").disabled
+        );
       }
 
       // Funzione per mostrare l'interfaccia della chat
@@ -1512,8 +1555,9 @@
 
           // Abilita i form di messaggi
           document.getElementById("message").disabled = false;
-          document.getElementById("chatForm").querySelector("button").disabled =
-            false;
+          document
+            .getElementById("chatForm")
+            .querySelector("button").disabled = false;
 
           // Registra l'utente nel nodo degli utenti
           if (users) {
@@ -1528,17 +1572,21 @@
           // Se non c'è un nome utente, assicuriamoci che il campo username e il pulsante siano abilitati
           document.getElementById("username").disabled = false;
           document.getElementById("setUsername").disabled = false;
-          
+
           // Disabilita i form di messaggi finché non viene impostato un nome utente
           document.getElementById("message").disabled = true;
-          document.getElementById("chatForm").querySelector("button").disabled = true;
-          
+          document
+            .getElementById("chatForm")
+            .querySelector("button").disabled = true;
+
           // Evidenzia il campo username per attirare l'attenzione dell'utente
-          document.getElementById("username").style.borderColor = "var(--primary-color)";
-          document.getElementById("username").style.boxShadow = "0 0 0 2px rgba(99, 102, 241, 0.3)";
-          
+          document.getElementById("username").style.borderColor =
+            "var(--primary-color)";
+          document.getElementById("username").style.boxShadow =
+            "0 0 0 2px rgba(99, 102, 241, 0.3)";
+
           // Mostra un messaggio di status
-          document.getElementById("status").textContent = 
+          document.getElementById("status").textContent =
             "Per favore imposta un nome utente per iniziare a chattare";
         }
       }
@@ -1547,18 +1595,27 @@
       function initializeChat(roomId) {
         // Inizializza Gun con storage locale e WebRTC per P2P
         const config = {
-          peers: [`http://localhost:8765/gun`], // Il tracker centrale
-          localStorage: true, // Utilizziamo localStorage
-          radisk: true, // Abilita il storage su disco (IndexedDB)
-          multicast: false, // Disabilita multicast
-          rtc: {
-            iceServers: [
-              { urls: "stun:stun.l.google.com:19302" },
-              { urls: "stun:stun1.l.google.com:19302" },
-              { urls: "stun:stun2.l.google.com:19302" },
+          gundb: {
+            peers: [
+              "https://gun-manhattan.herokuapp.com/gun",
+              "https://peer.wallie.io/gun",
+              "https://relay.peer.ooo/gun",
             ],
+            localStorage: true,
+            radisk: true,
+            multicast: true,
+            axe: true,
+            rtc: {
+              iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" },
+                { urls: "stun:stun2.l.google.com:19302" },
+              ],
+            },
           },
         };
+
+        console.log("Inizializzazione chat con configurazione:", config);
 
         // Chiudi l'istanza precedente di Gun se esiste
         if (gun) {
@@ -1569,40 +1626,17 @@
           }
         }
 
+        const shogun = window.initShogunBrowser(config);
+        gun = shogun.gun;
 
-        const shogun = window.initShogunBrowser(config)
-
-        gun = shogun.gun
-
-        // Aggiungi un identificatore univoco al peer
-        gun.on("opt", function (opt) {
-          if (opt.once) {
-            return;
-          }
-          opt.once = true;
-
-          // Assicurati che il peer ID sia settato
-          if (opt.pid) {
-            peerId = opt.pid;
-            console.log("ID Peer:", peerId);
-          }
-        });
-
-        // Seleziona il nodo per la chat della stanza specifica
-        chat = gun.get(`chat-room-${roomId}`);
-
-        // Seleziona il nodo per gli utenti della stanza
-        users = gun.get(`users-${roomId}`);
-
-        // Seleziona il nodo per i messaggi privati
-        privateMessages = gun.get(`private-messages-${roomId}`);
-
-        // Mostra lo stato della connessione
+        // Aggiungi logging per debug
         gun.on("hi", (peer) => {
           console.log("Peer connesso:", peer);
-          document.getElementById("status").textContent =
-            "Connected to tracker!";
           updatePeerCount();
+          // Aggiorna lo stato quando almeno un peer si connette
+          document.getElementById("status").textContent =
+            "Connesso alla stanza";
+          document.getElementById("status").style.color = "var(--success)";
         });
 
         gun.on("bye", (peer) => {
@@ -1610,31 +1644,46 @@
           updatePeerCount();
         });
 
-        // Gestisci la disconnessione
-        window.addEventListener("beforeunload", function () {
-          if (username) {
-            // Imposta l'utente come offline quando si esce
-            users.get(peerId).put({
-              online: false,
-              lastSeen: Date.now(),
-            });
-          }
-        });
+        // Seleziona il nodo per la chat della stanza specifica
+        chat = gun.get(`chat-room-${roomId}`);
+        console.log("Nodo chat creato:", `chat-room-${roomId}`);
 
-        // Pulisci la chat precedente se ce n'è una
-        document.getElementById("chat").innerHTML = "";
-        document.getElementById("privateChat").innerHTML = "";
+        // Verifica la connessione dopo un breve ritardo
+        setTimeout(() => {
+          const gunPeers = gun?._.opt?.peers || {};
+          const activePeers = Object.entries(gunPeers).filter(([id, peer]) => {
+            return peer && peer.wire && peer.wire.hied !== "bye";
+          });
+
+          if (activePeers.length === 0) {
+            document.getElementById("status").textContent =
+              "Nessun peer connesso. Riprovo...";
+            document.getElementById("status").style.color = "var(--warning)";
+          }
+        }, 5000);
+
+        // Seleziona il nodo per gli utenti della stanza
+        users = gun.get(`users-${roomId}`);
+        console.log("Nodo utenti creato:", `users-${roomId}`);
+
+        // Seleziona il nodo per i messaggi privati
+        privateMessages = gun.get(`private-messages-${roomId}`);
+        console.log(
+          "Nodo messaggi privati creato:",
+          `private-messages-${roomId}`
+        );
 
         // Ascolta in tempo reale i nuovi messaggi della stanza
         chat.map().on(function (data, key) {
+          console.log("Nuovo messaggio ricevuto:", key, data);
           if (data) {
-            // Elabora il messaggio (potrebbe essere crittografato)
             processMessage(data, key);
           }
         });
 
         // Ascolta la lista degli utenti
         users.map().on(function (userData, userId) {
+          console.log("Utente aggiornato:", userId, userData);
           if (userData && userData.name) {
             updateUserList(userData, userId);
           }
@@ -1642,6 +1691,7 @@
 
         // Ascolta i messaggi privati
         privateMessages.map().on(function (data, key) {
+          console.log("Nuovo messaggio privato ricevuto:", key, data);
           if (data) {
             processPrivateMessage(data, key);
           }
@@ -1722,8 +1772,9 @@
         document
           .getElementById("privateMessageForm")
           .querySelector("button").disabled = false;
-        document.getElementById("privateMessage").placeholder =
-          `Messaggio per ${userName}`;
+        document.getElementById(
+          "privateMessage"
+        ).placeholder = `Messaggio per ${userName}`;
       }
 
       // Funzione per caricare i messaggi privati con un utente specifico
@@ -1800,31 +1851,26 @@
 
       // Funzione per elaborare un messaggio (crittografato o meno)
       async function processMessage(data, key) {
+        console.log("Processando messaggio:", key, data);
+
         // Se non c'è un payload, ignora
-        if (!data) return;
+        if (!data) {
+          console.log("Messaggio vuoto, ignorato");
+          return;
+        }
 
-        // Stampa il messaggio ricevuto per debug
-        console.log(
-          "Ricevuto messaggio con chiave:",
-          key,
-          "dati:",
-          JSON.stringify(data).substring(0, 100)
-        );
-
-        // Verifica se il messaggio è già stato elaborato usando la chiave completa invece dell'ID generato
+        // Verifica se il messaggio è già stato elaborato
         if (processedMessages.has(key)) {
-          return; // Salta questo messaggio se è già stato elaborato
+          console.log("Messaggio già elaborato:", key);
+          return;
         }
 
         try {
           // Controlla se il messaggio è crittografato
           if (data.encrypted && encryptionKey) {
-            // Decrittografa il messaggio
+            console.log("Tentativo di decrittazione del messaggio");
             const decrypted = await SEA.decrypt(data.encrypted, encryptionKey);
-            console.log(
-              "Messaggio decrittografato:",
-              decrypted ? "successo" : "fallito"
-            );
+            console.log("Risultato decrittazione:", decrypted);
 
             if (
               decrypted &&
@@ -1832,7 +1878,7 @@
               decrypted.text &&
               decrypted.timestamp
             ) {
-              // Messaggio decrittografato con successo
+              console.log("Messaggio decrittato con successo");
               addMessage(
                 decrypted.user,
                 decrypted.text,
@@ -1841,12 +1887,15 @@
                 true,
                 decrypted.system || false
               );
-              // Aggiungi subito alla cache per evitare duplicazioni
               processedMessages.add(key);
+            } else {
+              console.error(
+                "Messaggio decrittato ma mancano dati necessari:",
+                decrypted
+              );
             }
           } else if (data.user && data.text && data.timestamp) {
-            // Messaggio non crittografato
-            console.log("Messaggio in chiaro ricevuto:", data.text);
+            console.log("Messaggio in chiaro ricevuto");
             addMessage(
               data.user,
               data.text,
@@ -1855,8 +1904,9 @@
               false,
               data.system || false
             );
-            // Aggiungi subito alla cache per evitare duplicazioni
             processedMessages.add(key);
+          } else {
+            console.error("Messaggio non valido:", data);
           }
         } catch (error) {
           console.error("Errore nel processare il messaggio:", error);
@@ -1865,10 +1915,10 @@
           const chatDiv = document.getElementById("chat");
           const errorDiv = document.createElement("div");
           errorDiv.className = "error";
-          errorDiv.textContent = `Impossibile decifrare un messaggio. La chiave potrebbe essere sbagliata.`;
+          errorDiv.textContent = `Errore nel processare un messaggio: ${error.message}`;
           chatDiv.appendChild(errorDiv);
 
-          // Aggiungi comunque alla cache per evitare duplicazioni di errori
+          // Aggiungi alla cache per evitare duplicazioni di errori
           processedMessages.add(key);
         }
       }
@@ -1886,14 +1936,15 @@
         peerCount = activePeers.length;
 
         // Aggiorna l'interfaccia
-        document.getElementById("peers").textContent =
-          `Connected peers: ${peerCount}`;
+        document.getElementById(
+          "peers"
+        ).textContent = `Connected peers: ${peerCount}`;
         console.log(
           "Active peers:",
           activePeers.map((p) => p[0])
         );
       }
-      
+
       // Aggiorna il contatore dei peer ogni secondo
       setInterval(() => {
         if (gun) updatePeerCount();
@@ -1982,11 +2033,13 @@
           e.preventDefault();
 
           if (!chat) {
+            console.error("Chat non inizializzata!");
             alert("Devi prima creare o unirti a una stanza!");
             return;
           }
 
           if (!username) {
+            console.error("Username non impostato!");
             alert(
               "Per favore imposta un nome utente prima di inviare messaggi."
             );
@@ -2001,6 +2054,8 @@
           const msgId = `${peerId}_${timestamp}`;
 
           try {
+            console.log("Invio messaggio:", { text, timestamp, msgId });
+
             if (encryptionKey) {
               // Crea un oggetto con i dati del messaggio
               const messageData = {
@@ -2010,37 +2065,49 @@
                 from: peerId,
               };
 
+              console.log("Crittazione messaggio con chiave:", encryptionKey);
               // Crittografa il messaggio
               const encrypted = await SEA.encrypt(messageData, encryptionKey);
+              console.log("Messaggio crittografato:", encrypted);
 
-              // Aggiungi immediatamente il messaggio all'interfaccia per feedback immediato
-              // e poi registralo nella cache per evitare duplicazioni
+              // Aggiungi immediatamente il messaggio all'interfaccia
               addMessage(username, text, timestamp, msgId, true, false);
               processedMessages.add(msgId);
 
               // Salva solo la versione crittografata
-              chat.get(msgId).put({
-                encrypted: encrypted,
-              });
+              chat.get(msgId).put(
+                {
+                  encrypted: encrypted,
+                },
+                (ack) => {
+                  console.log("Messaggio salvato:", ack);
+                }
+              );
             } else {
+              console.log("Invio messaggio in chiaro");
               // Aggiungi immediatamente il messaggio all'interfaccia
               addMessage(username, text, timestamp, msgId, false, false);
               processedMessages.add(msgId);
 
               // Senza chiave, salva in chiaro
-              chat.get(msgId).put({
-                user: username,
-                text: text,
-                timestamp: timestamp,
-                from: peerId,
-              });
+              chat.get(msgId).put(
+                {
+                  user: username,
+                  text: text,
+                  timestamp: timestamp,
+                  from: peerId,
+                },
+                (ack) => {
+                  console.log("Messaggio salvato:", ack);
+                }
+              );
             }
 
             // Pulisce il campo del messaggio
             document.getElementById("message").value = "";
           } catch (error) {
             console.error("Errore durante l'invio del messaggio:", error);
-            alert("Errore durante l'invio del messaggio crittografato");
+            alert("Errore durante l'invio del messaggio: " + error.message);
           }
         });
 
@@ -2164,8 +2231,6 @@
       });
     </script>
 
-    
-
     <!-- Aggiungiamo un overlay per rendere più evidente il pannello di condivisione -->
     <div class="overlay" id="shareOverlay" onclick="hideSharePanel()">
       <div>Caricamento in corso...</div>
@@ -2175,17 +2240,17 @@
       // Funzione di debug per forzare l'apertura del pannello
       function forceShowPanel() {
         console.log("Forza visualizzazione pannello");
-        
+
         // Prendiamo riferimenti agli elementi
         var sharePanel = document.getElementById("shareLink");
         var overlay = document.getElementById("shareOverlay");
-        
+
         if (!sharePanel) {
           console.error("Elemento shareLink non trovato!");
           alert("Elemento shareLink non trovato!");
           return;
         }
-        
+
         // Semplificazione estrema: crea un nuovo pannello da zero
         var newPanel = document.createElement("div");
         newPanel.id = "emergencyPanel";
@@ -2201,7 +2266,7 @@
         newPanel.style.width = "80%";
         newPanel.style.maxWidth = "400px";
         newPanel.style.border = "3px solid red";
-        
+
         // Aggiungi contenuto minimo
         newPanel.innerHTML = `
           <h3 style="margin-bottom: 15px;">Condividi stanza</h3>
@@ -2218,27 +2283,33 @@
             </button>
           </div>
         `;
-        
+
         // Mostra l'overlay
         overlay.style.display = "flex";
-        
+
         // Aggiungi il pannello al body
         document.body.appendChild(newPanel);
-        
+
         // Aggiungi event listener
-        document.getElementById("emergencyCopyBtn").addEventListener("click", function() {
-          var input = document.getElementById("emergencyLinkInput");
-          input.select();
-          document.execCommand("copy");
-          this.textContent = "Copiato!";
-          setTimeout(() => { this.textContent = "Copia Link"; }, 2000);
-        });
-        
-        document.getElementById("emergencyCloseBtn").addEventListener("click", function() {
-          document.body.removeChild(newPanel);
-          overlay.style.display = "none";
-        });
-        
+        document
+          .getElementById("emergencyCopyBtn")
+          .addEventListener("click", function () {
+            var input = document.getElementById("emergencyLinkInput");
+            input.select();
+            document.execCommand("copy");
+            this.textContent = "Copiato!";
+            setTimeout(() => {
+              this.textContent = "Copia Link";
+            }, 2000);
+          });
+
+        document
+          .getElementById("emergencyCloseBtn")
+          .addEventListener("click", function () {
+            document.body.removeChild(newPanel);
+            overlay.style.display = "none";
+          });
+
         console.log("Pannello di emergenza creato e mostrato");
       }
     </script>

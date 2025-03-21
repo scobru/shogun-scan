@@ -1,6 +1,6 @@
 {
   "name": "shogun-protocol",
-  "version": "0.1.4",
+  "version": "1.0.0",
   "description": "The Shogun Protocol powers the Shogun Messenger and everything else that uses it.",
   "main": "index.js",
   "author": "Scobru",
@@ -8,11 +8,11 @@
   "private": false,
   "dependencies": {
     "axios": "^0.24.0",
-    "gun": "file:../gun",
+    "gun": "latest",
     "gun-avatar": "^1.3.5",
     "hyperswarm-web": "^2.1.1",
     "rxjs": "^7.4.0",
-    "shogun-core": "file:../shogun-core",
+    "shogun-core": "git+https://github.com/scobru/shogun-core.git",
     "slugid": "^3.0.0",
     "sodium-universal": "^3.0.4",
     "uuid": "^8.3.2",

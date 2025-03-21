@@ -3,8 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1" name="viewport" />
-    <title>Pan Pot - Server</title>
-    <script src="bugout.min.js"></script>
+    <title>Pan Pot - Server Crittografato</title>
+    <script src="https://cdn.jsdelivr.net/npm/eventemitter3@4.0.0/index.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+    <script src="./bugout.min.js"></script>
+    <script src="./bugoff.js"></script>
     <script src="//cdn.jsdelivr.net/npm/qrcode@latest/build/qrcode.min.js"></script>
     <style>
       :root {
@@ -19,6 +24,7 @@
         --text-dark: #374151;
         --success: #10b981;
         --danger: #ef4444;
+        --warning: #f59e0b;
       }
 
       * {
@@ -108,6 +114,17 @@
         margin-bottom: 10px;
       }
 
+      .security-badge {
+        display: inline-block;
+        background-color: rgba(16, 185, 129, 0.2);
+        color: var(--success);
+        padding: 3px 8px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        margin-right: 5px;
+        margin-bottom: 10px;
+      }
+
       .server-status {
         display: inline-block;
         background-color: rgba(16, 185, 129, 0.2);
@@ -141,14 +158,15 @@
         <img src="./shogun.svg" alt="SHOGUN Logo" />
         <div>
           <h1>PAN POT</h1>
-          <h2>WebTorrent Server</h2>
+          <h2>WebTorrent Server Crittografato</h2>
         </div>
       </div>
     </header>
 
-    <div class="tech-badge">Bugout</div>
+    <div class="tech-badge">Bugoff</div>
     <div class="tech-badge">WebTorrent</div>
     <div class="tech-badge">Server</div>
+    <div class="security-badge">Crittografato</div>
 
     <div class="server-info">
       <div class="server-status">Server Attivo</div>
@@ -159,23 +177,90 @@
     <pre id="log">Inizializzazione del server...</pre>
 
     <footer>
-      <p>Pan Pot - Messageboard Server</p>
+      <p>Pan Pot - Messageboard Server Crittografato</p>
     </footer>
   </body>
   <script>
-    log("*BUGOUT*");
+    log("*PANPOT WEBTORRENT SERVER*");
     log("\nmessageboard server\n");
     log("(view source to see the server code)\n");
 
     // instantiate our bugout instance
-    var b = new Bugout({ seed: localStorage["bugout-messageboard-seed"] });
-    // save the seed for next time
-    localStorage["bugout-messageboard-seed"] = b.seed;
+    var seed = localStorage["bugout-messageboard-seed"];
+    var b;
+    var serverAddress = "";
 
-    // log this server's address
-    log("address:", b.address());
-    document.getElementById("address-display").innerHTML = "<strong>Indirizzo server:</strong> " + b.address();
-    log("announcing...");
+    try {
+      // Try to initialize with saved seed
+      if (seed) {
+        b = new Bugoff({ seed: seed });
+        log("Using existing seed");
+      } else {
+        // Create a new instance if no seed
+        b = new Bugoff();
+        log("Created with new seed");
+      }
+
+      // save the seed for next time
+      localStorage["bugout-messageboard-seed"] = b.seed;
+
+      // Get and log the server's address
+      try {
+        serverAddress = b.address();
+        log("address:", serverAddress);
+        document.getElementById("address-display").innerHTML = "<strong>Indirizzo server:</strong> " + serverAddress;
+        log("announcing...");
+      } catch (addrError) {
+        log("Error getting address:", addrError);
+        // Try to get address as property if method fails
+        if (b._address) {
+          serverAddress = b._address;
+          log("address (from property):", serverAddress);
+          document.getElementById("address-display").innerHTML = "<strong>Indirizzo server:</strong> " + serverAddress;
+        }
+      }
+
+      // Initialize SEA for encryption
+      b.SEA()
+        .then(function () {
+          log("SEA initialized with keypair");
+        })
+        .catch(function (err) {
+          log("Error initializing SEA:", err);
+        });
+
+      console.log(b);
+    } catch (error) {
+      // If initialization fails, try again with a fresh instance
+      log("Error initializing with saved seed:", error);
+      log("Retrying with a fresh instance...");
+
+      // Clear the saved seed
+      localStorage.removeItem("bugout-messageboard-seed");
+
+      // Create a fresh instance
+      try {
+        b = new Bugoff();
+        localStorage["bugout-messageboard-seed"] = b.seed;
+
+        // Get and log the server's address
+        try {
+          serverAddress = b.address();
+          log("Created fresh instance with address:", serverAddress);
+          document.getElementById("address-display").innerHTML = "<strong>Indirizzo server:</strong> " + serverAddress;
+        } catch (addrError) {
+          log("Error getting address from fresh instance:", addrError);
+          // Try to get address as property if method fails
+          if (b._address) {
+            serverAddress = b._address;
+            log("address (from property):", serverAddress);
+            document.getElementById("address-display").innerHTML = "<strong>Indirizzo server:</strong> " + serverAddress;
+          }
+        }
+      } catch (freshError) {
+        log("Fatal error creating fresh instance:", freshError);
+      }
+    }
 
     // load messages from previous run
     if (localStorage["bugout-messageboard"]) {
@@ -204,8 +289,17 @@
           messages.push(m);
           messages = messages.slice(Math.max(0, messages.length - 10));
           localStorage["bugout-messageboard"] = JSON.stringify(messages);
+
+          // Invia il messaggio di refresh a tutti i client
+          try {
+            b.send("refresh");
+            log("Sent refresh message to all clients");
+          } catch (error) {
+            log("Error sending refresh message:", error);
+          }
+
+          // Conferma al client che ha inviato il messaggio
           cb(true);
-          b.send("refresh");
         } else {
           cb(false);
         }
@@ -229,9 +323,8 @@
       if (c == 0 && connected == false) {
         connected = true;
         log("ready");
-        // link to the messageboard client URL
         var clientURL =
-          document.location.href.replace("-server", "") + "#" + b.address();
+          document.location.href.replace("server.html", "client.html") + "#" + b.address();
         // qrcode for the client URL
         if (window.innerWidth > 600) {
           // Crea un QR code più bello
@@ -275,10 +368,38 @@
     });
 
     // log when a client sends a message
-    b.on("message", function (address, msg) {
-      log("message:", address, msg);
+
+    
+
+    // Gestisci messaggi decriptati (specifico di Bugoff)
+    b.on("decrypted", function (address, pubkeys, message) {
+      log("decrypted message from:", address);
+      log("sender pubkeys:", pubkeys);
+      log("decrypted message:", message);
+
+      // Se non è un messaggio di sistema (come "refresh"), salvalo come post
+      if (message !== "refresh" && typeof message === "string") {
+        // Salva il messaggio come post
+        var m = { address: address, m: message, t: new Date().getTime() };
+        log("messageboard (from decrypted):", m);
+        messages.push(m);
+        messages = messages.slice(Math.max(0, messages.length - 10));
+        localStorage["bugout-messageboard"] = JSON.stringify(messages);
+
+        // Invia il messaggio di refresh a tutti i client
+        try {
+          b.send("refresh");
+          log("Sent refresh message to all clients");
+        } catch (error) {
+          log("Error sending refresh message:", error);
+        }
+      }
     });
 
+    b.on("message", (address, data) =>
+      log("From:", address, "Received message!", data)
+    );
+    
     // log when a client makes an rpc call
     b.on("rpc", function (address, call, args) {
       log("rpc:", address, call, args);
@@ -287,6 +408,15 @@
     // log when we see a new client address
     b.on("seen", function (address) {
       log("seen:", address);
+
+      // Invia un messaggio di benvenuto al nuovo client
+      try {
+        // Invia un messaggio diretto al nuovo client
+        b.send(address, "Welcome to the messageboard!");
+        log("Sent welcome message to:", address);
+      } catch (error) {
+        log("Error sending welcome message:", error);
+      }
     });
 
     // simple logging function
@@ -301,6 +431,7 @@
     }
 
     // generate a text based qr code
+
     function qr(txt) {
       var q = QRCode.create(txt);
       var code = "\n\n";

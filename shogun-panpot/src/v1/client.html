@@ -8,6 +8,7 @@
   <meta content="yes" name="apple-mobile-web-app-capable">
   <title>Pan Pot</title>
   <script src="bugout.min.js"></script>
+  <script src="translations.js"></script>
   <style>
     :root {
       --primary-color: #6366f1;
@@ -177,35 +178,70 @@
       font-size: 0.9em;
       color: #9ca3af;
     }
+
+    /* Language Selector */
+    .lang-selector {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+    }
+
+    .lang-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--light-text);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .lang-btn:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--primary-color);
+    }
+
+    .lang-btn.active {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+    }
   </style>
 </head>
 <body>
+  <div class="lang-selector">
+    <button class="lang-btn active" data-lang="it">IT</button>
+    <button class="lang-btn" data-lang="en">EN</button>
+  </div>
+
   <header>
     <div class="logo">
       <img src="./shogun.svg" alt="SHOGUN Logo"/>
       <div>
-        <h1>PAN POT</h1>
-        <h2>WebTorrent Version</h2>
+        <h1 data-translate="title">PAN POT</h1>
+        <h2 data-translate="subtitle">Versione WebTorrent</h2>
       </div>
     </div>
   </header>
 
-  <div class="tech-badge">Bugout</div>
-  <div class="tech-badge">WebTorrent</div>
+  <div class="tech-badge" data-translate="badges.bugout">Bugout</div>
+  <div class="tech-badge" data-translate="badges.webTorrent">WebTorrent</div>
   
   <div class="status-card">
-    <p>Status: <span id="connected" class="no">Disconnesso</span></p>
+    <p>Status: <span id="connected" class="no" data-translate="status.disconnected">Disconnesso</span></p>
   </div>
   
   <div id="ui">
-    <input id="message" maxlength="279" placeholder="Il tuo messaggio..."/>
-    <button id="send">Invia</button>
+    <input id="message" maxlength="279" data-translate-placeholder="inputs.message" placeholder="Il tuo messaggio..."/>
+    <button id="send" data-translate="inputs.send">Invia</button>
   </div>
   
-  <pre id="messages">Caricamento...</pre>
+  <pre id="messages" data-translate="system.loading">Caricamento...</pre>
 
   <footer>
-    <p>Messageboard Client - Basato su Bugout</p>
+    <p data-translate="footer.client">Messageboard Client - Basato su Bugout</p>
   </footer>
 
 <script>
@@ -213,7 +249,46 @@ var serveraddress = window.location.hash.substr(1) || "bUH7ukDvd9R2xLLRKMKWZ1mGP
 var b = new Bugout(serveraddress);
 
 var msglist = document.getElementById("messages");
-msglist.textContent = "Connessione a " + serveraddress + "...\n(Può richiedere uno o due minuti)";
+const currentLang = localStorage.getItem('preferred-language') || 'it';
+msglist.textContent = `${translations[currentLang].status.connecting} ${serveraddress}...\n(${translations[currentLang].status.connectionTime})`;
+
+// Language management
+function setLanguage(lang) {
+  // Aggiorna i pulsanti
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  });
+
+  // Aggiorna i testi
+  document.querySelectorAll('[data-translate]').forEach(element => {
+    const key = element.dataset.translate;
+    const value = key.split('.').reduce((obj, i) => obj[i], translations[lang]);
+    if (value) {
+      element.textContent = value;
+    }
+  });
+
+  // Aggiorna i placeholder
+  document.querySelectorAll('[data-translate-placeholder]').forEach(element => {
+    const key = element.dataset.translatePlaceholder;
+    const value = key.split('.').reduce((obj, i) => obj[i], translations[lang]);
+    if (value) {
+      element.placeholder = value;
+    }
+  });
+
+  // Salva la preferenza
+  localStorage.setItem('preferred-language', lang);
+}
+
+// Gestione click sui pulsanti lingua
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+});
+
+// Imposta la lingua iniziale
+const savedLang = localStorage.getItem('preferred-language') || 'it';
+setLanguage(savedLang);
 
 // events
 
@@ -221,7 +296,8 @@ msglist.textContent = "Connessione a " + serveraddress + "...\n(Può richiedere 
 document.getElementById("send").onclick = function(ev) {
   var m = document.getElementById("message");
   if (m.value) {
-    msglist.textContent = "Invio messaggio...";
+    const currentLang = localStorage.getItem('preferred-language') || 'it';
+    msglist.textContent = translations[currentLang].system.sendingMessage;
     b.rpc("post", m.value, function () {
       // refreshMessages();
       // server will send refresh message if messages are changed
@@ -248,12 +324,14 @@ b.on("wireleft", updateWires);
 
 function updateWires(count) {
   const connectionStatus = document.getElementById("connected");
+  const currentLang = localStorage.getItem('preferred-language') || 'it';
+  
   if (count) {
     document.getElementById("ui").style.display = "block";
-    connectionStatus.textContent = "Connesso (" + count + ")";
+    connectionStatus.textContent = `${translations[currentLang].status.connected} (${count})`;
     connectionStatus.className = "yes";
   } else {
-    connectionStatus.textContent = "Disconnesso";
+    connectionStatus.textContent = translations[currentLang].status.disconnected;
     connectionStatus.className = "no";
   }
 }
@@ -261,7 +339,8 @@ function updateWires(count) {
 // utility functions
 
 function refreshMessages() {
-  msglist.textContent = "Aggiornamento messaggi...";
+  const currentLang = localStorage.getItem('preferred-language') || 'it';
+  msglist.textContent = translations[currentLang].system.updatingMessages;
   // get a list of the messages
   b.rpc("list", null, function(messages) {
     updateMessagelist(messages);
@@ -269,10 +348,11 @@ function refreshMessages() {
 }
 
 function updateMessagelist(messages) {
+  const currentLang = localStorage.getItem('preferred-language') || 'it';
   msglist.textContent =
     messages.map(function (m) {
       return (new Date(m.t)).toString() + "\n" +
-      "Da: " + m.address + "\n" +
+      `${translations[currentLang].system.from} ${m.address}\n` +
       "\n" + m.m + "\n";
     }).join("\n\n");
 }

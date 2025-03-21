@@ -1,5 +1,5 @@
 /**
- * GunDB - Classe ottimizzata con integrazione di Auth avanzata
+ * GunDB - Optimized class with advanced Auth integration
  */
 import Gun from "gun";
 import "gun/sea";
@@ -8,7 +8,7 @@ import CONFIG from "../config";
 import { log, logError } from "../utils/logger";
 
 /**
- * Definizione delle opzioni di GunDB
+ * GunDB options definition
  */
 interface GunDBOptions {
   peers?: string[];
@@ -20,7 +20,7 @@ interface GunDBOptions {
 }
 
 /**
- * Risultato dell'autenticazione
+ * Authentication result
  */
 interface AuthResult {
   success: boolean;
@@ -30,9 +30,9 @@ interface AuthResult {
 }
 
 /**
- * GunDB - Gestione semplificata di Gun con Auth avanzata
+ * GunDB - Simplified Gun management with advanced Auth
  *
- * Utilizza la classe Auth per una gestione ottimizzata dell'autenticazione
+ * Uses the Auth class for optimized authentication handling
  */
 class GunDB {
   public gun: IGunInstance<any>;
@@ -43,33 +43,33 @@ class GunDB {
    * @param options - GunDBOptions
    */
   constructor(options: Partial<GunDBOptions> = {}) {
-    log("Inizializzazione GunDB");
+    log("Initializing GunDB");
 
-    // Usiamo una configurazione di default attraverso uno spread per evitare null checks
+    // Use default configuration through spread to avoid null checks
     const config = {
       peers: options.peers || CONFIG.PEERS,
       localStorage: options.localStorage ?? false,
-      radisk: options.radisk ?? false, 
+      radisk: options.radisk ?? false,
       multicast: options.multicast ?? false,
-      axe: options.axe ?? false
+      axe: options.axe ?? false,
     };
 
-    // Configura GunDB con le opzioni fornite
+    // Configure GunDB with provided options
     this.gun = Gun(config);
 
-    // Gestione degli eventi di autenticazione
+    // Handle authentication events
     this.subscribeToAuthEvents();
   }
 
   /**
-   * Sottoscrive agli eventi di autenticazione di Gun
+   * Subscribe to Gun authentication events
    */
   private subscribeToAuthEvents() {
     this.gun.on("auth", (ack: any) => {
-      log("Evento auth ricevuto:", ack);
-      
+      log("Auth event received:", ack);
+
       if (ack.err) {
-        logError("Errore di autenticazione:", ack.err);
+        logError("Authentication error:", ack.err);
       } else {
         this.notifyAuthListeners(ack.sea?.pub || "");
       }
@@ -77,8 +77,8 @@ class GunDB {
   }
 
   /**
-   * Notifica tutti i listener di autenticazione
-   * @param pub - Chiave pubblica dell'utente autenticato
+   * Notify all authentication listeners
+   * @param pub - Public key of authenticated user
    */
   private notifyAuthListeners(pub: string): void {
     const user = this.gun.user();
@@ -88,29 +88,29 @@ class GunDB {
   }
 
   /**
-   * Crea una nuova istanza GunDB con i peer specificati
-   * @param peers - Array di URL peer
-   * @returns Nuova istanza GunDB
+   * Create new GunDB instance with specified peers
+   * @param peers - Array of peer URLs
+   * @returns New GunDB instance
    */
   static withPeers(peers: string[] = CONFIG.PEERS): GunDB {
     return new GunDB({ peers });
   }
 
   /**
-   * Aggiunge un listener per eventi di autenticazione
-   * @param callback - Funzione da chiamare quando l'utente si autentica
-   * @returns Funzione per rimuovere il listener
+   * Add listener for authentication events
+   * @param callback - Function to call when user authenticates
+   * @returns Function to remove the listener
    */
   onAuth(callback: (user: any) => void): () => void {
     this.onAuthCallbacks.push(callback);
 
-    // Se l'utente è già autenticato, chiamiamo immediatamente il callback
+    // If user is already authenticated, call callback immediately
     const user = this.gun.user();
     if (user && user.is) {
       callback(user);
     }
 
-    // Restituiamo una funzione per rimuovere il listener
+    // Return function to remove listener
     return () => {
       const index = this.onAuthCallbacks.indexOf(callback);
       if (index !== -1) {
@@ -120,24 +120,24 @@ class GunDB {
   }
 
   /**
-   * Ottiene l'istanza Gun sottostante
-   * @returns Istanza Gun
+   * Get underlying Gun instance
+   * @returns Gun instance
    */
   getGun(): IGunInstance<any> {
     return this.gun;
   }
 
   /**
-   * Ottiene l'utente corrente
-   * @returns Utente Gun o null se non autenticato
+   * Get current user
+   * @returns Gun user or null if not authenticated
    */
   getUser(): any {
     return this.gun.user();
   }
 
   /**
-   * Imposta un certificato per l'utente corrente
-   * @param certificate - Certificato da utilizzare
+   * Set certificate for current user
+   * @param certificate - Certificate to use
    */
   setCertificate(certificate: string): void {
     this.certificato = certificate;
@@ -146,79 +146,79 @@ class GunDB {
   }
 
   /**
-   * Ottiene il certificato dell'utente corrente
-   * @returns Certificato o null se non disponibile
+   * Get current user's certificate
+   * @returns Certificate or null if not available
    */
   getCertificate(): string | null {
     return this.certificato;
   }
 
   /**
-   * Registra un nuovo utente
-   * @param username - Nome utente
+   * Register a new user
+   * @param username - Username
    * @param password - Password
-   * @returns Promise che risolve con la chiave pubblica dell'utente
+   * @returns Promise resolving with user's public key
    */
   async signUp(username: string, password: string): Promise<any> {
     try {
-      log("Tentativo di registrazione utente:", username);
+      log("Attempting user registration:", username);
 
       return new Promise((resolve) => {
         this.gun.user().create(username, password, async (ack: any) => {
           if (ack.err) {
-            logError(`Errore registrazione: ${ack.err}`);
+            logError(`Registration error: ${ack.err}`);
             resolve({ success: false, error: ack.err });
           } else {
-            // Login automatico dopo la registrazione
+            // Automatic login after registration
             const loginResult = await this.login(username, password);
-            
+
             if (loginResult.success) {
-              log("Registrazione e login completati con successo");
+              log("Registration and login completed successfully");
             } else {
-              logError("Registrazione completata ma login fallito");
+              logError("Registration completed but login failed");
             }
-            
+
             resolve(loginResult);
           }
         });
       });
     } catch (error) {
-      logError("Errore durante la registrazione:", error);
+      logError("Error during registration:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto",
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
   /**
-   * Effettua il login di un utente
-   * @param username - Nome utente
+   * Login a user
+   * @param username - Username
    * @param password - Password
-   * @returns Promise che risolve con il risultato del login
+   * @returns Promise resolving with login result
    */
   async login(username: string, password: string): Promise<any> {
     try {
-      log("Tentativo di login per:", username);
+      log("Login attempt for:", username);
 
       return new Promise((resolve) => {
         this.gun.user().auth(username, password, (ack: any) => {
           if (ack.err) {
-            logError(`Errore login: ${ack.err}`);
+            logError(`Login error: ${ack.err}`);
             resolve({
               success: false,
               error: ack.err,
             });
           } else {
             const user = this.gun.user();
-            
+
             if (!user.is) {
               resolve({
                 success: false,
-                error: "Login fallito: utente non autenticato",
+                error: "Login failed: user not authenticated",
               });
             } else {
-              log("Login completato con successo");
+              log("Login completed successfully");
               const userPub = user.is?.pub || "";
               resolve({
                 success: true,
@@ -230,30 +230,30 @@ class GunDB {
         });
       });
     } catch (error) {
-      logError("Errore durante il login:", error);
+      logError("Error during login:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Errore sconosciuto",
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
   }
 
   /**
-   * Effettua il logout dell'utente corrente
+   * Logout current user
    */
   logout(): void {
     try {
-      log("Tentativo di logout");
+      log("Attempting logout");
       this.gun.user().leave();
-      log("Logout completato");
+      log("Logout completed");
     } catch (error) {
-      logError("Errore durante il logout:", error);
+      logError("Error during logout:", error);
     }
   }
 
   /**
-   * Verifica se c'è un utente attualmente autenticato
-   * @returns true se un utente è autenticato
+   * Check if a user is currently authenticated
+   * @returns true if a user is authenticated
    */
   isLoggedIn(): boolean {
     const user = this.gun.user();
@@ -261,8 +261,8 @@ class GunDB {
   }
 
   /**
-   * Ottiene l'utente correntemente autenticato
-   * @returns Utente corrente o null se non autenticato
+   * Get currently authenticated user
+   * @returns Current user or null if not authenticated
    */
   getCurrentUser(): any {
     const userPub = this.gun.user()?.is?.pub;
@@ -276,11 +276,11 @@ class GunDB {
   }
 
   /**
-   * Salva dati nel nodo dell'utente
+   * Save data to user node
    */
   async saveUserData(path: string, data: any): Promise<any> {
     if (!this.gun.user()?.is?.pub) {
-      throw new Error("Utente non autenticato");
+      throw new Error("User not authenticated");
     }
 
     return new Promise((resolve, reject) => {
@@ -295,24 +295,24 @@ class GunDB {
           data,
           (ack: any) => {
             if (ack && ack.err) {
-              logError(`Errore salvataggio dati: ${ack.err}`);
+              logError(`Error saving data: ${ack.err}`);
               reject(new Error(ack.err));
             } else {
-              log(`Dati salvati in ${path}`);
+              log(`Data saved to ${path}`);
               resolve(data);
             }
           },
-          options
+          options,
         );
     });
   }
 
   /**
-   * Recupera dati dal nodo dell'utente
+   * Retrieve data from user node
    */
   async getUserData(path: string): Promise<any> {
     if (!this.gun.user()?.is?.pub) {
-      throw new Error("Utente non autenticato");
+      throw new Error("User not authenticated");
     }
 
     return new Promise((resolve) => {
@@ -321,10 +321,10 @@ class GunDB {
         .get(path)
         .once((data) => {
           if (!data) {
-            log(`Nessun dato trovato in ${path}`);
+            log(`No data found at ${path}`);
             resolve(null);
           } else {
-            log(`Dati recuperati da ${path}`);
+            log(`Data retrieved from ${path}`);
             resolve(data);
           }
         });
@@ -332,7 +332,7 @@ class GunDB {
   }
 
   /**
-   * Salva dati in un nodo pubblico
+   * Save data to public node
    */
   async savePublicData(node: string, key: string, data: any): Promise<any> {
     return new Promise((resolve, reject) => {
@@ -347,20 +347,20 @@ class GunDB {
           data,
           (ack: any) => {
             if (ack && ack.err) {
-              logError(`Errore salvataggio dati pubblici: ${ack.err}`);
+              logError(`Error saving public data: ${ack.err}`);
               reject(new Error(ack.err));
             } else {
-              log(`Dati pubblici salvati in ${node}/${key}`);
+              log(`Public data saved to ${node}/${key}`);
               resolve(data);
             }
           },
-          options
+          options,
         );
     });
   }
 
   /**
-   * Recupera dati da un nodo pubblico
+   * Retrieve data from public node
    */
   async getPublicData(node: string, key: string): Promise<any> {
     return new Promise((resolve) => {
@@ -369,10 +369,10 @@ class GunDB {
         .get(key)
         .once((data) => {
           if (!data) {
-            log(`Nessun dato pubblico trovato in ${node}/${key}`);
+            log(`No public data found at ${node}/${key}`);
             resolve(null);
           } else {
-            log(`Dati pubblici recuperati da ${node}/${key}`);
+            log(`Public data retrieved from ${node}/${key}`);
             resolve(data);
           }
         });
@@ -380,15 +380,15 @@ class GunDB {
   }
 
   /**
-   * Genera una nuova coppia di chiavi SEA
+   * Generate new SEA key pair
    */
   async generateKeyPair(): Promise<any> {
-    // Utilizzo direttamente SEA.pair() invece di this.auth.generatePair()
+    // Use SEA.pair() directly instead of this.auth.generatePair()
     return (Gun as any).SEA.pair();
   }
 }
 
-// Rendi disponibile la classe globalmente
+// Make class globally available
 declare global {
   interface Window {
     GunDB: typeof GunDB;

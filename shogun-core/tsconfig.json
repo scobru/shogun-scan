@@ -10,7 +10,6 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["@types/react"],
     "allowJs": true
   },
   "include": ["src/**/*"],

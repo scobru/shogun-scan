@@ -358,14 +358,49 @@
                 padding: 0 20px 60px;
             }
         }
+
+        /* Language Selector */
+        .lang-selector {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+
+        .lang-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--light-text);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .lang-btn:hover {
+            background: rgba(66, 133, 244, 0.2);
+            border-color: var(--primary-color);
+        }
+
+        .lang-btn.active {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
     </style>
 </head>
 <body>
+    <div class="lang-selector">
+        <button class="lang-btn active" data-lang="it">IT</button>
+        <button class="lang-btn" data-lang="en">EN</button>
+    </div>
+
     <main>
         <section class="hero">
-            <h1 class="main-title">PAN POT</h1>
-            <p class="subtitle">Explore our decentralized and secure P2P chat implementations designed for private communications without intermediaries</p>
-            <a href="https://github.com/scobru/shogun" class="view-all">Explore the code</a>
+            <h1 class="main-title" data-translate="title">PAN POT</h1>
+            <p class="subtitle" data-translate="subtitle">Esplora le nostre implementazioni di chat P2P decentralizzate progettate per comunicazioni private senza intermediari</p>
+            <a href="https://github.com/scobru/shogun" class="view-all" data-translate="exploreCode">Esplora il codice</a>
         </section>
 
         <div class="card-container" id="implementations">
@@ -389,21 +424,21 @@
                     </svg>
                 </div>
                 <div class="card-content">
-                    <div class="card-category">IMPLEMENTATION</div>
-                    <h3 class="card-title">Basquiat v3</h3>
+                    <div class="card-category" data-translate="implementation">IMPLEMENTAZIONE</div>
+                    <h3 class="card-title">v3</h3>
                     <div>
                         <span class="tech-badge">GunDB</span>
                         <span class="tech-badge">WebRTC</span>
-                        <span class="tech-badge security-badge">Encrypted</span>
+                        <span class="tech-badge security-badge" data-translate="encrypted">Crittografato</span>
                     </div>
-                    <p class="card-description">
-                        P2P chat with end-to-end encryption based on GunDB. Modern interface, multi-room support, private messages and QR code sharing.
+                    <p class="card-description" data-translate="panpotDesc">
+                        Chat P2P con crittografia end-to-end basata su GunDB. Interfaccia moderna, supporto multi-stanza, messaggi privati e condivisione via QR code.
                     </p>
                     <div class="card-footer">
-                        <div class="card-date">MAIN VERSION</div>
+                        <div class="card-date" data-translate="mainVersion">VERSIONE PRINCIPALE</div>
                         <div class="card-actions">
-                            <a href="./src/gun/client.html" class="btn btn-primary">
-                                Launch
+                            <a href="./src/v3/client.html" class="btn btn-primary">
+                                <span data-translate="launch">Avvia</span>
                                 <span class="icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                         <path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -436,23 +471,23 @@
                     </svg>
                 </div>
                 <div class="card-content">
-                    <div class="card-category">IMPLEMENTATION</div>
-                    <h3 class="card-title">Gauguin v2</h3>
+                    <div class="card-category" data-translate="implementation">IMPLEMENTAZIONE</div>
+                    <h3 class="card-title">v2</h3>
                     <div>
                         <span class="tech-badge">Bugoff</span>
                         <span class="tech-badge">WebTorrent</span>
-                        <span class="tech-badge security-badge">Encrypted</span>
+                        <span class="tech-badge security-badge" data-translate="encrypted">Crittografato</span>
                     </div>
-                    <p class="card-description">
-                        Secure implementation of the message board with end-to-end encryption using Bugoff, a Bugout extension with encryption support.
+                    <p class="card-description" data-translate="encryptedMessageBoardDesc">
+                        Implementazione sicura del board dei messaggi con crittografia end-to-end utilizzando Bugoff, un'estensione di Bugout con supporto per la crittografia.
                     </p>
                     <div class="card-footer">
-                        <div class="card-date">WEBTORRENT VERSION</div>
+                        <div class="card-date" data-translate="webTorrentVersion">VERSIONE WEBTORRENT</div>
                         <div class="card-actions">
-                            <a href="./src/torrent/encrypted/messageboard-encrypted.html" class="btn">
+                            <a href="./src/v2/client.html" class="btn">
                                 Client
                             </a>
-                            <a href="./src/torrent/encrypted/messageboard-server-encrypted.html" class="btn btn-primary">
+                            <a href="./src/v2/server.html" class="btn btn-primary">
                                 Server
                                 <span class="icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -486,22 +521,22 @@
                     </svg>
                 </div>
                 <div class="card-content">
-                    <div class="card-category">IMPLEMENTATION</div>
-                    <h3 class="card-title">Bacon v1</h3>
+                    <div class="card-category" data-translate="implementation">IMPLEMENTAZIONE</div>
+                    <h3 class="card-title">v1</h3>
                     <div>
                         <span class="tech-badge">Bugout</span>
                         <span class="tech-badge">WebTorrent</span>
                     </div>
-                    <p class="card-description">
-                        Basic implementation of P2P message board using Bugout. Simple version without encryption, ideal for testing and demonstrations.
+                    <p class="card-description" data-translate="standardMessageBoardDesc">
+                        Implementazione di base del board dei messaggi P2P utilizzando Bugout. Versione semplice senza crittografia, ideale per test e dimostrazioni.
                     </p>
                     <div class="card-footer">
-                        <div class="card-date">BASIC VERSION</div>
+                        <div class="card-date" data-translate="basicVersion">VERSIONE BASICA</div>
                         <div class="card-actions">
-                            <a href="./src/torrent/public/messageboard.html" class="btn">
+                            <a href="./src/v1/client.html" class="btn">
                                 Client
                             </a>
-                            <a href="./src/torrent/public/messageboard-server.html" class="btn btn-primary">
+                            <a href="./src/v1/server.html" class="btn btn-primary">
                                 Server
                                 <span class="icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -517,7 +552,38 @@
     </main>
 
     <footer>
-        <p>SHOGUN - Decentralized P2P Chat Suite — Version 2023</p>
+        <p data-translate="footer">SHOGUN - Suite di Chat P2P Decentralizzate — Versione 2023</p>
     </footer>
+
+    <script src="./src/translations.js"></script>
+    <script>
+        // Funzione per cambiare lingua
+        function setLanguage(lang) {
+            // Aggiorna i pulsanti
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.lang === lang);
+            });
+
+            // Aggiorna i testi
+            document.querySelectorAll('[data-translate]').forEach(element => {
+                const key = element.dataset.translate;
+                if (translations[lang] && translations[lang][key]) {
+                    element.textContent = translations[lang][key];
+                }
+            });
+
+            // Salva la preferenza
+            localStorage.setItem('preferred-language', lang);
+        }
+
+        // Gestione click sui pulsanti lingua
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+        });
+
+        // Imposta la lingua iniziale
+        const savedLang = localStorage.getItem('preferred-language') || 'it';
+        setLanguage(savedLang);
+    </script>
 </body>
 </html>

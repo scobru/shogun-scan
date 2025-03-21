@@ -22,7 +22,7 @@ declare global {
 }
 
 /**
- * Definizione delle interfacce con tipi standard
+ * Definition of interfaces with standard types
  */
 interface ConnectionResult {
   success: boolean;
@@ -47,26 +47,26 @@ interface MetaMaskCredentials {
   password: string;
 }
 
-// Definizione di EthereumProvider per TypeScript
+// Definition of EthereumProvider for TypeScript
 interface EthereumProvider {
   request: (args: any) => Promise<any>;
   isMetaMask?: boolean;
 }
 
 /**
- * Classe per la connessione a MetaMask
+ * Class for MetaMask connection
  */
 class MetaMask {
   public readonly AUTH_DATA_TABLE: string;
   private static readonly TIMEOUT_MS = 5000;
 
-  /** Provider JSON-RPC personalizzato */
+  /** Custom JSON-RPC provider */
   private customProvider: ethers.JsonRpcProvider | null = null;
 
-  /** Wallet per provider personalizzato */
+  /** Wallet for custom provider */
   private customWallet: ethers.Wallet | null = null;
 
-  /** Messaggio fisso per la firma */
+  /** Fixed message for signing */
   private MESSAGE_TO_SIGN = "I Love Shogun!";
 
   private MAX_RETRIES = 3;
@@ -78,78 +78,79 @@ class MetaMask {
   }
 
   /**
-   * Verifica che l'indirizzo sia valido
-   * @param address Indirizzo da validare
-   * @returns Indirizzo normalizzato 
-   * @throws Error se l'indirizzo non è valido
+   * Validates that the address is valid
+   * @param address Address to validate
+   * @returns Normalized address
+   * @throws Error if address is not valid
    */
   private validateAddress(address: string | null | undefined): string {
     if (!address) {
-      throw new Error("Indirizzo non fornito");
+      throw new Error("Address not provided");
     }
-    
-    // Normalizza l'indirizzo
+
+    // Normalize address
     const normalizedAddress = String(address).trim().toLowerCase();
-    
+
     try {
-      // Verifica se è un indirizzo valido con ethers
+      // Verify if it's a valid address with ethers
       if (!ethers.isAddress(normalizedAddress)) {
-        throw new Error("Formato indirizzo non valido");
+        throw new Error("Invalid address format");
       }
-      
-      // Formatta l'indirizzo in modo corretto
+
+      // Format address correctly
       return ethers.getAddress(normalizedAddress);
     } catch (e) {
-      throw new Error("Indirizzo Ethereum non valido");
+      throw new Error("Invalid Ethereum address");
     }
   }
 
   /**
-   * Genera una password sicura dalla firma
-   * @param signature Firma da cui generare la password
-   * @returns Password generata
+   * Generates a secure password from signature
+   * @param signature Signature to generate password from
+   * @returns Generated password
    */
   public generateSecurePassword(signature: string): string {
     if (!signature) {
-      throw new Error("Firma non valida");
+      throw new Error("Invalid signature");
     }
-    
+
     // hash the signature
     const hash = ethers.keccak256(ethers.toUtf8Bytes(signature));
     return hash.slice(2, 66);
   }
 
   /**
-   * Connette a MetaMask
-   * @returns Risultato della connessione
+   * Connects to MetaMask
+   * @returns Connection result
    */
   async connectMetaMask(): Promise<ConnectionResult> {
     try {
-      // Verifichiamo se MetaMask è disponibile
+      // Check if MetaMask is available
       if (!MetaMask.isMetaMaskAvailable()) {
         return {
           success: false,
-          error: "MetaMask non è disponibile. Installa l'estensione MetaMask.",
+          error:
+            "MetaMask is not available. Please install MetaMask extension.",
         };
       }
 
       const ethereum = window.ethereum as EthereumProvider;
 
       try {
-        // Richiedi autorizzazione per accedere agli account
+        // Request authorization to access accounts
         const accounts = await ethereum.request({
           method: "eth_requestAccounts",
         });
 
-        // Verifichiamo se ci sono account disponibili
+        // Verify if there are available accounts
         if (!accounts || accounts.length === 0) {
           return {
             success: false,
-            error: "Nessun account trovato in MetaMask",
+            error: "No accounts found in MetaMask",
           };
         }
-        
-        // Valida e normalizza l'indirizzo
+
+        // Validate and normalize address
         const address = this.validateAddress(accounts[0]);
         const metamaskUsername = `mm_${address.toLowerCase()}`;
 
@@ -159,17 +160,17 @@ class MetaMask {
           username: metamaskUsername,
         };
       } catch (error: any) {
-        logError("Errore nell'accesso a MetaMask:", error);
+        logError("Error accessing MetaMask:", error);
         return {
           success: false,
-          error: error.message || "Errore durante la connessione a MetaMask",
+          error: error.message || "Error connecting to MetaMask",
         };
       }
     } catch (error: any) {
-      logError("Errore generale in connectMetaMask:", error);
+      logError("General error in connectMetaMask:", error);
       return {
         success: false,
-        error: error.message || "Errore sconosciuto durante la connessione a MetaMask",
+        error: error.message || "Unknown error while connecting to MetaMask",
       };
     }
   }
@@ -188,28 +189,35 @@ class MetaMask {
   }
 
   /**
-   * Genera le credenziali per l'autenticazione con MetaMask
+   * Generates credentials for MetaMask authentication
    */
-  async generateCredentials(address: string): Promise<{ username: string; password: string }> {
+  async generateCredentials(
+    address: string,
+  ): Promise<{ username: string; password: string }> {
     try {
       if (!address) {
-        throw new Error("Indirizzo Ethereum richiesto");
+        throw new Error("Ethereum address required");
       }
 
-      log("Richiesta firma del messaggio: " + this.MESSAGE_TO_SIGN);
+      log("Requesting message signature: " + this.MESSAGE_TO_SIGN);
 
       let signature = null;
       let retries = 0;
 
       while (!signature && retries < this.MAX_RETRIES) {
         try {
-          // Richiedi la firma con timeout
-          signature = await this.requestSignatureWithTimeout(address, this.MESSAGE_TO_SIGN);
+          // Request signature with timeout
+          signature = await this.requestSignatureWithTimeout(
+            address,
+            this.MESSAGE_TO_SIGN,
+          );
         } catch (error) {
           retries++;
           if (retries < this.MAX_RETRIES) {
-            log(`Tentativo ${retries + 1} di ${this.MAX_RETRIES}...`);
-            await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY));
+            log(`Attempt ${retries + 1} of ${this.MAX_RETRIES}...`);
+            await new Promise((resolve) =>
+              setTimeout(resolve, this.RETRY_DELAY),
+            );
           } else {
             throw error;
           }
@@ -217,52 +225,52 @@ class MetaMask {
       }
 
       if (!signature) {
-        throw new Error("Impossibile ottenere la firma dopo i tentativi");
+        throw new Error("Unable to get signature after attempts");
       }
 
-      log("Firma ottenuta, generazione password...");
+      log("Signature obtained, generating password...");
 
-      // Genera username e password deterministici
+      // Generate deterministic username and password
       const username = `mm_${address.toLowerCase()}`;
       const password = ethers.keccak256(
-        ethers.toUtf8Bytes(`${signature}:${address.toLowerCase()}`)
+        ethers.toUtf8Bytes(`${signature}:${address.toLowerCase()}`),
       );
 
       return {
         username,
-        password
+        password,
       };
     } catch (error: any) {
-      logError("Errore nella generazione delle credenziali MetaMask:", error);
-      throw new Error(`Errore MetaMask: ${error.message}`);
+      logError("Error generating MetaMask credentials:", error);
+      throw new Error(`MetaMask error: ${error.message}`);
     }
   }
 
   /**
-   * Richiede la firma con timeout
+   * Requests signature with timeout
    */
   private async requestSignatureWithTimeout(
     address: string,
     message: string,
-    timeout: number = 30000
+    timeout: number = 30000,
   ): Promise<string> {
     return new Promise(async (resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        reject(new Error("Timeout nella richiesta della firma"));
+        reject(new Error("Timeout requesting signature"));
       }, timeout);
 
       try {
         if (!window.ethereum) {
-          throw new Error("MetaMask non trovato");
+          throw new Error("MetaMask not found");
         }
 
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
-        
-        // Verifica che l'indirizzo corrisponda
+
+        // Verify address matches
         const signerAddress = await signer.getAddress();
         if (signerAddress.toLowerCase() !== address.toLowerCase()) {
-          throw new Error("L'indirizzo del signer non corrisponde");
+          throw new Error("Signer address does not match");
         }
 
         const signature = await signer.signMessage(message);
@@ -276,7 +284,7 @@ class MetaMask {
   }
 
   /**
-   * Verifica se MetaMask è disponibile
+   * Checks if MetaMask is available
    */
   isAvailable(): boolean {
     return typeof window !== "undefined" && !!window.ethereum;
@@ -290,20 +298,20 @@ class MetaMask {
    */
   public setCustomProvider(rpcUrl: string, privateKey: string): void {
     if (!rpcUrl || typeof rpcUrl !== "string") {
-      throw new Error("RPC URL non valido");
+      throw new Error("Invalid RPC URL");
     }
-    
+
     if (!privateKey || typeof privateKey !== "string") {
-      throw new Error("Chiave privata non valida");
+      throw new Error("Invalid private key");
     }
-    
+
     try {
       this.customProvider = new ethers.JsonRpcProvider(rpcUrl);
       this.customWallet = new ethers.Wallet(privateKey, this.customProvider);
-      logDebug("Provider personalizzato configurato con successo");
+      logDebug("Custom provider configured successfully");
     } catch (error: any) {
       throw new Error(
-        `Errore nella configurazione del provider: ${error.message || "Errore sconosciuto"}`
+        `Error configuring provider: ${error.message || "Unknown error"}`,
       );
     }
   }
@@ -318,16 +326,16 @@ class MetaMask {
       if (this.customWallet) {
         return this.customWallet as ethers.Signer;
       }
-      
+
       const signer = await this.getEthereumSigner();
       if (!signer) {
-        throw new Error("Nessun signer Ethereum disponibile");
+        throw new Error("No Ethereum signer available");
       }
-      
+
       return signer;
     } catch (error: any) {
       throw new Error(
-        `Impossibile ottenere il signer Ethereum: ${error.message || "Errore sconosciuto"}`
+        `Unable to get Ethereum signer: ${error.message || "Unknown error"}`,
       );
     }
   }
@@ -340,11 +348,11 @@ class MetaMask {
    */
   public async generatePassword(signature: string): Promise<string> {
     if (!signature) {
-      throw new Error("Firma non valida");
+      throw new Error("Invalid signature");
     }
-    
+
     const hash = ethers.keccak256(ethers.toUtf8Bytes(signature));
-    return hash.slice(2, 66); // Rimuovi 0x e usa i primi 32 bytes
+    return hash.slice(2, 66); // Remove 0x and use first 32 bytes
   }
 
   /**
@@ -356,16 +364,16 @@ class MetaMask {
    */
   public async verifySignature(
     message: string,
-    signature: string
+    signature: string,
   ): Promise<string> {
     if (!message || !signature) {
-      throw new Error("Messaggio o firma non validi");
+      throw new Error("Invalid message or signature");
     }
-    
+
     try {
       return ethers.verifyMessage(message, signature);
     } catch (error) {
-      throw new Error("Messaggio o firma non validi");
+      throw new Error("Invalid message or signature");
     }
   }
 
@@ -377,10 +385,10 @@ class MetaMask {
   public async getEthereumSigner(): Promise<ethers.Signer> {
     if (!MetaMask.isMetaMaskAvailable()) {
       throw new Error(
-        "Metamask non trovato. Installa Metamask per continuare."
+        "MetaMask not found. Please install MetaMask to continue.",
       );
     }
-    
+
     try {
       const ethereum = window.ethereum as EthereumProvider;
       await ethereum.request({
@@ -391,7 +399,7 @@ class MetaMask {
       return provider.getSigner();
     } catch (error: any) {
       throw new Error(
-        `Errore nell'accesso a MetaMask: ${error.message || "Errore sconosciuto"}`
+        `Error accessing MetaMask: ${error.message || "Unknown error"}`,
       );
     }
   }

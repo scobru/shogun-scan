@@ -1,4 +1,3 @@
-// webpack.config.cjs
 const path = require('path');
 const webpack = require('webpack');
 
@@ -6,7 +5,7 @@ module.exports = {
   mode: 'production',
   entry: './src/browser.ts',
   output: {
-    path: path.resolve(__dirname, './dist/browser'),
+    path: path.resolve(__dirname, 'dist/browser'),
     filename: 'shogun-core.js',
     library: {
       name: 'ShogunCore',
@@ -20,23 +19,12 @@ module.exports = {
     fallback: {
       crypto: require.resolve('crypto-browserify'),
       stream: require.resolve('stream-browserify'),
-      buffer: require.resolve('buffer/'),
-      util: require.resolve('util/'),
+      buffer: require.resolve('buffer'),
+      util: require.resolve('util'),
+      os: require.resolve('os-browserify'),
       path: require.resolve('path-browserify'),
-      fs: false,
-      os: require.resolve('os-browserify/browser'),
-      process: require.resolve('process/browser'),
     },
   },
-  plugins: [
-    new webpack.ProvidePlugin({
-      Buffer: ['buffer', 'Buffer'],
-      process: 'process/browser',
-    }),
-    new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production')
-    }),
-  ],
   module: {
     rules: [
       {
@@ -45,5 +33,14 @@ module.exports = {
         exclude: /node_modules/,
       },
     ],
+  },
+  plugins: [
+    new webpack.ProvidePlugin({
+      Buffer: ['buffer', 'Buffer'],
+      process: 'process/browser',
+    }),
+  ],
+  optimization: {
+    minimize: true,
   },
 }; 

@@ -1,8 +1,7 @@
 {
   "name": "shogun-button-react",
   "description": "Shogun connector button",
-  "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "files": [
     "dist",
     "styles.css"
@@ -31,16 +30,17 @@
     "typegen:watch": "tsc --emitDeclarationOnly --watch"
   },
   "dependencies": {
-    "shogun-core": "file:../shogun-core",
-    "prettier": "^3.5.3"
+    "shogun-core": "git+https://github.com/scobru/shogun-core.git",
+    "prettier": "^3.5.3",
+    "ethers": "^6.0.0",
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "devDependencies": {
     "typescript": "^5.8.2"
   },
   "peerDependencies": {
-    "ethers": "^6.0.0",
-    "react": ">=18",
-    "react-dom": ">=18"
+   
   },
   "repository": {
     "type": "git",

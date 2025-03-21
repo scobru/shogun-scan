@@ -1,12 +1,12 @@
 {
     "entryPoints": ["src/index.ts"],
     "out": "docs",
-    "excludePrivate": true,
-    "excludeProtected": true,
+    "excludePrivate": false,
+    "excludeProtected": false,
     "excludeExternals": false,
     "includeVersion": true,
     "disableSources": true,
-    "name": "Shogun SDK Documentation v1.1.0",
+    "name": "Shogun SDK Documentation v1.0.0",
     "validation": {
         "invalidLink": true,
         "notExported": false
@@ -17,5 +17,15 @@
         "private": false,
         "inherited": true,
         "external": true
-    }
+    },
+    "blockTags": [
+        "@description",
+        "@param",
+        "@returns",
+        "@throws",
+        "@extends",
+        "@template",
+            "@deprecated"
+    ],
+    "theme": "default",
 }

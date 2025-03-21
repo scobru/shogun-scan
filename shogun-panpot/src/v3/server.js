@@ -41,10 +41,10 @@ const roomCreationTimes = {};
 // Configurato per non persistere i dati ma solo facilitare le connessioni
 const gun = Gun({
   web: server,
-  multicast: false,         // Disabilita il multicast
   localStorage: false,      // Non usare localStorage
   radisk: false,            // Non salvare su disco
-  file: false               // Non usare file per lo storage
+  file: false,              // Non usare file per lo storage
+  axe:true,
 });
 
 // Ascolta i messaggi per tracciare le stanze

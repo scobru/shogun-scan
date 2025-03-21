@@ -1,87 +1,113 @@
 /**
- * Definizione dei tipi per Gun e SEA
+ * Type definitions for Gun and SEA
  */
 
 /**
- * Interfaccia per un riferimento a una catena Gun
+ * Interface for a Gun chain reference
  */
 export interface IGunChainReference<T = any> {
   /**
-   * Ottiene un nodo specifico nella catena
+   * Gets a specific node in the chain
    */
   get(path: string): IGunChainReference;
 
   /**
-   * Mette dati in un nodo
+   * Puts data into a node
    */
-  put(data: any, callback?: (ack: any) => void, options?: any): IGunChainReference;
+  put(
+    data: any,
+    callback?: (ack: any) => void,
+    options?: any,
+  ): IGunChainReference;
 
   /**
-   * Ottiene il valore del nodo corrente una volta
+   * Gets the current node's value once
    */
   once(callback: (data: T) => void): IGunChainReference;
 
   /**
-   * Ottiene l'utente Gun
+   * Gets the Gun user
    */
   user(): IGunChainReference;
   user(pub?: string): IGunChainReference;
 
   /**
-   * Recupera la sessione dell'utente
+   * Retrieves the user session
    */
   recall(options?: any, callback?: (ack: any) => void): IGunChainReference;
 
   /**
-   * Effettua il logout dell'utente
+   * Logs out the user
    */
   leave(): void;
 
   /**
-   * Accede all'utente
+   * Authenticates the user
    */
-  auth(username: string, password: string, callback?: (ack: any) => void, options?: any): IGunChainReference;
-  auth(pair: IGunCryptoKeyPair, callback?: (ack: any) => void, options?: any): IGunChainReference;
+  auth(
+    username: string,
+    password: string,
+    callback?: (ack: any) => void,
+    options?: any,
+  ): IGunChainReference;
+  auth(
+    pair: IGunCryptoKeyPair,
+    callback?: (ack: any) => void,
+    options?: any,
+  ): IGunChainReference;
 
   /**
-   * Crea un nuovo utente
+   * Creates a new user
    */
-  create(username: string, password: string, callback?: (ack: any) => void): IGunChainReference;
-  create(username: string, password: any, pair: any, callback?: (ack: any) => void): IGunChainReference;
+  create(
+    username: string,
+    password: string,
+    callback?: (ack: any) => void,
+  ): IGunChainReference;
+  create(
+    username: string,
+    password: any,
+    pair: any,
+    callback?: (ack: any) => void,
+  ): IGunChainReference;
 
   /**
-   * Elimina un utente
+   * Deletes a user
    */
-  delete(username: string, password: string, callback?: (ack: any) => void): IGunChainReference;
+  delete(
+    username: string,
+    password: string,
+    callback?: (ack: any) => void,
+  ): IGunChainReference;
 
   /**
-   * Registra un evento
+   * Registers an event
    */
   on(event: string, callback: (...args: any[]) => void): IGunChainReference;
   on(callback: (data: T) => void): IGunChainReference;
 }
 
 /**
- * Interfaccia per una coppia di chiavi crittografiche SEA
+ * Interface for a SEA cryptographic key pair
  */
 export interface IGunCryptoKeyPair {
   /**
-   * Chiave pubblica
+   * Public key
    */
   pub: string;
 
   /**
-   * Chiave pubblica cifrata
+   * Encrypted public key
    */
   epub: string;
 
   /**
-   * Chiave privata
+   * Private key
    */
   priv?: string;
 
   /**
-   * Chiave privata cifrata
+   * Encrypted private key
    */
   epriv?: string;
 }

@@ -1,24 +1,24 @@
 /**
- * Funzioni di utilità generiche
+ * Generic utility functions
  */
 import { IGunChainReference } from "../types/gun";
 
 /**
- * Verifica se un oggetto è un'istanza di Gun
+ * Checks if an object is a Gun instance
  */
 export const isGunInstance = (gun: any): gun is IGunChainReference => {
   return !!gun?.user && !!gun?.constructor?.SEA;
 };
 
 /**
- * Verifica se l'applicazione è in esecuzione in un ambiente web
+ * Checks if the application is running in a web environment
  */
 export const isPlatformWeb = (): boolean => {
   return typeof window !== "undefined";
 };
 
 /**
- * Crea un timeout che risolve con un valore di passthrough
+ * Creates a timeout that resolves with a passthrough value
  */
 export function delay<T = any>(ms: number, passthrough?: T): Promise<T> {
   return new Promise<T>((resolve) => {
@@ -29,11 +29,11 @@ export function delay<T = any>(ms: number, passthrough?: T): Promise<T> {
 }
 
 /**
- * Crea un timeout che rifiuta con un errore
+ * Creates a timeout that rejects with an error
  */
 export async function errorAfter<T = void>(
   ms: number,
-  error: Error
+  error: Error,
 ): Promise<T> {
   return new Promise<T>((_, reject) => {
     setTimeout(() => {

@@ -1,13 +1,13 @@
 import { IGunInstance } from "gun/types";
 import { ethers } from "ethers";
 
-// Dichiarazioni dei tipi per i moduli esterni
+// Type declarations for external modules
 type Webauthn = any;
 type MetaMask = any;
 type Stealth = any;
 type GunDB = any;
 
-// Definizione interfacce per i risultati di autenticazione
+// Authentication result interfaces
 export interface AuthResult {
   success: boolean;
   userPub?: string;
@@ -18,6 +18,9 @@ export interface AuthResult {
   password?: string;
 }
 
+/**
+ * Sign up result interface
+ */
 export interface SignUpResult {
   success: boolean;
   userPub?: string;
@@ -28,60 +31,6 @@ export interface SignUpResult {
   wallet?: any;
 }
 
-/**
- * Configurazione di un canale di pagamento
- */
-export interface ChannelConfig {
-  /** Identificatore univoco del canale */
-  channelId: string;
-  /** Indirizzo Ethereum del creatore del canale */
-  creatorAddress: string;
-  /** Indirizzo Ethereum della controparte */
-  counterpartyAddress: string;
-  /** Deposito iniziale in wei */
-  initialDeposit: string;
-  /** Timestamp di creazione del canale */
-  createdAt: number;
-  /** Periodo di timeout per le dispute in secondi */
-  timeoutPeriod: number;
-  /** Indirizzo dello smart contract */
-  contractAddress: string;
-}
-
-/**
- * Stato corrente di un canale di pagamento
- */
-export interface ChannelState {
-  /** Identificatore univoco del canale */
-  channelId: string;
-  /** Saldo corrente in wei (quanto rimane al creatore) */
-  balance: string;
-  /** Numero di sequenza per prevenire replay attack */
-  nonce: number;
-  /** Firma del creatore sullo stato corrente */
-  creatorSignature?: string;
-  /** Firma della controparte sullo stato corrente */
-  counterpartySignature?: string;
-  /** Timestamp dell'ultimo aggiornamento */
-  lastUpdated: number;
-  /** Stato del canale */
-  status: 'open' | 'closing' | 'disputed' | 'closed';
-}
-
-/**
- * Risultato di un'operazione sul canale di pagamento
- */
-export interface ChannelResult {
-  /** Indica se l'operazione ha avuto successo */
-  success: boolean;
-  /** Messaggio di errore in caso di fallimento */
-  error?: string;
-  /** Stato del canale dopo l'operazione */
-  state?: ChannelState;
-  /** ID della transazione Ethereum (se applicabile) */
-  txHash?: string;
-}
-
 export interface IShogunCore {
   gun: IGunInstance<any>;
   gundb: GunDB;
@@ -89,73 +38,84 @@ export interface IShogunCore {
   metamask: MetaMask;
   stealth: Stealth;
 
-  // Metodi di autenticazione diretti
+  // Direct authentication methods
   login(username: string, password: string): Promise<AuthResult>;
   loginWithWebAuthn(username: string): Promise<AuthResult>;
   loginWithMetaMask(address: string): Promise<AuthResult>;
 
-  signUp(username: string, password: string, passwordConfirmation?: string): Promise<SignUpResult>;
+  signUp(
+    username: string,
+    password: string,
+    passwordConfirmation?: string,
+  ): Promise<SignUpResult>;
   signUpWithMetaMask(address: string): Promise<AuthResult>;
   signUpWithWebAuthn(username: string): Promise<AuthResult>;
 
-  // Metodi di supporto
+  // Support methods
   isWebAuthnSupported(): boolean;
 
-  // Metodi Wallet
+  // Wallet methods
   getMainWallet(): ethers.Wallet | null;
   createWallet(): Promise<WalletInfo>;
   loadWallets(): Promise<WalletInfo[]>;
-  signMessage(wallet: ethers.Wallet, message: string | Uint8Array): Promise<string>;
+  signMessage(
+    wallet: ethers.Wallet,
+    message: string | Uint8Array,
+  ): Promise<string>;
   verifySignature(message: string | Uint8Array, signature: string): string;
-  signTransaction(wallet: ethers.Wallet, toAddress: string, value: string): Promise<string>;
+  signTransaction(
+    wallet: ethers.Wallet,
+    toAddress: string,
+    value: string,
+  ): Promise<string>;
   getStandardBIP44Addresses(mnemonic: string, count?: number): string[];
   generateNewMnemonic(): string;
 
-  // Metodi di utilità
+  // Utility methods
   logout(): void;
   isLoggedIn(): boolean;
 }
 
 /**
- * Configurazione per WebAuthn
+ * WebAuthn configuration
  */
 export interface WebauthnConfig {
-  /** Abilita WebAuthn */
+  /** Enable WebAuthn */
   enabled?: boolean;
-  /** Nome dell'entità di verifica */
+  /** Relying party name */
   rpName?: string;
-  /** ID dell'entità di verifica */
+  /** Relying party ID */
   rpId?: string;
 }
 
 /**
- * Configurazione dell'SDK Shogun
+ * Shogun SDK configuration
  */
 export interface ShogunSDKConfig {
-  /** Configurazione GunDB */
+  /** GunDB configuration */
   gundb?: {
-    /** Lista dei peer da utilizzare */
+    /** List of peers to use */
     peers: string[];
   };
-  /** Lista dei peer da utilizzare (deprecato, usa gundb.peers) */
+  /** List of peers to use (deprecated, use gundb.peers) */
   peers?: string[];
-  /** Abilita websocket */
+  /** Enable websocket */
   websocket?: boolean;
-  /** URL del provider Ethereum */
+  /** Ethereum provider URL */
   providerUrl?: string;
-  /** Indirizzo del contratto per i canali di pagamento */
+  /** Payment channel contract address */
   paymentChannelContract?: string;
-  /** Abilita il radisk per lo storage su disco */
+  /** Enable radisk for disk storage */
   radisk?: boolean;
-  /** Abilita localStorage */
+  /** Enable localStorage */
   localStorage?: boolean;
-  /** Autorità di stato */
+  /** State authority */
   stateAuthority?: string;
-  /** Configurazione WebAuthn */
+  /** WebAuthn configuration */
   webauthn?: WebauthnConfig;
-  /** Configurazione per MetaMask */
+  /** MetaMask configuration */
   metamask?: {
-    /** Abilita MetaMask */
+    /** Enable MetaMask */
     enabled?: boolean;
   };
 }
@@ -173,5 +133,3 @@ export interface ShogunEvents {
   "auth:login": (data: { username: string; userPub: string }) => void;
   "auth:logout": (data: Record<string, never>) => void;
 }
-
-

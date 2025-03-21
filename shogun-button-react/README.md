@@ -1,165 +1,52 @@
-<a href="https://rainbowkit.com">
-  <img alt="rainbowkit" src="https://user-images.githubusercontent.com/372831/168174718-685980e0-391e-4621-94a1-29bf83979fa5.png" />
-</a>
+# Shogun Button React
 
-# Rainbow Button
+A React component library for seamless integration of Shogun authentication into your applications. This library provides a simple yet powerful way to add Shogun authentication to your React applications.
 
-The simplest way to add support for Rainbow Wallet to dApps built on [wagmi](https://wagmi.sh/).
+## Features
 
-This package is designed to be installed independent of [RainbowKit](https://www.rainbowkit.com).
+- 🚀 Easy to integrate
+- 🎨 Customizable UI components
+- 🔒 Secure authentication flow
+- 🌓 Dark mode support
+- 🔌 Multiple authentication methods (Username/Password, MetaMask, WebAuthn)
+- 📱 Responsive design
+- 🌍 TypeScript support
 
-## Usage
-
-### Install
-
-Install the `@rainbow-me/rainbow-button` package and its peer dependencies, [wagmi](https://wagmi.sh/), [viem](https://viem.sh/), and [@tanstack/react-query](https://tanstack.com/query/v5).
-
-```bash
-npm install @rainbow-me/rainbow-button wagmi viem@2.x @tanstack/react-query
-```
-
-### Import
-
-Import Rainbow Button and wagmi.
+## Quick Start
 
 ```tsx
-import '@rainbow-me/rainbow-button/styles.css';
+import React from "react";
 import {
-  RainbowConnector,
-  RainbowButtonProvider,
-} from '@rainbow-me/rainbow-button';
-...
-import { createConfig, WagmiConfig } from 'wagmi';
-```
-
-### Adopt the connector
-
-The `RainbowConnector` supports connecting with Rainbow just like Wagmi's native `MetaMaskConnector` from `wagmi/connectors/metaMask`.
-
-Create an instance of the `RainbowConnector` and provide it in your wagmi config `connectors` list. Supply your `chains` list and your WalletConnect v2 `projectId`. You can obtain a `projectId` from [WalletConnect Cloud](https://cloud.reown.com/sign-in). This is absolutely free and only takes a few minutes.
-
-```tsx
-const config = createConfig({
-  connectors: [new RainbowConnector({ chains, projectId })],
-  publicClient
-});
-```
-
-### Wrap providers
-
-Wrap your application with `RainbowButtonProvider`, [`WagmiProvider`](https://wagmi.sh/react/api/WagmiProvider#wagmiprovider), and [`QueryClientProvider`](https://tanstack.com/query/v4/docs/framework/react/reference/QueryClientProvider).
-
-```tsx
-const App = () => {
-  return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowButtonProvider>
-          {/* Your App */}
-        </RainbowButtonProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
-  );
-};
-```
-
-### Add the Rainbow button
-
-Then, in your app, import and render the `RainbowButton` component.
-
-```tsx
-import { RainbowButton } from '@rainbow-me/rainbow-button';
-
-export const YourApp = () => {
-  return <RainbowButton/>;
-};
-```
-
-## Documentation
-
-You can reference the [Adoption Guide](https://www.rainbowkit.com/guides/rainbow-button) for more information.
-
-### Custom Rainbow button
-
-The `RainbowButton.Custom` component is available for custom button implementations and styling.
-
-```tsx
-<RainbowButton.Custom>
-  {({ ready, connect }) => {
-    return (
-      <button
-        type="button"
-        disabled={!ready}
-        onClick={connect}
-      >
-        Connect Rainbow
-      </button>
-    );
-  }}
-</RainbowButton.Custom>
-```
-
-## Try it out
-
-You can use the CodeSandbox links below try out the Rainbow Button:
-- [with Next.js](https://codesandbox.io/p/sandbox/github/rainbow-me/rainbowkit/tree/main/examples/with-next-rainbow-button)
-
-## Contributing
-
-Please follow our [contributing guidelines](/.github/CONTRIBUTING.md).
-
-## License
-
-Licensed under the MIT License, Copyright © 2022-present [Rainbow](https://rainbow.me).
-
-See [LICENSE](/LICENSE) for more information.
-
-# Shogun Button
-
-Un componente React per integrare facilmente l'autenticazione Shogun nelle tue applicazioni.
-
-## Installazione
-
-```bash
-npm install @shogun/shogun-button
-# o
-yarn add @shogun/shogun-button
-# o
-pnpm add @shogun/shogun-button
-```
-
-## Utilizzo di base
-
-```jsx
-import React from 'react';
-import { ShogunButton, ShogunButtonProvider, shogunConnector } from '@shogun/shogun-button';
-import '@shogun/shogun-button/styles.css';
+  ShogunButton,
+  ShogunButtonProvider,
+  shogunConnector,
+} from "@shogun/shogun-button-react";
+import "@shogun/shogun-button-react/styles.css";
 
 function App() {
-  // Inizializza il connettore Shogun
   const { sdk, options } = shogunConnector({
-    appName: 'La mia App',
-    appDescription: 'Una fantastica app con autenticazione Shogun',
-    appUrl: 'https://mia-app.it',
-    appIcon: 'https://mia-app.it/logo.png',
+    appName: "My App",
+    appDescription: "An awesome app with Shogun authentication",
+    appUrl: "https://myapp.com",
+    appIcon: "https://myapp.com/icon.png",
   });
 
   return (
-    <ShogunButtonProvider 
+    <ShogunButtonProvider
       sdk={sdk}
       options={options}
       onLoginSuccess={(data) => {
-        console.log('Login avvenuto con successo!', data);
+        console.log("Login successful!", data);
       }}
       onSignupSuccess={(data) => {
-        console.log('Registrazione avvenuta con successo!', data);
+        console.log("Signup successful!", data);
       }}
       onError={(error) => {
-        console.error('Si è verificato un errore:', error);
+        console.error("An error occurred:", error);
       }}
     >
       <div>
-        <h1>Benvenuto nella mia app</h1>
+        <h1>Welcome to My App</h1>
         <ShogunButton />
       </div>
     </ShogunButtonProvider>
@@ -169,114 +56,115 @@ function App() {
 export default App;
 ```
 
-## Componente personalizzato
+## API Reference
 
-Puoi personalizzare l'aspetto del pulsante utilizzando `ShogunButton.Custom`:
+### ShogunButtonProvider
 
-```jsx
+The provider component that supplies Shogun context to your application.
+
+#### Props
+
+| Name            | Type                     | Description                                    |
+| --------------- | ------------------------ | ---------------------------------------------- |
+| sdk             | ShogunSDK                | Shogun SDK instance created by shogunConnector |
+| options         | Object                   | Configuration options                          |
+| onLoginSuccess  | (data: AuthData) => void | Callback fired on successful login             |
+| onSignupSuccess | (data: AuthData) => void | Callback fired on successful signup            |
+| onError         | (error: Error) => void   | Callback fired when an error occurs            |
+
+### ShogunButton
+
+The main button component for triggering Shogun authentication.
+
+#### Custom Button
+
+You can customize the button appearance using `ShogunButton.Custom`:
+
+```tsx
 <ShogunButton.Custom>
-  <div className="mio-pulsante-personalizzato">
-    Accedi con Shogun
-  </div>
+  {({ ready, authenticate }) => (
+    <button
+      className="my-custom-button"
+      disabled={!ready}
+      onClick={authenticate}
+    >
+      Connect with Shogun
+    </button>
+  )}
 </ShogunButton.Custom>
 ```
 
-## Hook useShogun
+### useShogun Hook
 
-Puoi accedere direttamente allo stato e alle funzionalità di autenticazione Shogun utilizzando l'hook `useShogun`:
+A hook to access Shogun authentication state and functions.
 
-```jsx
-import { useShogun } from '@shogun/shogun-button';
+```tsx
+import { useShogun } from "@shogun/shogun-button-react";
 
-function UserProfile() {
-  const { 
-    isLoggedIn, 
-    username, 
-    userPub, 
-    wallet,
+function Profile() {
+  const {
+    isAuthenticated,
+    user,
     login,
-    signUp,
-    loginWithMetaMask,
-    signUpWithMetaMask,
-    loginWithWebAuthn,
-    signUpWithWebAuthn,
-    logout
+    signup,
+    logout,
+    connectWithMetaMask,
+    connectWithWebAuthn,
   } = useShogun();
 
-  if (!isLoggedIn) {
-    return <div>Non hai effettuato l'accesso</div>;
-  }
-
-  return (
+  return isAuthenticated ? (
     <div>
-      <h2>Profilo Utente</h2>
-      <p>Username: {username}</p>
-      <p>UserPub: {userPub}</p>
-      <p>Indirizzo Wallet: {wallet?.address}</p>
+      <h2>Welcome, {user.username}!</h2>
       <button onClick={logout}>Logout</button>
     </div>
+  ) : (
+    <div>Please login to continue</div>
   );
 }
 ```
 
-## API
+## Configuration Options
 
-### ShogunButtonProvider
+The `shogunConnector` accepts the following options:
 
-Il provider che fornisce il contesto Shogun alla tua applicazione.
+```typescript
+interface ShogunConnectorOptions {
+  appName: string;
+  appDescription?: string;
+  appUrl?: string;
+  appIcon?: string;
+  enableMetaMask?: boolean;
+  enableWebAuthn?: boolean;
+  theme?: "light" | "dark" | "system";
+  customStyles?: ShogunStyleOptions;
+}
+```
 
-#### Props
+## Styling
 
-| Prop | Tipo | Descrizione |
-|------|------|-------------|
-| sdk | ShogunSDK | L'istanza SDK Shogun, creata con `shogunConnector` |
-| options | Object | Opzioni di configurazione |
-| onLoginSuccess | Function | Callback chiamato quando il login ha successo |
-| onSignupSuccess | Function | Callback chiamato quando la registrazione ha successo |
-| onError | Function | Callback chiamato quando si verifica un errore |
+The component comes with default styling that you can override using CSS variables:
 
-### shogunConnector
+```css
+:root {
+  --shogun-button-primary: #5c6bc0;
+  --shogun-button-hover: #3f51b5;
+  --shogun-text-primary: #333333;
+  --shogun-background: #ffffff;
+  /* ... other variables */
+}
+```
 
-Funzione che crea un connettore Shogun.
+## Browser Support
 
-#### Parametri
+- Chrome ≥ 60
+- Firefox ≥ 60
+- Safari ≥ 12
+- Edge ≥ 79
 
-| Parametro | Tipo | Descrizione |
-|-----------|------|-------------|
-| appName | string | Il nome della tua applicazione |
-| appDescription | string (opzionale) | Descrizione della tua applicazione |
-| appUrl | string (opzionale) | URL della tua applicazione |
-| appIcon | string (opzionale) | URL dell'icona della tua applicazione |
-| showMetamask | boolean (opzionale) | Mostra l'opzione di login con MetaMask |
-| showWebauthn | boolean (opzionale) | Mostra l'opzione di login con WebAuthn |
-| darkMode | boolean (opzionale) | Attiva il tema scuro |
+## Contributing
 
-### ShogunButton
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-Un pulsante per attivare l'autenticazione Shogun.
+## License
 
-### useShogun
-
-Hook per accedere al contesto Shogun.
-
-#### Restituisce
-
-| Proprietà | Tipo | Descrizione |
-|-----------|------|-------------|
-| sdk | ShogunSDK | L'istanza SDK Shogun |
-| options | Object | Opzioni di configurazione |
-| isLoggedIn | boolean | Indica se l'utente ha effettuato l'accesso |
-| userPub | string | La chiave pubblica dell'utente |
-| username | string | Il nome utente |
-| wallet | HDNodeWallet | Il wallet dell'utente |
-| login | Function | Funzione per effettuare il login |
-| signUp | Function | Funzione per effettuare la registrazione |
-| loginWithMetaMask | Function | Funzione per effettuare il login con MetaMask |
-| signUpWithMetaMask | Function | Funzione per effettuare la registrazione con MetaMask |
-| loginWithWebAuthn | Function | Funzione per effettuare il login con WebAuthn |
-| signUpWithWebAuthn | Function | Funzione per effettuare la registrazione con WebAuthn |
-| logout | Function | Funzione per effettuare il logout |
-
-## Licenza
-
-MIT
+MIT © [Shogun](https://github.com/shogun)
