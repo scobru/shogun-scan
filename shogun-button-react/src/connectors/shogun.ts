@@ -1,5 +1,5 @@
 import { ShogunCore } from "shogun-core";
-import { ShogunConnectorOptions } from "../types";
+import { ShogunConnectorOptions } from "../types/connector-options";
 
 /**
  * Crea un connettore Shogun per l'autenticazione
@@ -13,18 +13,21 @@ function shogunConnector({
   showWebauthn = true,
   darkMode = true,
   websocketSecure = false,
+  didRegistryAddress = null,
+  providerUrl = null,
+  peers = ["http://localhost:8765/gun"]
 }: ShogunConnectorOptions) {
   // Configurazione dell'SDK Shogun
   const config = {
     // Configurazione principale per gun 
-    peers: ["http://localhost:8765/gun"],
+    peers: peers,
 
     // Configurazione WebSocket
     websocket: websocketSecure, // Convertito in booleano
     
     // Sottoconfigurazioni opzionali per Gun
     gundb: {
-      peers: ["http://localhost:8765/gun"],
+      peers: peers,
       localStorage: false,
       radisk: false
     },
@@ -45,6 +48,15 @@ function shogunConnector({
       enabled: showWebauthn,
       rpName: appName || "Shogun App",
       rpId: typeof window !== 'undefined' ? window.location.hostname : ''
+    },
+    
+    // Provider Ethereum per operazioni blockchain
+    providerUrl: providerUrl,
+    
+    // Configurazione DID
+    did: {
+      registryAddress: didRegistryAddress || undefined,
+      network: "main" // Valore predefinito
     }
   };
 
@@ -60,7 +72,11 @@ function shogunConnector({
       appIcon,
       showMetamask,
       showWebauthn,
-      darkMode
+      darkMode,
+      websocketSecure,
+      didRegistryAddress,
+      providerUrl,
+      peers
     }
   };
 }

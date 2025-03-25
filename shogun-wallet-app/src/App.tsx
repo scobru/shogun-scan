@@ -12,18 +12,14 @@ import { ethers } from "ethers";
 import { TokenService } from "./services/TokenService";
 import { TokenManager } from "./components/TokenManager";
 import StealthSection from "./components/StealthSection";
-import Layer2Section from "./components/Layer2Section";
-import { QRCode } from "react-qr-svg";
 
 // Modifica la configurazione per utilizzare il provider locale
 const connectorConfig = {
   appName: "Shogun Wallet",
   appDescription: "Un wallet Layer2 per GunDB",
   appUrl: "http://localhost:5173",
-  paymentChannelContract: "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 ",
-  providerUrl: "http://localhost:8545", // Uso provider locale Hardhat
-  gunPeers: ["http://localhost:8765/gun"],
-  stateAuthority: "http://localhost:8765" // Usiamo lo stesso server GUN come State Authority
+  providerUrl: "https://gun-relay.scobrudot.dev/gun", // Uso provider locale Hardhat
+  peers: ["https://gun-relay.scobrudot.dev/gun"],
 };
 
 // Creazione del connettore Shogun per il pulsante con controllo errori

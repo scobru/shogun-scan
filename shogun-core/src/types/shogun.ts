@@ -7,15 +7,27 @@ type MetaMask = any;
 type Stealth = any;
 type GunDB = any;
 
+// Definizione dell'interfaccia DID
+interface DID {
+  getCurrentUserDID(): Promise<string | null>;
+  resolveDID(did: string): Promise<any>;
+  authenticateWithDID(did: string, challenge?: string): Promise<AuthResult>;
+  createDID(options?: any): Promise<string>;
+  updateDIDDocument(did: string, documentUpdates: any): Promise<boolean>;
+  deactivateDID(did: string): Promise<boolean>;
+  registerDIDOnChain(did: string, signer?: ethers.Signer): Promise<{success: boolean, txHash?: string, error?: string}>;
+}
+
 // Authentication result interfaces
 export interface AuthResult {
   success: boolean;
-  userPub?: string;
-  wallet?: any;
-  username?: string;
   error?: string;
-  credentialId?: string;
+  userPub?: string;
+  username?: string;
   password?: string;
+  credentialId?: string;
+  did?: string;
+  wallet?: any;
 }
 
 /**
@@ -29,6 +41,7 @@ export interface SignUpResult {
   error?: string;
   message?: string;
   wallet?: any;
+  did?: string;
 }
 
 export interface IShogunCore {
@@ -37,6 +50,7 @@ export interface IShogunCore {
   webauthn: Webauthn;
   metamask: MetaMask;
   stealth: Stealth;
+  did : DID;
 
   // Direct authentication methods
   login(username: string, password: string): Promise<AuthResult>;
@@ -74,6 +88,7 @@ export interface IShogunCore {
   // Utility methods
   logout(): void;
   isLoggedIn(): boolean;
+
 }
 
 /**
@@ -86,6 +101,18 @@ export interface WebauthnConfig {
   rpName?: string;
   /** Relying party ID */
   rpId?: string;
+}
+
+/**
+ * DID configuration
+ */
+export interface DIDConfig {
+  /** DID registry address on blockchain */
+  registryAddress?: string;
+  /** Default network for DIDs */
+  network?: string;
+  /** Enable DID functionalities */
+  enabled?: boolean;
 }
 
 /**
@@ -118,6 +145,8 @@ export interface ShogunSDKConfig {
     /** Enable MetaMask */
     enabled?: boolean;
   };
+  /** DID configuration */
+  did?: DIDConfig;
 }
 
 export interface WalletInfo {

@@ -16,7 +16,7 @@ import {
   registerWithMetamask,
   loginWithWebAuthn,
   registerWithWebAuthn,
-} from "./shogun-integration";
+} from "../../state/shogun-integration";
 
 import { isAuthenticated } from "./isAuthenticated";
 

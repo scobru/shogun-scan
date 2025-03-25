@@ -1,12 +1,14 @@
 "use client"
 
 import { IGunInstance } from "gun"
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { ShogunCore } from "shogun-core"
+// Importa ShogunCore solo lato client
+
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 
 type GunContextType = {
   gun: IGunInstance | null
-  sdk: ShogunCore | null
+  sdk: typeof ShogunCore | null
   user: any | null
   isAuthenticated: boolean
   setIsAuthenticated: (isAuthenticated: boolean) => void
@@ -50,34 +52,10 @@ type GunContextType = {
   setUser: (user: any) => void
 }
 
-const GunContext = createContext<GunContextType>({
-  gun: null,
-  sdk: null,
-  user: null,
-  isAuthenticated: false,
-  setIsAuthenticated: () => {},
-  login: async () => false,
-  signup: async () => false,
-  logout: () => {},
-  loginWithWebAuthn: async () => false,
-  signupWithWebAuthn: async () => false,
-  isWebAuthnSupported: () => false,
-  loginWithMetaMask: async () => false,
-  signUpWithMetaMask: async () => false,
-  createStealthAccount: async () => null,
-  generateStealthAddress: async () => null,
-  openStealthAddress: async () => null,
-  createWallet: async () => null,
-  loadWallets: async () => [],
-  getMainWallet: () => null,
-  handleLogin: async () => ({ success: false, error: "SDK non inizializzato" }),
-  handleSignUp: async () => ({ success: false, error: "SDK non inizializzato" }),
-  setUser: () => {}
-})
 
 export function GunProvider({ children }: { children: ReactNode }) {
   const [gun, setGun] = useState<IGunInstance | null>(null)
-  const [sdk, setSdk] = useState<ShogunSDK | null>(null)
+  const [sdk, setSdk] = useState<ShogunCore | null>(null)
   const [user, setUser] = useState<any | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [wallets, setWallets] = useState<any[]>([])
@@ -85,9 +63,16 @@ export function GunProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Inizializza Gun con ShogunSDK
     try {
-      const shogunSDK = new ShogunCore({
-        peers: ["http://localhost:8765/gun"],
-      }) as ShogunCore
+      const shogunSDK = new ShogunCore(
+        {
+          gundb: {
+            peers: ["http://gun-relay.scobrudot.dev/gun"],
+
+            localStorage: false,
+            radisk: false
+          }
+        }
+      ) as ShogunCore
 
       // Verifica che l'SDK sia stato inizializzato correttamente
       if (!shogunSDK.gundb || !shogunSDK.gun) {
@@ -660,6 +645,32 @@ export function GunProvider({ children }: { children: ReactNode }) {
     </GunContext.Provider>
   );
 }
+
+
+const GunContext = createContext<GunContextType>({
+  gun: null,
+  sdk: null,
+  user: null,
+  isAuthenticated: false,
+  setIsAuthenticated: () => {},
+  login: async () => false,
+  signup: async () => false,
+  logout: () => {},
+  loginWithWebAuthn: async () => false,
+  signupWithWebAuthn: async () => false,
+  isWebAuthnSupported: () => false,
+  loginWithMetaMask: async () => false,
+  signUpWithMetaMask: async () => false,
+  createStealthAccount: async () => null,
+  generateStealthAddress: async () => null,
+  openStealthAddress: async () => null,
+  createWallet: async () => null,
+  loadWallets: async () => [],
+  getMainWallet: () => null,
+  handleLogin: async () => ({ success: false, error: "SDK non inizializzato" }),
+  handleSignUp: async () => ({ success: false, error: "SDK non inizializzato" }),
+  setUser: () => {}
+})
 
 export const useGun = () => useContext(GunContext);
 

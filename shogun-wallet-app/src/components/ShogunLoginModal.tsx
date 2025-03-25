@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { sdk } from '../App';
 import { AuthMethod } from '../types';
-import { useShogun } from '@shogun/shogun-button';
+import { useShogun } from 'shogun-button-react';
 
 enum FormMode {
   LOGIN = 'login',

@@ -30,18 +30,16 @@
     "typegen:watch": "tsc --emitDeclarationOnly --watch"
   },
   "dependencies": {
-    "shogun-core": "git+https://github.com/scobru/shogun-core.git",
+    "ethers": "^6.13.5",
     "prettier": "^3.5.3",
-    "ethers": "^6.0.0",
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "shogun-core": "git+https://github.com/scobru/shogun-core.git"
   },
   "devDependencies": {
     "typescript": "^5.8.2"
   },
-  "peerDependencies": {
-   
-  },
+  "peerDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/shogun/shogun-button.git",

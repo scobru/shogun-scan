@@ -2,11 +2,14 @@ import * as authentication from "./lib/authentication";
 import * as certificates from "./lib/certificates";
 import * as friends from "./lib/friends";
 import * as messaging from "./lib/messaging";
-import { gun, user } from "./lib/authentication/shogun-integration";
+import { gun, user } from "./state/gun";
 
-// import { gun, user } from "./state/gun";
 
 console.log.bind(console);
+
+export const setPeers = (peers) => {
+  gun.opt.peers = peers;
+};
 
 export {
   authentication,

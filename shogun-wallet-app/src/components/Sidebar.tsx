@@ -9,6 +9,14 @@ const rpcOptions = [
   { value: "localhost", label: "Localhost", }
 ];
 
+// Definizione della struttura per le sezioni
+interface Section {
+  id: string;
+  label: string;
+  icon: string;
+  badge?: string;
+}
+
 interface SidebarProps {
   selectedRpc: string;
   onRpcChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
@@ -19,6 +27,7 @@ interface SidebarProps {
   onLogout: () => void;
   activeSection: string;
   onSectionChange: (section: string) => void;
+  sections?: Section[]; // Aggiungiamo la prop sections
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -30,14 +39,18 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCreateWallet,
   onLogout,
   activeSection,
-  onSectionChange
+  onSectionChange,
+  sections
 }) => {
-  // Sezioni dell'app
-  const sections = [
-    { id: "wallet", name: "Wallet", icon: "💰" },
-    { id: "stealth", name: "Stealth", icon: "🕵️" },
-    { id: "settings", name: "Impostazioni", icon: "⚙️" }
+  // Sezioni predefinite dell'app se non vengono fornite da props
+  const defaultSections: Section[] = [
+    { id: "wallet", label: "Wallet", icon: "💰" },
+    { id: "stealth", label: "Stealth", icon: "🕵️" },
+    { id: "settings", label: "Impostazioni", icon: "⚙️" }
   ];
+
+  // Usa le sezioni fornite o quelle predefinite
+  const menuSections = sections || defaultSections;
 
   return (
     <div className="w-[250px] bg-gray-800 p-4 flex flex-col border-r border-gray-700">
@@ -49,18 +62,25 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="mb-6">
         <h3 className="text-gray-400 text-sm font-medium mb-2">Menu</h3>
         <nav className="space-y-1">
-          {sections.map(section => (
+          {menuSections.map(section => (
             <div
               key={section.id}
               onClick={() => onSectionChange(section.id)}
-              className={`p-2 rounded cursor-pointer transition-colors flex items-center space-x-2 ${
+              className={`p-2 rounded cursor-pointer transition-colors flex items-center justify-between ${
                 activeSection === section.id
                   ? 'bg-primary text-white'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
-              <span>{section.icon}</span>
-              <span>{section.name}</span>
+              <div className="flex items-center space-x-2">
+                <span>{section.icon}</span>
+                <span>{section.label}</span>
+              </div>
+              {section.badge && (
+                <span className="bg-green-600 text-xs px-1.5 py-0.5 rounded-full">
+                  {section.badge}
+                </span>
+              )}
             </div>
           ))}
         </nav>

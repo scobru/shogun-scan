@@ -10,9 +10,11 @@ let AuthenticationPage = () => {
   onMount(() => {
     console.log('Inizializzazione SDK...');
     const sdk = new ShogunCore({
-      peers: ['http://localhost:8765/gun'],
-      localStorage: false,
-      radisk: false,
+      gundb: {
+        peers: ['http://gun-relay.scobrudot.dev/gun'],
+        localStorage: false,
+        radisk: false,
+      },
     });
     console.log('SDK inizializzato:', sdk);
 
@@ -58,103 +60,33 @@ let AuthenticationPage = () => {
       return;
     }
 
-    // Usa l'API di autenticazione di LoneWolf per effettuare il login
-    authentication.loginUser(
-      { username, password: finalPassword },
-      ({ errMessage, success }) => {
-        if (errMessage) {
-          console.error('Errore durante il login con LoneWolf:', errMessage);
+    console.log('Login con password:', finalPassword);
 
-          // Se l'utente non esiste in LoneWolf, registralo
-          if (errMessage === 'Wrong user or password.') {
-            console.log('Tentativo di login con password salvata...');
-
-            // Prova tutte le password salvate per questo utente
-            const allPasswords = getAllSavedPasswords(username);
-            if (allPasswords.length > 0) {
-              tryLoginWithPasswords(username, allPasswords, 0);
-            } else {
-              console.log(
-                'Utente non trovato in LoneWolf, tentativo di registrazione...'
-              );
-              handleRegistrationWithLoneWolf(username, finalPassword);
-            }
-          }
-        } else {
-          console.log('Autenticazione LoneWolf completata:', success);
-
-          // Forza l'aggiornamento dello stato di autenticazione
-          setTimeout(() => {
-            console.log("Tentativo di forzare l'autenticazione dopo login...");
-
-            // Verifico se l'oggetto è un Subject RxJS (ha il metodo next)
-            if (
-              typeof authentication.isAuthenticated === 'object' &&
-              typeof authentication.isAuthenticated.next === 'function'
-            ) {
-              console.log(
-                'Rilevato Subject RxJS, utilizzo il metodo next()...'
-              );
-              authentication.isAuthenticated.next(true);
-
-              // Verifica se è stato impostato correttamente
-              setTimeout(() => {
-                console.log(
-                  'Verifica stato attuale dopo login:',
-                  authentication.isAuthenticated
-                );
-                if (authentication.checkAuth) {
-                  console.log(
-                    'Risultato checkAuth dopo login:',
-                    authentication.checkAuth()
-                  );
-                }
-
-                // Reindirizza alla home page se sembra tutto ok
-                setTimeout(() => {
-                  console.log(
-                    'Reindirizzamento alla home dopo login riuscito...'
-                  );
-                  window.location.href = '/';
-                }, 200);
-              }, 100);
-            } else if (typeof authentication.checkAuth === 'function') {
-              // Prova ad usare checkAuth per verificare/forzare l'autenticazione
-              console.log('Tentativo di utilizzo del metodo checkAuth...');
-              const isAuth = authentication.checkAuth();
-              console.log('Risultato checkAuth:', isAuth);
-
-              if (isAuth) {
-                // Reindirizza alla home page
-                console.log(
-                  'Autenticazione verificata, reindirizzamento alla home...'
-                );
-                setTimeout(() => {
-                  window.location.href = '/';
-                }, 200);
-              } else {
-                console.log(
-                  'checkAuth ha restituito false, tentativo di reload...'
-                );
-                setTimeout(() => {
-                  window.location.reload();
-                }, 300);
-              }
-            } else {
-              console.log(
-                "Nessun metodo disponibile per verificare l'autenticazione"
-              );
-
-              // Prova comunque a reindirizzare alla home
-              console.log('Tentativo di reindirizzamento diretto alla home...');
-              setTimeout(() => {
-                window.location.href = '/';
-              }, 300);
-            }
-          }, 300);
+    // Utilizzo di shogunLogin dal modulo authentication
+    authentication.shogunLogin({
+      username: username,
+      password: finalPassword
+    }, ({errMessage, success, pub}) => {
+      if (errMessage) {
+        console.error('Errore durante il login con Shogun:', errMessage);
+      } else {
+        console.log('Login con Shogun completato:', success);
+        // Salva le credenziali nel localStorage
+        localStorage.setItem(`shogun_${username}`, finalPassword);
+        localStorage.setItem('current_user', username);
+        localStorage.setItem('is_authenticated', 'true');
+        
+        // Aggiorna lo stato di autenticazione
+        if (authentication.isAuthenticated && typeof authentication.isAuthenticated.next === 'function') {
+          authentication.isAuthenticated.next(true);
         }
+        
+        // Reindirizza alla home page
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1000);
       }
-    );
+    });
   };
 
   // Funzione per ottenere tutte le password salvate per un utente

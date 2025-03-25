@@ -12,7 +12,12 @@
     "skipLibCheck": true,
     "noImplicitAny": false,
     "strictNullChecks": false,
-    "strict": false
+    "strict": false,
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "paths": {
+      "shogun-core": ["./node_modules/shogun-core", "./src/types/shogun-sdk.d.ts"]
+    },
+    "resolveJsonModule": true
   },
   "exclude": ["node_modules"],
   "include": ["src"]

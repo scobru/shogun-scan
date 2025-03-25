@@ -1,11 +1,11 @@
 import { ShogunCore } from "shogun-core";
-import { isAuthenticated } from "./isAuthenticated";
+import { isAuthenticated } from "../lib/authentication/isAuthenticated";
 import { Subject } from "rxjs";
 import SEA from "gun/sea"; // Importa SEA direttamente per backup
 
 // Inizializza ShogunSDK con le stesse configurazioni
 export const shogunSDK = new ShogunCore({
-  peers: ["http://localhost:8765/gun"],
+  peers: ["https://gun-relay.scobrudot.dev/gun"],
   localStorage: false,
   radisk: false
 });
@@ -34,7 +34,7 @@ export const shogunLogin = async (credentials = {}, callback = () => {}) => {
     console.log("⚔️ ShogunSDK:Verifica credenziali Hedgehog...");
     console.log("⚔️ ShogunSDK:SEA disponibile:", !!SEAModule);
 
-    const result = await shogunSDK.handleLogin(
+    const result = await shogunSDK.login(
       credentials.username,
       credentials.password,
       {
@@ -90,7 +90,7 @@ export const shogunRegister = async (credentials = {}, callback = () => {}) => {
       });
     }
 
-    const result = await shogunSDK.handleSignUp(
+    const result = await shogunSDK.signUp(
       credentials.username,
       credentials.password,
       credentials.password,

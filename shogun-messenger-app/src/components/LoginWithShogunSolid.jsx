@@ -355,29 +355,33 @@ const LoginWithShogunSolid = (props) => {
     setErrorMessage('');
 
     try {
-      console.log('Tentativo di registrazione con WebAuthn...');
-      const result = await props.sdk.registerWithWebAuthn(username());
-      console.log('Risultato registrazione WebAuthn:', result);
-
+      console.log("Tentativo di registrazione con WebAuthn...");
+      
+      // Verifica entrambi i metodi possibili
+      const signUpMethod = props.sdk.signUpWithWebAuthn || props.sdk.registerWithWebAuthn;
+      
+      if (!signUpMethod) {
+        throw new Error('Registrazione WebAuthn non è supportata in questa versione dell\'SDK');
+      }
+      
+      const result = await signUpMethod.call(props.sdk, username());
+      console.log("Risultato registrazione WebAuthn:", result);
+      
       if (result.success) {
         if (props.onSignupSuccess) {
           props.onSignupSuccess({
-            userPub:
-              result.userPub || result.credentialId || 'webauthn-user-pub',
+            userPub: result.userPub || result.credentialId || 'webauthn-user-pub',
             username: username(),
             password: result.password || `WebAuthn_${username()}_${Date.now()}`,
-            authMethod: 'webauthn',
+            authMethod: 'webauthn'
           });
         }
       } else {
-        throw new Error(
-          result.error || 'Errore durante la registrazione WebAuthn'
-        );
+        throw new Error(result.error || "Errore durante la registrazione WebAuthn");
       }
     } catch (error) {
-      const errorMsg =
-        error.message || 'Errore durante la registrazione WebAuthn';
-      console.error('Errore WebAuthn:', errorMsg);
+      const errorMsg = error.message || "Errore durante la registrazione WebAuthn";
+      console.error("Errore WebAuthn:", errorMsg);
       setErrorMessage(errorMsg);
       if (props.onError) props.onError(errorMsg);
     } finally {

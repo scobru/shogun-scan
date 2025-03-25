@@ -7,7 +7,7 @@ import { gun, user } from "../..";
  * @returns Promise<boolean>
  */
 let checkUsernameInUse = async (username) => {
-  let user = await gun.get(`~@${username}`);
+  let user = gun.get(`~@${username}`);
 
   return user !== undefined;
 };

@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ShogunButton, ShogunButtonProvider } from "shogun-button";
+import { ShogunButton, ShogunButtonProvider } from "shogun-button-react";
 
 export function AuthFormEnhanced() {
   const {

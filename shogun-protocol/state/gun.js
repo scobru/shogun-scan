@@ -16,6 +16,6 @@
 
 // let user = gun.user().recall({ sessionStorage: true });
 
-import { gun, user } from "../lib/authentication/shogun-integration";
+import { gun, user } from "./shogun-integration";
 
 export { gun, user };

@@ -1,108 +1,299 @@
-# Shogun - Ecosistema Web3 Decentralizzato
+# Shogun - Decentralized Web3 Ecosystem
 
-Shogun è un ecosistema completo di strumenti per lo sviluppo di applicazioni Web3 decentralizzate, che include componenti per autenticazione, messaggistica, gestione wallet, interfacce utente e molto altro.
+Shogun is a comprehensive toolkit for developing decentralized Web3 applications, focusing on privacy, security, and user ownership of data. Built around a philosophy of true decentralization, Shogun provides developers with powerful tools to create applications that respect user privacy while delivering modern, responsive experiences.
 
-## Componenti dell'Ecosistema
+![Shogun Ecosystem](docs/shogun-ecosystem.png)
+
+## Why Shogun?
+
+In today's digital landscape, users are increasingly concerned about data privacy and ownership. Traditional Web2 applications often store user data in centralized servers, creating single points of failure and potential security risks. Meanwhile, many Web3 solutions are complex to implement and offer poor user experiences.
+
+**Shogun addresses these challenges by:**
+- Providing true data decentralization using GunDB's peer-to-peer architecture
+- Simplifying complex Web3 authentication and wallet management
+- Offering end-to-end encryption for all user data
+- Delivering components with excellent developer and user experiences
+- Creating a cohesive ecosystem where components work together seamlessly
+
+## Ecosystem Components
 
 ### 📦 shogun-core
 
-Il nucleo dell'ecosistema Shogun, fornisce le funzionalità di base per autenticazione decentralizzata, storage distribuito con GunDB, gestione wallet e sicurezza. Implementa standard WebAuthn, supporta MetaMask e offre funzionalità di crittografia end-to-end.
+The core of the Shogun ecosystem, providing basic functionalities for decentralized authentication, distributed storage with GunDB, wallet management, and security. It implements WebAuthn standards, supports MetaMask, and offers end-to-end encryption capabilities.
 
-**Tecnologie principali:** TypeScript, GunDB, ethers.js, WebAuthn, SEA.js
+**Main technologies:** TypeScript, GunDB, ethers.js, WebAuthn, SEA.js  
+**Status:** Stable  
+**Repository:** [github.com/shogun-dev/shogun-core](https://github.com/shogun-dev/shogun-core)
 
 ### 🔒 shogun-d3
 
-Sistema di messaggistica decentralizzata che utilizza la crittografia end-to-end, ideato per la comunicazione sicura peer-to-peer direttamente nel browser. Include una demo di chat che utilizza MetaMask per l'autenticazione. Si basa su shogun-core per le funzionalità di autenticazione e gestione delle chiavi crittografiche.
+Decentralized messaging system using end-to-end encryption, designed for secure peer-to-peer communication directly in the browser. Includes a chat demo that uses MetaMask for authentication. It relies on shogun-core for authentication and cryptographic key management functionalities.
 
-**Tecnologie principali:** JavaScript, GunDB, SEA.js, MetaMask, shogun-core
+**Main technologies:** JavaScript, GunDB, SEA.js, MetaMask, shogun-core  
+**Status:** Beta  
+**Repository:** [github.com/noctisatrae/shogun-d3](https://github.com/noctisatrae/shogun-d3)
 
 ### 💬 shogun-messenger-app
 
-Applicazione di messaggistica basata su Shogun che offre un'interfaccia utente completa per la comunicazione decentralizzata tra utenti.
+Messaging application based on Shogun that offers a complete user interface for decentralized communication between users.
 
-**Tecnologie principali:** React, TypeScript, Tailwind CSS
+**Main technologies:** React, TypeScript, Tailwind CSS  
+**Status:** Beta  
+**Repository:** [github.com/shogun-dev/shogun-messenger-app](https://github.com/shogun-dev/shogun-messenger-app)
 
 ### 🔘 shogun-button-react
 
-Componente React per facilitare l'integrazione dell'autenticazione Shogun nelle applicazioni. Fornisce pulsanti di login e connessione per wallet crypto.
+React component to facilitate Shogun authentication integration into applications. Provides login and connection buttons for crypto wallets.
 
-**Tecnologie principali:** React, TypeScript
+**Main technologies:** React, TypeScript  
+**Status:** Stable  
+**Repository:** [github.com/shogun-dev/shogun-button-react](https://github.com/shogun-dev/shogun-button-react)
 
 ### 📝 shogun-contracts
 
-Smart contracts Ethereum utilizzati nell'ecosistema Shogun per funzionalità blockchain.
+Ethereum smart contracts used in the Shogun ecosystem for blockchain functionalities.
 
-**Tecnologie principali:** Solidity, Hardhat
+**Main technologies:** Solidity, Hardhat  
+**Status:** Alpha  
+**Repository:** [github.com/shogun-dev/shogun-contracts](https://github.com/shogun-dev/shogun-contracts)
 
 ### 📋 shogun-panpot
 
-Sistema di messaggistica peer-to-peer basato su Bugout e GunDB. Fornisce una bacheca di messaggi decentralizzata e un'interfaccia client-server per la comunicazione P2P attraverso WebRTC, con funzionalità multilingua.
+Peer-to-peer messaging system based on Bugout and GunDB. Provides a decentralized message board and a client-server interface for P2P communication via WebRTC, with multilingual functionality.
 
-**Tecnologie principali:** JavaScript, HTML/CSS, Bugout, GunDB, WebRTC
+**Main technologies:** JavaScript, HTML/CSS, Bugout, GunDB, WebRTC  
+**Status:** Beta  
+**Repository:** [github.com/shogun-dev/shogun-panpot](https://github.com/shogun-dev/shogun-panpot)
 
 ### 🤝 shogun-protocol
 
-Definizione del protocollo Shogun, inclusi gli standard per autenticazione, certificati, gestione contatti e messaggistica.
+Definition of the Shogun protocol, including standards for authentication, certificates, contact management, and messaging.
 
-**Tecnologie principali:** JavaScript, GunDB
+**Main technologies:** JavaScript, GunDB  
+**Status:** Stable  
+**Repository:** [github.com/shogun-dev/shogun-protocol](https://github.com/shogun-dev/shogun-protocol)
 
 ### 📡 shogun-relay
 
-Server relay per la rete Shogun, facilita la comunicazione tra nodi decentralizzati utilizzando GunDB.
+Relay server for the Shogun network, facilitating communication between decentralized nodes using GunDB.
 
-**Tecnologie principali:** Express, GunDB, WebSockets
+**Main technologies:** Express, GunDB, WebSockets  
+**Status:** Stable  
+**Repository:** [github.com/shogun-dev/shogun-relay](https://github.com/shogun-dev/shogun-relay)
 
 ### ✅ shogun-task-app
 
-Applicazione di gestione attività basata su Shogun, dimostra l'utilizzo dell'ecosistema per applicazioni pratiche.
+Task management application based on Shogun, demonstrating the use of the ecosystem for practical applications.
 
-**Tecnologie principali:** Next.js, React, Tailwind CSS
+**Main technologies:** Next.js, React, Tailwind CSS  
+**Status:** Beta  
+**Repository:** [github.com/shogun-dev/shogun-task-app](https://github.com/shogun-dev/shogun-task-app)
 
 ### 💰 shogun-wallet-app
 
-Applicazione wallet per gestire asset crypto, integrata con l'ecosistema Shogun.
+Wallet application for managing crypto assets, integrated with the Shogun ecosystem.
 
-**Tecnologie principali:** Vite, React, TypeScript
+**Main technologies:** Vite, React, TypeScript  
+**Status:** Beta  
+**Repository:** [github.com/shogun-dev/shogun-wallet-app](https://github.com/shogun-dev/shogun-wallet-app)
 
-## Funzionalità Principali dell'Ecosistema
+## How Components Work Together
 
-- **Autenticazione Decentralizzata**: WebAuthn, MetaMask, chiavi crittografiche
-- **Storage Distribuito**: GunDB con sincronizzazione in tempo reale
-- **Messaggistica Sicura**: Crittografia end-to-end
-- **Gestione Wallet**: Compatibile con BIP-44, supporto per indirizzi stealth
-- **Interfacce Utente**: Componenti React e applicazioni complete
-- **Smart Contracts**: Integrazioni blockchain
-- **Protocolli Aperti**: Standard per la comunicazione decentralizzata
+The following diagram illustrates how Shogun components interact:
 
-## Iniziare con Shogun
+```
+                           ┌─────────────────┐
+                           │   shogun-core   │
+                           └─────────────────┘
+                                   ▲
+                                   │
+                                   ▼
+         ┌─────────────────────────────────────────────┐
+         │                                             │
+┌────────┴────────┐                          ┌─────────┴──────┐
+│  shogun-protocol │                          │  shogun-d3     │
+└────────┬────────┘                          └─────────┬──────┘
+         │                                             │
+         ▼                                             ▼
+┌────────────────┐  ┌───────────────┐  ┌───────────────────────┐
+│ shogun-button  │  │ shogun-relay  │  │  shogun-messenger-app │
+└────────────────┘  └───────┬───────┘  └───────────────────────┘
+                            │                       ▲
+                            ▼                       │
+                   ┌────────────────┐      ┌────────┴────────┐
+                   │ shogun-panpot  │      │ shogun-task-app │
+                   └────────────────┘      └─────────────────┘
+                                                    ▲
+                                                    │
+                                           ┌────────┴────────┐
+                                           │ shogun-wallet   │
+                                           └─────────────────┘
+```
 
-Per iniziare a utilizzare l'ecosistema Shogun, è consigliabile familiarizzare prima con shogun-core, che fornisce le funzionalità di base utilizzate dagli altri componenti.
+## Main Features of the Ecosystem
+
+- **Decentralized Authentication**: WebAuthn, MetaMask, cryptographic keys
+- **Distributed Storage**: GunDB with real-time synchronization
+- **Secure Messaging**: End-to-end encryption
+- **Wallet Management**: BIP-44 compatible, support for stealth addresses
+- **User Interfaces**: React components and complete applications
+- **Smart Contracts**: Blockchain integrations
+- **Open Protocols**: Standards for decentralized communication
+
+## Getting Started with Shogun
+
+### Prerequisites
+
+- Node.js 16 or later
+- Basic knowledge of React and TypeScript
+- Basic understanding of Web3 concepts
+
+### Installation and Basic Setup
+
+To start using the Shogun ecosystem, it's advisable to first familiarize yourself with shogun-core, which provides the basic functionalities used by other components.
 
 ```bash
-# Installare shogun-core
+# Install shogun-core
 npm install shogun-core
-# oppure
+# or
 yarn add shogun-core
 ```
 
-Poi, a seconda delle esigenze, si possono integrare gli altri componenti come shogun-button-react per l'autenticazione UI o shogun-d3 per la messaggistica.
+### Example: Creating a Simple Authentication Flow
 
-## Casi d'Uso
+Here's a basic example of how to integrate authentication in a React application:
 
-- **dApp Decentralizzate**: Autenticazione utente e gestione wallet
-- **Wallet Web**: Implementazione di wallet crypto direttamente nel browser
-- **Social dApp**: Applicazioni social che richiedono storage decentralizzato e identità crypto
-- **Applicazioni Privacy-Focused**: App che necessitano di funzionalità stealth e privacy avanzate
-- **Messaggistica Sicura**: Comunicazione end-to-end crittografata
+1. First, install the necessary packages:
 
-## Contribuire
+```bash
+npm install shogun-core shogun-button-react
+```
 
-I contributi sono benvenuti! Se desideri contribuire al progetto, puoi:
+2. Set up a basic authentication component:
 
-1. Fare un fork del repository
-2. Creare un branch per la tua funzionalità
-3. Inviare una Pull Request
+```jsx
+import React from 'react';
+import { ShogunCore } from 'shogun-core';
+import { ShogunButton, ShogunButtonProvider } from 'shogun-button-react';
 
-## Licenza
+const MyAuthComponent = () => {
+  const shogunConfig = {
+    peers: ['https://your-relay-server.com/gun'],
+    appName: 'My Awesome App',
+  };
+  
+  const shogun = new ShogunCore(shogunConfig);
+  
+  return (
+    <ShogunButtonProvider
+      sdk={shogun}
+      onLoginSuccess={(user) => console.log('User logged in:', user)}
+      onError={(error) => console.error('Auth error:', error)}
+    >
+      <div className="auth-container">
+        <h2>Welcome to My App</h2>
+        <p>Please sign in to continue</p>
+        <ShogunButton />
+      </div>
+    </ShogunButtonProvider>
+  );
+};
+
+export default MyAuthComponent;
+```
+
+3. For more complex applications, consider setting up a relay server:
+
+```bash
+# Clone and set up the relay server
+git clone https://github.com/shogun-dev/shogun-relay
+cd shogun-relay
+npm install
+npm start
+```
+
+## Complete Application Examples
+
+For complete examples of applications built with the Shogun ecosystem:
+
+1. **Task Management**: Check out [shogun-task-app](https://github.com/shogun-dev/shogun-task-app)
+2. **Messaging**: Explore [shogun-messenger-app](https://github.com/shogun-dev/shogun-messenger-app)
+3. **Crypto Wallet**: See [shogun-wallet-app](https://github.com/shogun-dev/shogun-wallet-app)
+
+## Use Cases
+
+- **Decentralized dApps**: User authentication and wallet management
+- **Web Wallets**: Implementation of crypto wallets directly in the browser
+- **Social dApps**: Social applications requiring decentralized storage and crypto identities
+- **Privacy-Focused Applications**: Apps needing stealth features and advanced privacy
+- **Secure Messaging**: End-to-end encrypted communication
+- **Collaborative Tools**: Task managers, documents, and other collaborative applications
+
+## Roadmap
+
+The Shogun ecosystem is continuously evolving, with several key developments planned:
+
+- **Q3 2023**: Multi-platform support with native mobile SDKs
+- **Q4 2023**: Enhanced group messaging and collaboration features
+- **Q1 2024**: Advanced file sharing with decentralized storage integration
+- **Q2 2024**: More comprehensive smart contract integrations
+- **Q3 2024**: Enterprise features including multi-user management and advanced permissions
+
+## Frequently Asked Questions
+
+### General Questions
+
+**Q: Is Shogun suitable for production applications?**  
+A: Components marked as "Stable" are ready for production use. Components in "Beta" are feature-complete but may still have some issues. "Alpha" components are still in active development.
+
+**Q: How does Shogun compare to other Web3 development frameworks?**  
+A: Shogun focuses on providing a complete ecosystem with user experience as a priority, while many other frameworks focus only on blockchain interaction or specific aspects of Web3.
+
+**Q: What is GunDB and why does Shogun use it?**  
+A: GunDB is a decentralized graph database that allows real-time data synchronization without requiring a central server. Shogun uses it to provide truly decentralized data storage with offline capabilities.
+
+### Technical Questions
+
+**Q: How do I ensure my Shogun application's data is backed up?**  
+A: Shogun provides key backup mechanisms in shogun-core. User data is synchronized across peers, but it's important to maintain proper key management for user security.
+
+**Q: Can I use Shogun with other blockchains besides Ethereum?**  
+A: While the core focus is on Ethereum, Shogun's architecture allows for integration with other blockchains. Some components already support alternative chains.
+
+**Q: How do I deploy a Shogun application?**  
+A: Shogun applications can be deployed like regular web applications. For optimal performance, we recommend also deploying a shogun-relay instance.
+
+## Security Considerations
+
+- Shogun prioritizes security and privacy, but proper implementation is crucial
+- Always follow security best practices when building applications
+- Keep all dependencies updated to the latest versions
+- For production applications, consider commissioning a security audit
+- User education is important, especially regarding key management
+
+## Contributing
+
+Contributions are welcome! If you'd like to contribute to the project, you can:
+
+1. Fork the repository of the component you want to improve
+2. Create a branch for your feature (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Submit a Pull Request
+
+Please read our [Contributing Guidelines](CONTRIBUTING.md) for more details.
+
+## Community
+
+- **Discord**: [Join our Discord server](https://discord.gg/shogun)
+- **Twitter**: [@ShogunProtocol](https://twitter.com/ShogunProtocol)
+- **Blog**: [blog.shogunprotocol.com](https://blog.shogunprotocol.com)
+- **Forum**: [forum.shogunprotocol.com](https://forum.shogunprotocol.com)
+
+## License
 
 MIT 
+
+---
+
+© 2023 Shogun Protocol. All Rights Reserved. 

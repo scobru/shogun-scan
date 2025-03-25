@@ -13,9 +13,8 @@
     "dot-env": "^0.0.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "gun": "file:../gun",
-    "ws": "latest",
-    "shogun-core": "file:../shogun-core"
+    "gun": "latest",
+    "ws": "latest"
   },
   "devDependencies": {}
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShogunSDK } from '@shogun/shogun-core';
+import { ShogunCore } from 'shogun-core';
 import { Button } from "@/components/ui/button";
 import Link from "@/components/ui/link";
 
@@ -37,7 +37,7 @@ interface AuthResult {
 }
 
 interface LoginWithShogunReactProps {
-  sdk: ShogunSDK;
+  sdk: ShogunCore;
   onLoginSuccess?: (data: { 
     userPub: string; 
     username: string;
