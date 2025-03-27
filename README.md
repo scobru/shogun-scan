@@ -2,8 +2,6 @@
 
 Shogun is a comprehensive toolkit for developing decentralized Web3 applications, focusing on privacy, security, and user ownership of data. Built around a philosophy of true decentralization, Shogun provides developers with powerful tools to create applications that respect user privacy while delivering modern, responsive experiences.
 
-![Shogun Ecosystem](docs/shogun-ecosystem.png)
-
 ## Why Shogun?
 
 In today's digital landscape, users are increasingly concerned about data privacy and ownership. Traditional Web2 applications often store user data in centralized servers, creating single points of failure and potential security risks. Meanwhile, many Web3 solutions are complex to implement and offer poor user experiences.
