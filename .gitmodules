@@ -22,3 +22,6 @@
 [submodule "shogun-relay"]
 	path = shogun-relay
 	url = https://github.com/scobru/shogun-relay
+[submodule "shogun-contracts"]
+	path = shogun-contracts
+	url = https://github.com/scobru/shogun-contracts
