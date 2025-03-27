@@ -28,3 +28,6 @@
 [submodule "shogun-wallet-app"]
 	path = shogun-wallet-app
 	url = https://github.com/scobru/shogun-wallet-app
+[submodule "shogun-se2"]
+	path = shogun-se2
+	url = https://github.com/scobru/shogun-se2

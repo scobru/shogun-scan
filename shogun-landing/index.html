@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shogun - Decentralized Web3 Ecosystem</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+        .hero {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+        .component-card {
+            transition: all 0.3s ease;
+        }
+        .component-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        .code-block {
+            background-color: #1e293b;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+        }
+        .diagram-block {
+            background-color: #1e293b;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            font-family: monospace;
+            white-space: pre;
+            color: #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="hero py-16 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto text-center">
+            <h1 class="text-5xl font-extrabold tracking-tight text-white mb-4">Shogun</h1>
+            <p class="text-2xl text-gray-300 max-w-3xl mx-auto">Decentralized Web3 Ecosystem</p>
+            <p class="mt-6 text-xl text-gray-400 max-w-3xl mx-auto">
+                A comprehensive toolkit for developing decentralized Web3 applications,
+                focusing on privacy, security, and user ownership of data.
+            </p>
+            <div class="mt-10">
+                <a href="https://github.com/scobru/shogun-core" target="_blank" class="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 mx-2">
+                    <i class="fab fa-github mr-2"></i> GitHub
+                </a>
+                <a href="#components" class="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-blue-600 bg-white hover:bg-gray-50 mx-2">
+                    Explore Components
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Components Section -->
+    <section id="components" class="py-16 px-4 sm:px-6 lg:px-8 bg-gray-900">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-3xl font-bold text-white mb-12 text-center">Ecosystem Components</h2>
+            
+            <!-- Core Components -->
+            <h3 class="text-2xl font-semibold text-white mb-6">Core Components</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">📦</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-core</h4>
+                        <p class="text-gray-400 mb-4">The core of the ecosystem with decentralized authentication, distributed storage with GunDB, wallet management, and security.</p>
+                        <div class="text-sm text-gray-500 mb-4">TypeScript, GunDB, ethers.js, WebAuthn, SEA.js</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Stable</span>
+                            <a href="https://github.com/scobru/shogun-core" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">🤝</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-protocol</h4>
+                        <p class="text-gray-400 mb-4">Definition of the Shogun protocol, including standards for authentication, certificates, contact management, and messaging.</p>
+                        <div class="text-sm text-gray-500 mb-4">JavaScript, GunDB</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Stable</span>
+                            <a href="https://github.com/scobru/shogun-protocol" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">📡</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-relay</h4>
+                        <p class="text-gray-400 mb-4">Relay server for the Shogun network, facilitating communication between decentralized nodes using GunDB.</p>
+                        <div class="text-sm text-gray-500 mb-4">Express, GunDB, WebSockets</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Stable</span>
+                            <a href="https://github.com/scobru/shogun-relay" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Utility and UI -->
+            <h3 class="text-2xl font-semibold text-white mb-6">Utility and UI</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">🔘</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-button-react</h4>
+                        <p class="text-gray-400 mb-4">React components to facilitate Shogun authentication integration into applications.</p>
+                        <div class="text-sm text-gray-500 mb-4">React, TypeScript</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Stable</span>
+                            <a href="https://github.com/scobru/shogun-button-react" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">🔒</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-d3</h4>
+                        <p class="text-gray-400 mb-4">Messaging system with end-to-end encryption for secure peer-to-peer communication directly in the browser.</p>
+                        <div class="text-sm text-gray-500 mb-4">JavaScript, GunDB, SEA.js, MetaMask</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Beta</span>
+                            <a href="https://github.com/noctisatrae/shogun-d3" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">📋</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-panpot</h4>
+                        <p class="text-gray-400 mb-4">P2P messaging system based on Bugout and GunDB for communication via WebRTC.</p>
+                        <div class="text-sm text-gray-500 mb-4">JavaScript, HTML/CSS, Bugout, GunDB, WebRTC</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Beta</span>
+                            <a href="https://github.com/scobru/shogun-panpot" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Applications -->
+            <h3 class="text-2xl font-semibold text-white mb-6">Applications</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">💬</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-messenger-app</h4>
+                        <p class="text-gray-400 mb-4">Complete messaging application based on Shogun for decentralized communications.</p>
+                        <div class="text-sm text-gray-500 mb-4">React, TypeScript, Tailwind CSS</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Beta</span>
+                            <a href="https://github.com/scobru/shogun-messenger-app" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">✅</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-task-app</h4>
+                        <p class="text-gray-400 mb-4">Task management application based on Shogun, demonstrating the use of the ecosystem.</p>
+                        <div class="text-sm text-gray-500 mb-4">Next.js, React, Tailwind CSS</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Beta</span>
+                            <a href="https://github.com/scobru/shogun-task-app" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">💰</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-wallet-app</h4>
+                        <p class="text-gray-400 mb-4">Wallet application for managing crypto assets, integrated with the Shogun ecosystem.</p>
+                        <div class="text-sm text-gray-500 mb-4">Vite, React, TypeScript</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Beta</span>
+                            <a href="https://github.com/scobru/shogun-wallet-app" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-card bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                    <div class="p-6">
+                        <div class="text-3xl text-blue-500 mb-4">📝</div>
+                        <h4 class="text-xl font-bold text-white mb-2">shogun-contracts</h4>
+                        <p class="text-gray-400 mb-4">Ethereum smart contracts used in the Shogun ecosystem for blockchain functionalities.</p>
+                        <div class="text-sm text-gray-500 mb-4">Solidity, Hardhat</div>
+                        <div class="flex justify-between items-center">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Alpha</span>
+                            <a href="https://github.com/scobru/shogun-contracts" target="_blank" class="text-blue-500 hover:text-blue-400">
+                                <i class="fab fa-github"></i> Repository
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="py-16 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-3xl font-bold text-white mb-8 text-center">Architecture</h2>
+            <p class="text-gray-400 mb-8 text-center">The following diagram illustrates how Shogun components interact with each other:</p>
+            
+            <div class="diagram-block">
+┌─────────────────┐           ┌─────────────────┐
+│   shogun-core   │           │   shogun-relay  │
+└────────┬────────┘           └────────┬────────┘
+         │                             │
+    ┌────┼────────────┬────────────────┐
+    │    │            │                │ 
+    ▼    ▼            ▼                ▼ 
+┌────────────┐  ┌──────────┐  ┌────────────┐
+│  protocol  │  │    d3    │  │   panpot   │
+└────────┬───┘  └──────────┘  └────────────┘
+         │                             
+         │                             
+         └────────────────┐            
+                          │            
+                          ▼            
+                   ┌─────────────────┐
+                   │  messenger-app  │
+                   └─────────────────┘
+
+
+┌─────────────────┐
+│  shogun-button  │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+┌─────────┐  ┌─────────┐
+│  wallet │  │  task   │
+└────┬────┘  └─────────┘
+     │
+     ▼
+┌──────────────┐
+│  contracts   │
+└──────────────┘</div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="py-16 px-4 sm:px-6 lg:px-8 bg-gray-900">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-3xl font-bold text-white mb-10 text-center">Main Features</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <div class="text-blue-500 text-2xl mb-4"><i class="fas fa-user-shield"></i></div>
+                    <h3 class="text-xl font-bold text-white mb-3">Decentralized Authentication</h3>
+                    <p class="text-gray-400">WebAuthn, MetaMask, cryptographic keys for secure authentication without central servers.</p>
+                </div>
+                
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <div class="text-blue-500 text-2xl mb-4"><i class="fas fa-database"></i></div>
+                    <h3 class="text-xl font-bold text-white mb-3">Distributed Storage</h3>
+                    <p class="text-gray-400">GunDB with real-time synchronization to store data in a decentralized way.</p>
+                </div>
+                
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <div class="text-blue-500 text-2xl mb-4"><i class="fas fa-comment-dots"></i></div>
+                    <h3 class="text-xl font-bold text-white mb-3">Secure Messaging</h3>
+                    <p class="text-gray-400">End-to-end encryption for private and secure communications between users.</p>
+                </div>
+                
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <div class="text-blue-500 text-2xl mb-4"><i class="fas fa-wallet"></i></div>
+                    <h3 class="text-xl font-bold text-white mb-3">Wallet Management</h3>
+                    <p class="text-gray-400">BIP-44 compatible, support for stealth addresses and secure key management.</p>
+                </div>
+                
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <div class="text-blue-500 text-2xl mb-4"><i class="fas fa-tablet-alt"></i></div>
+                    <h3 class="text-xl font-bold text-white mb-3">User Interfaces</h3>
+                    <p class="text-gray-400">React components and complete applications ready to use for a modern user experience.</p>
+                </div>
+                
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <div class="text-blue-500 text-2xl mb-4"><i class="fas fa-code"></i></div>
+                    <h3 class="text-xl font-bold text-white mb-3">Smart Contracts</h3>
+                    <p class="text-gray-400">Blockchain integrations for advanced decentralized functionalities.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Getting Started Section -->
+    <section class="py-16 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-3xl font-bold text-white mb-8 text-center">Getting Started with Shogun</h2>
+            
+            <div class="bg-gray-800 rounded-lg shadow-lg p-8 max-w-3xl mx-auto">
+                <p class="text-gray-400 mb-6">To start using the Shogun ecosystem, it's advisable to first familiarize yourself with shogun-core, which provides the basic functionalities used by other components.</p>
+                
+                <div class="code-block text-gray-300">
+                    <code>
+# Install shogun-core<br>
+npm install shogun-core<br>
+# or<br>
+yarn add shogun-core
+                    </code>
+                </div>
+                
+                <p class="text-gray-400 mt-6">For complete examples and detailed documentation, visit the repositories of the individual components.</p>
+                
+                <div class="mt-8 text-center">
+                    <a href="https://github.com/scobru/shogun-core" target="_blank" class="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                        <i class="fas fa-book mr-2"></i> Full Documentation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto text-center">
+            <p class="text-gray-400 mb-4">© 2023 Shogun Protocol. All Rights Reserved.</p>
+            <p class="text-gray-500">MIT License</p>
+            
+            <div class="mt-8 flex justify-center space-x-6">
+                <a href="https://github.com/scobru/shogun-core" class="text-gray-400 hover:text-gray-300">
+                    <i class="fab fa-github text-2xl"></i>
+                </a>
+                <a href="#" class="text-gray-400 hover:text-gray-300">
+                    <i class="fab fa-twitter text-2xl"></i>
+                </a>
+                <a href="#" class="text-gray-400 hover:text-gray-300">
+                    <i class="fas fa-envelope text-2xl"></i>
+                </a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html> 

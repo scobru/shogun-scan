@@ -21,7 +21,7 @@ The core of the Shogun ecosystem, providing basic functionalities for decentrali
 
 **Main technologies:** TypeScript, GunDB, ethers.js, WebAuthn, SEA.js  
 **Status:** Stable  
-**Repository:** [github.com/shogun-dev/shogun-core](https://github.com/shogun-dev/shogun-core)
+**Repository:** [github.com/scobru/shogun-core](https://github.com/scobru/shogun-core)
 
 ### 🔒 shogun-d3
 
@@ -37,7 +37,7 @@ Messaging application based on Shogun that offers a complete user interface for 
 
 **Main technologies:** React, TypeScript, Tailwind CSS  
 **Status:** Beta  
-**Repository:** [github.com/shogun-dev/shogun-messenger-app](https://github.com/shogun-dev/shogun-messenger-app)
+**Repository:** [github.com/scobru/shogun-messenger-app](https://github.com/scobru/shogun-messenger-app)
 
 ### 🔘 shogun-button-react
 
@@ -45,7 +45,7 @@ React component to facilitate Shogun authentication integration into application
 
 **Main technologies:** React, TypeScript  
 **Status:** Stable  
-**Repository:** [github.com/shogun-dev/shogun-button-react](https://github.com/shogun-dev/shogun-button-react)
+**Repository:** [github.com/scobru/shogun-button-react](https://github.com/scobru/shogun-button-react)
 
 ### 📝 shogun-contracts
 
@@ -53,7 +53,7 @@ Ethereum smart contracts used in the Shogun ecosystem for blockchain functionali
 
 **Main technologies:** Solidity, Hardhat  
 **Status:** Alpha  
-**Repository:** [github.com/shogun-dev/shogun-contracts](https://github.com/shogun-dev/shogun-contracts)
+**Repository:** [github.com/scobru/shogun-contracts](https://github.com/scobru/shogun-contracts)
 
 ### 📋 shogun-panpot
 
@@ -61,7 +61,7 @@ Peer-to-peer messaging system based on Bugout and GunDB. Provides a decentralize
 
 **Main technologies:** JavaScript, HTML/CSS, Bugout, GunDB, WebRTC  
 **Status:** Beta  
-**Repository:** [github.com/shogun-dev/shogun-panpot](https://github.com/shogun-dev/shogun-panpot)
+**Repository:** [github.com/scobru/shogun-panpot](https://github.com/scobru/shogun-panpot)
 
 ### 🤝 shogun-protocol
 
@@ -69,7 +69,7 @@ Definition of the Shogun protocol, including standards for authentication, certi
 
 **Main technologies:** JavaScript, GunDB  
 **Status:** Stable  
-**Repository:** [github.com/shogun-dev/shogun-protocol](https://github.com/shogun-dev/shogun-protocol)
+**Repository:** [github.com/scobru/shogun-protocol](https://github.com/scobru/shogun-protocol)
 
 ### 📡 shogun-relay
 
@@ -77,7 +77,7 @@ Relay server for the Shogun network, facilitating communication between decentra
 
 **Main technologies:** Express, GunDB, WebSockets  
 **Status:** Stable  
-**Repository:** [github.com/shogun-dev/shogun-relay](https://github.com/shogun-dev/shogun-relay)
+**Repository:** [github.com/scobru/shogun-relay](https://github.com/scobru/shogun-relay)
 
 ### ✅ shogun-task-app
 
@@ -85,7 +85,7 @@ Task management application based on Shogun, demonstrating the use of the ecosys
 
 **Main technologies:** Next.js, React, Tailwind CSS  
 **Status:** Beta  
-**Repository:** [github.com/shogun-dev/shogun-task-app](https://github.com/shogun-dev/shogun-task-app)
+**Repository:** [github.com/scobru/shogun-task-app](https://github.com/scobru/shogun-task-app)
 
 ### 💰 shogun-wallet-app
 
@@ -93,7 +93,7 @@ Wallet application for managing crypto assets, integrated with the Shogun ecosys
 
 **Main technologies:** Vite, React, TypeScript  
 **Status:** Beta  
-**Repository:** [github.com/shogun-dev/shogun-wallet-app](https://github.com/shogun-dev/shogun-wallet-app)
+**Repository:** [github.com/scobru/shogun-wallet-app](https://github.com/scobru/shogun-wallet-app)
 
 ## How Components Work Together
 
@@ -213,7 +213,7 @@ export default MyAuthComponent;
 
 ```bash
 # Clone and set up the relay server
-git clone https://github.com/shogun-dev/shogun-relay
+git clone https://github.com/scobru/shogun-relay
 cd shogun-relay
 npm install
 npm start
@@ -223,9 +223,9 @@ npm start
 
 For complete examples of applications built with the Shogun ecosystem:
 
-1. **Task Management**: Check out [shogun-task-app](https://github.com/shogun-dev/shogun-task-app)
-2. **Messaging**: Explore [shogun-messenger-app](https://github.com/shogun-dev/shogun-messenger-app)
-3. **Crypto Wallet**: See [shogun-wallet-app](https://github.com/shogun-dev/shogun-wallet-app)
+1. **Task Management**: Check out [shogun-task-app](https://github.com/scobru/shogun-task-app)
+2. **Messaging**: Explore [shogun-messenger-app](https://github.com/scobru/shogun-messenger-app)
+3. **Crypto Wallet**: See [shogun-wallet-app](https://github.com/scobru/shogun-wallet-app)
 
 ## Use Cases
 
