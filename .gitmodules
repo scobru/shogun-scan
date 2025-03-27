@@ -1,3 +1,6 @@
 [submodule "shogun-core"]
 	path = shogun-core
 	url = https://github.com/scobru/shogun-core
+[submodule "shogun-d3"]
+	path = shogun-d3
+	url = https://github.com/scobru/shogun-d3
