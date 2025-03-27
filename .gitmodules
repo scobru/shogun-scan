@@ -31,3 +31,6 @@
 [submodule "shogun-se2"]
 	path = shogun-se2
 	url = https://github.com/scobru/shogun-se2
+[submodule "shogun-landing"]
+	path = shogun-landing
+	url = https://github.com/scobru/shogun-landing
