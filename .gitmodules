@@ -1,0 +1,3 @@
+[submodule "shogun-core"]
+	path = shogun-core
+	url = https://github.com/scobru/shogun-core
