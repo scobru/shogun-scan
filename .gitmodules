@@ -7,3 +7,6 @@
 [submodule "shogun-button-react"]
 	path = shogun-button-react
 	url = https://github.com/scobru/shogun-button-react
+[submodule "shogun-messenger-app"]
+	path = shogun-messenger-app
+	url = https://github.com/scobru/shogun-messenger-app
