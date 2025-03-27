@@ -10,3 +10,15 @@
 [submodule "shogun-messenger-app"]
 	path = shogun-messenger-app
 	url = https://github.com/scobru/shogun-messenger-app
+[submodule "shogun-panpot"]
+	path = shogun-panpot
+	url = https://github.com/scobru/shogun-panpot
+[submodule "shogun-protocol"]
+	path = shogun-protocol
+	url = https://github.com/scobru/shogun-protocol
+[submodule "shogun-task-app"]
+	path = shogun-task-app
+	url = https://github.com/scobru/shogun-task-app
+[submodule "shogun-relay"]
+	path = shogun-relay
+	url = https://github.com/scobru/shogun-relay
