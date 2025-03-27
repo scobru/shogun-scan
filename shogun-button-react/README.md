@@ -24,7 +24,7 @@ import {
 import "@shogun/shogun-button-react/styles.css";
 
 function App() {
-  const { sdk, options } = shogunConnector({
+  const { sdk, options, setProvider } = shogunConnector({
     appName: "My App",
     appDescription: "An awesome app with Shogun authentication",
     appUrl: "https://myapp.com",
@@ -110,12 +110,18 @@ function Profile() {
     logout,
     connectWithMetaMask,
     connectWithWebAuthn,
+    setProvider,
   } = useShogun();
+
+  const switchToCustomNetwork = () => {
+    setProvider('https://my-custom-rpc.example.com');
+  };
 
   return isAuthenticated ? (
     <div>
       <h2>Welcome, {user.username}!</h2>
       <button onClick={logout}>Logout</button>
+      <button onClick={switchToCustomNetwork}>Switch Network</button>
     </div>
   ) : (
     <div>Please login to continue</div>
@@ -133,12 +139,28 @@ interface ShogunConnectorOptions {
   appDescription?: string;
   appUrl?: string;
   appIcon?: string;
-  enableMetaMask?: boolean;
-  enableWebAuthn?: boolean;
-  theme?: "light" | "dark" | "system";
-  customStyles?: ShogunStyleOptions;
+  showMetamask?: boolean;
+  showWebauthn?: boolean;
+  darkMode?: boolean;
+  websocketSecure?: boolean;
+  didRegistryAddress?: string | null;
+  providerUrl?: string | null;
+  peers?: string[];
 }
 ```
+
+The `shogunConnector` returns an object with the following properties:
+
+```typescript
+interface ShogunConnectorResult {
+  sdk: ShogunCore;
+  options: ShogunConnectorOptions;
+  setProvider: (provider: string | EthersProvider) => boolean;
+  getCurrentProviderUrl: () => string | null;
+}
+```
+
+> **Note**: The `setProvider` method attempts to update the RPC provider URL used by the SDK. This functionality depends on the specific version of Shogun Core you're using. If the SDK does not have a public `setRpcUrl` method available, the provider URL will still be saved but not applied to the SDK directly. In such cases, the setting will only be available through the `getCurrentProviderUrl` method.
 
 ## Styling
 

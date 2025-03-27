@@ -5,9 +5,7 @@ import SEA from "gun/sea"; // Importa SEA direttamente per backup
 
 // Inizializza ShogunSDK con le stesse configurazioni
 export const shogunSDK = new ShogunCore({
-  peers: ["https://gun-relay.scobrudot.dev/gun"],
-  localStorage: false,
-  radisk: false
+  peers: ["https://gun-relay.scobrudot.dev/gun"]
 });
 
 // Esporta gun e user da shogunSDK

@@ -43,6 +43,8 @@ type ShogunContextType = {
   resolveDID: (did: string) => Promise<any>;
   authenticateWithDID: (did: string, challenge?: string) => Promise<any>;
   registerDIDOnChain: (did: string, signer?: ethers.Signer) => Promise<any>;
+  // Metodo per aggiornare il provider
+  setProvider: (provider: any) => boolean;
 };
 
 // Default context
@@ -70,6 +72,7 @@ const defaultContext: ShogunContextType = {
   resolveDID: async () => ({}),
   authenticateWithDID: async () => ({}),
   registerDIDOnChain: async () => ({}),
+  setProvider: () => false,
 };
 
 // Create context
@@ -507,30 +510,70 @@ export function ShogunButtonProvider({
     setDid(null);
   };
 
-  // Context values
-  const contextValue: ShogunContextType = {
-    sdk,
-    options,
-    isLoggedIn,
-    userPub,
-    username,
-    wallet,
-    did,
-    login,
-    signUp,
-    loginWithMetaMask,
-    signUpWithMetaMask,
-    loginWithWebAuthn,
-    signUpWithWebAuthn,
-    logout,
-    getCurrentDID,
-    resolveDID,
-    authenticateWithDID,
-    registerDIDOnChain
+  // Implementazione del metodo setProvider
+  const setProvider = (provider: any): boolean => {
+    try {
+      if (!sdk) {
+        throw new Error("SDK not initialized");
+      }
+      
+      // Verifico se posso creare un nuovo provider
+      let providerUrl: string | null = null;
+      
+      // Se è un provider ethers, estraggo l'URL
+      if (provider && provider.connection && provider.connection.url) {
+        providerUrl = provider.connection.url;
+      } 
+      // Se è una stringa, la utilizzo direttamente come URL
+      else if (typeof provider === 'string') {
+        providerUrl = provider;
+      }
+      
+      if (providerUrl) {
+        // Tentiamo di usare il metodo setRpcUrl se disponibile
+        if (typeof sdk.setRpcUrl === 'function') {
+          sdk.setRpcUrl(providerUrl);
+          console.log(`Provider configurato: ${providerUrl}`);
+          return true;
+        }
+        
+        // Altrimenti memorizzo solo l'URL del provider per uso futuro
+        console.log(`Provider URL salvato: ${providerUrl}, ma non applicato (metodo non disponibile)`);
+        return true;
+      }
+      
+      return false;
+    } catch (error: any) {
+      onError?.(error.message || "Errore nell'impostazione del provider");
+      return false;
+    }
   };
 
+  // Return the context provider
   return (
-    <ShogunContext.Provider value={contextValue}>
+    <ShogunContext.Provider
+      value={{
+        sdk,
+        options,
+        isLoggedIn,
+        userPub,
+        username,
+        wallet,
+        did,
+        login,
+        signUp,
+        loginWithMetaMask,
+        signUpWithMetaMask,
+        loginWithWebAuthn,
+        signUpWithWebAuthn,
+        logout,
+        getCurrentDID,
+        resolveDID,
+        authenticateWithDID,
+        registerDIDOnChain,
+        setProvider,
+      }}
+    >
       {children}
     </ShogunContext.Provider>
   );

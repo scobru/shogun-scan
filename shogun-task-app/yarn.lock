@@ -1226,9 +1226,9 @@ eastasianwidth@^0.2.0:
   integrity sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==
 
 electron-to-chromium@^1.5.73:
-  version "1.5.123"
-  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.5.123.tgz#fae5bdba0ba27045895176327aa79831aba0790c"
-  integrity sha512-refir3NlutEZqlKaBLK0tzlVLe5P2wDKS7UQt/3SpibizgsRAPOsqQC3ffw1nlv3ze5gjRQZYHoPymgVZkplFA==
+  version "1.5.124"
+  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.5.124.tgz#34b1d6baf8f21d9dbcbae6e67fa276e54554ce81"
+  integrity sha512-riELkpDUqBi00gqreV3RIGoowxGrfueEKBd6zPdOk/I8lvuFpBGNkYoHof3zUHbiTBsIU8oxdIIL/WNrAG1/7A==
 
 embla-carousel-react@8.5.1:
   version "8.5.1"
@@ -1263,7 +1263,7 @@ escalade@^3.2.0:
   resolved "https://registry.yarnpkg.com/escalade/-/escalade-3.2.0.tgz#011a3f69856ba189dffa7dc8fcce99d2a87903e5"
   integrity sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA==
 
-ethers@^6.11.1, ethers@^6.13.5:
+ethers@^6.13.5:
   version "6.13.5"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-6.13.5.tgz#8c1d6ac988ac08abc3c1d8fabbd4b8b602851ac4"
   integrity sha512-+knKNieu5EKRThQJWwqaJ10a6HE9sSehGeqWN65//wE7j47ZpFhKAnHB/JJFibwwg61I/koxaPsXbXpD/skNOQ==
@@ -1953,7 +1953,7 @@ shebang-regex@^3.0.0:
 
 "shogun-button-react@git+https://github.com/scobru/shogun-button-react.git":
   version "1.0.0"
-  resolved "git+https://github.com/scobru/shogun-button-react.git#6ae42cdc6cfa1c225623aa19e2bfe521ccc5451e"
+  resolved "git+https://github.com/scobru/shogun-button-react.git#f0f5985fce71f130263b32cee0488db75b7ea50c"
   dependencies:
     ethers "^6.13.5"
     prettier "^3.5.3"
@@ -1963,10 +1963,10 @@ shebang-regex@^3.0.0:
 
 "shogun-core@git+https://github.com/scobru/shogun-core.git":
   version "1.0.0"
-  resolved "git+https://github.com/scobru/shogun-core.git#be14fdbf57675e767ba1bc9015546a1ea20315d2"
+  resolved "git+https://github.com/scobru/shogun-core.git#8598efc00bf6b51c13d89bb07a4f933b3b7d6395"
   dependencies:
     base64url "^3.0.1"
-    ethers "^6.11.1"
+    ethers "^6.13.5"
     gun latest
     keccak256 "^1.0.6"
 

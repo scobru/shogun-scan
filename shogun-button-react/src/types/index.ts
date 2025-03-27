@@ -9,4 +9,5 @@ export interface ShogunConnectorOptions {
   websocketSecure?: boolean;
   didRegistryAddress?: string | null;
   providerUrl?: string | null;
+  peers?: string[];
 } 

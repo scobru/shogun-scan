@@ -315,7 +315,15 @@ const LoginWithShogunSolid = (props) => {
 
     try {
       console.log('Tentativo di login con WebAuthn...');
-      const result = await props.sdk.authenticateWithWebAuthn(username());
+      
+      // Verifica quale metodo è disponibile per l'autenticazione WebAuthn
+      const loginMethod = props.sdk.loginWithWebAuthn || props.sdk.authenticateWithWebAuthn;
+      
+      if (!loginMethod) {
+        throw new Error('Autenticazione WebAuthn non è supportata in questa versione dell\'SDK');
+      }
+      
+      const result = await loginMethod.call(props.sdk, username());
       console.log('Risultato login WebAuthn:', result);
 
       if (result.success) {

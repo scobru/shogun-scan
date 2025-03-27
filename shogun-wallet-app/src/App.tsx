@@ -13,13 +13,14 @@ import { TokenService } from "./services/TokenService";
 import { TokenManager } from "./components/TokenManager";
 import StealthSection from "./components/StealthSection";
 
+
 // Modifica la configurazione per utilizzare il provider locale
 const connectorConfig = {
   appName: "Shogun Wallet",
   appDescription: "Un wallet Layer2 per GunDB",
   appUrl: "http://localhost:5173",
-  providerUrl: "https://gun-relay.scobrudot.dev/gun", // Uso provider locale Hardhat
-  peers: ["https://gun-relay.scobrudot.dev/gun"],
+  providerUrl: rpcOptions[0].url, // Provider RPC Ethereum
+  peers: ["https://gun-relay.scobrudot.dev/gun"], // Peer GunDB
 };
 
 // Creazione del connettore Shogun per il pulsante con controllo errori
@@ -416,23 +417,11 @@ const App: React.FC = () => {
   };
 
   const handleRpcChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedRpc(event.target.value);
-
-    // Inizializza il provider in base all'RPC selezionato
-    try {
-      const rpcUrl = rpcOptions.find(
-        (opt) => opt.value === event.target.value
-      )?.url;
-      const newProvider = new ethers.JsonRpcProvider(rpcUrl);
-      setProvider(newProvider);
-
-      // Aggiorna il saldo se un indirizzo è selezionato
-      if (selectedAddress) {
-        updateBalance(selectedAddress, newProvider);
-      }
-    } catch (error) {
-      console.error("Errore nell'impostazione del provider RPC:", error);
-    }
+    const newRpc = event.target.value;
+    console.log(`Cambio rete a: ${newRpc}`);
+    
+    // Inizializza il provider RPC per la nuova rete
+    initializeRpc(newRpc);
   };
 
   const selectAddress = async (address: string) => {
@@ -2095,62 +2084,46 @@ const App: React.FC = () => {
   // Inizializza il provider RPC
   const initializeRpc = async (network: string = selectedRpc) => {
     try {
-      // Trova l'URL RPC per la rete selezionata
-      const rpcData = rpcOptions.find((opt) => opt.value === network);
+      // Ottieni la configurazione del provider dalla selezione
+      const rpcConfig = rpcOptions.find((opt) => opt.value === network);
 
-      if (!rpcData) {
-        console.error(`URL RPC non trovato per la rete: ${network}`);
-        throw new Error(`URL RPC non trovato per la rete: ${network}`);
-      }
+      if (rpcConfig) {
+        setSelectedRpc(network);
+        const url = rpcConfig.url;
 
-      // Crea un nuovo provider con l'URL pubblico
-      const newProvider = new ethers.JsonRpcProvider(rpcData.url);
-      setProvider(newProvider);
-      console.log(
-        `Provider inizializzato per la rete: ${network} (${rpcData.url})`
-      );
+        console.log(`Changing to RPC: ${rpcConfig.label} (${url})`);
 
-      // Aggiorna il provider nell'SDK se disponibile
-      if (sdk) {
         try {
-          // Aggiorniamo il provider in modo generico nell'SDK
-          // Se non esiste setProvider, utilizziamo un approccio alternativo
-          if (typeof sdk.setProvider === "function") {
-            sdk.setProvider(newProvider);
+          // Crea un provider Ethereum
+          const newProvider = new ethers.JsonRpcProvider(url);
+
+          // Inizializza il token service con il nuovo provider
+          initTokenService(newProvider);
+
+          // Mettiamo a disposizione il provider per tutta l'app
+          setProvider(newProvider);
+
+          // Aggiorniamo il provider nell'SDK utilizzando il metodo setRpcUrl
+          if (sdk && typeof sdk.setRpcUrl === "function") {
+            sdk.setRpcUrl(url);
+            console.log(`Provider aggiornato con successo: ${url}`);
           } else {
             // Fallback per la vecchia versione dell'SDK
             console.log(
-              "setProvider non disponibile, applico l'aggiornamento tramite approccio alternativo"
+              "Impossibile aggiornare il provider nell'SDK: metodo non disponibile"
             );
-
-            // Aggiorniamo direttamente il provider dove possibile
-            if (sdk.metamask && sdk.getMainWallet()?.privateKey) {
-              const wallet = sdk.getMainWallet();
-              if (wallet) {
-                console.log("Aggiornamento provider per wallet");
-              }
-            }
           }
-          console.log("Provider aggiornato nell'SDK");
-        } catch (sdkError) {
-          console.error(
-            "Errore nell'aggiornamento del provider nell'SDK:",
-            sdkError
-          );
-        }
-      } else {
-        console.warn(
-          "SDK non inizializzato, impossibile aggiornare il provider"
-        );
-      }
 
-      return newProvider;
-    } catch (error: any) {
-      console.error("Errore nell'inizializzazione del provider RPC:", error);
-      setErrorMessage(
-        `Errore nell'inizializzazione del provider RPC: ${error.message}`
-      );
-      return null;
+          // Aggiorniamo i saldi
+          if (selectedAddress) {
+            updateBalance(selectedAddress, newProvider);
+          }
+        } catch (err) {
+          console.error("Errore nel cambio di provider:", err);
+        }
+      }
+    } catch (error) {
+      console.error("Errore nell'inizializzazione RPC:", error);
     }
   };
 
@@ -2198,11 +2171,16 @@ const App: React.FC = () => {
 
   // Funzione per verificare se l'SDK è disponibile prima di usarlo
   const withSdk = (callback: (sdk: any) => any, fallback: any = null) => {
-    if (sdk) {
-      return callback(sdk);
+    if (!sdk) {
+      console.warn("SDK non disponibile");
+      return fallback;
     }
-    console.error("SDK non disponibile");
-    return fallback;
+    try {
+      return callback(sdk);
+    } catch (error) {
+      console.error("Errore nell'esecuzione con SDK:", error);
+      return fallback;
+    }
   };
 
   // Funzione per verificare se Gun è disponibile prima di usarlo

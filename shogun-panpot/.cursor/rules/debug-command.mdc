@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+Quando scrivo "/debug" se sto lavorando ad un applicazione web, provvedi ad esaminare
+i console log e fare screenshot della pagina attraverso MPC server.

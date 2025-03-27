@@ -1,11 +1,11 @@
 import { IGunInstance } from "gun/types";
 import { ethers } from "ethers";
-
-// Type declarations for external modules
-type Webauthn = any;
-type MetaMask = any;
-type Stealth = any;
-type GunDB = any;
+import { ShogunError } from "../utils/errorHandler";
+import { Webauthn } from "../webauthn/webauthn";
+import { MetaMask } from "../connector/metamask";
+import { Stealth } from "../stealth/stealth";
+import { GunDB } from "../gun/gun";
+import { DIDCreateOptions } from "../did/DID";
 
 // Definizione dell'interfaccia DID
 interface DID {
@@ -15,7 +15,10 @@ interface DID {
   createDID(options?: any): Promise<string>;
   updateDIDDocument(did: string, documentUpdates: any): Promise<boolean>;
   deactivateDID(did: string): Promise<boolean>;
-  registerDIDOnChain(did: string, signer?: ethers.Signer): Promise<{success: boolean, txHash?: string, error?: string}>;
+  registerDIDOnChain(
+    did: string,
+    signer?: ethers.Signer,
+  ): Promise<{ success: boolean; txHash?: string; error?: string }>;
 }
 
 // Authentication result interfaces
@@ -50,7 +53,14 @@ export interface IShogunCore {
   webauthn: Webauthn;
   metamask: MetaMask;
   stealth: Stealth;
-  did : DID;
+  did: DID;
+
+  // Error handling methods
+  getRecentErrors(count?: number): ShogunError[];
+
+  // RPC Provider methods
+  setRpcUrl(rpcUrl: string): boolean;
+  getRpcUrl(): string | null;
 
   // Direct authentication methods
   login(username: string, password: string): Promise<AuthResult>;
@@ -85,10 +95,32 @@ export interface IShogunCore {
   getStandardBIP44Addresses(mnemonic: string, count?: number): string[];
   generateNewMnemonic(): string;
 
+  // Export and import methods
+  exportMnemonic(password?: string): Promise<string>;
+  exportWalletKeys(password?: string): Promise<string>;
+  exportGunPair(password?: string): Promise<string>;
+  exportAllUserData(password: string): Promise<string>;
+  importMnemonic(mnemonicData: string, password?: string): Promise<boolean>;
+  importWalletKeys(walletsData: string, password?: string): Promise<number>;
+  importGunPair(pairData: string, password?: string): Promise<boolean>;
+  importAllUserData(
+    backupData: string,
+    password: string,
+    options?: {
+      importMnemonic?: boolean;
+      importWallets?: boolean;
+      importGunPair?: boolean;
+    },
+  ): Promise<{
+    success: boolean;
+    mnemonicImported?: boolean;
+    walletsImported?: number;
+    gunPairImported?: boolean;
+  }>;
+
   // Utility methods
   logout(): void;
   isLoggedIn(): boolean;
-
 }
 
 /**
@@ -122,22 +154,18 @@ export interface ShogunSDKConfig {
   /** GunDB configuration */
   gundb?: {
     /** List of peers to use */
-    peers: string[];
+    peers?: string[];
+    /** Enable websocket */
+    websocket?: boolean;
+    /** Enable radisk for disk storage */
+    radisk?: boolean;
+    /** Enable localStorage */
+    localStorage?: boolean;
   };
   /** List of peers to use (deprecated, use gundb.peers) */
   peers?: string[];
-  /** Enable websocket */
-  websocket?: boolean;
   /** Ethereum provider URL */
   providerUrl?: string;
-  /** Payment channel contract address */
-  paymentChannelContract?: string;
-  /** Enable radisk for disk storage */
-  radisk?: boolean;
-  /** Enable localStorage */
-  localStorage?: boolean;
-  /** State authority */
-  stateAuthority?: string;
   /** WebAuthn configuration */
   webauthn?: WebauthnConfig;
   /** MetaMask configuration */
@@ -147,6 +175,11 @@ export interface ShogunSDKConfig {
   };
   /** DID configuration */
   did?: DIDConfig;
+  /** Wallet configuration */
+  wallet?: {
+    /** Balance cache TTL in milliseconds (default: 30000) */
+    balanceCacheTTL?: number;
+  };
 }
 
 export interface WalletInfo {

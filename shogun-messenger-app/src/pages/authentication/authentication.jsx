@@ -10,6 +10,16 @@ let AuthenticationPage = () => {
   onMount(() => {
     console.log('Inizializzazione SDK...');
     const sdk = new ShogunCore({
+      peers: ['http://gun-relay.scobrudot.dev/gun'],
+      providerUrl: 'https://eth-sepolia.g.alchemy.com/v2/yjhjIoJ3o_at8ALT7nCJtFtjdqFpiBdx', // Sepolia testnet RPC
+      webauthn: {
+        enabled: true,
+        rpName: 'Shogun Messenger',
+        rpId: window.location.hostname
+      },
+      metamask: {
+        enabled: true
+      },
       gundb: {
         peers: ['http://gun-relay.scobrudot.dev/gun'],
         localStorage: false,
@@ -18,27 +28,26 @@ let AuthenticationPage = () => {
     });
     console.log('SDK inizializzato:', sdk);
 
-    // Verifica che le funzioni necessarie siano disponibili
-    console.log(
-      'connectMetaMask disponibile:',
-      typeof sdk.connectMetaMask === 'function'
-    );
-    console.log(
-      'loginWithMetaMask disponibile:',
-      typeof sdk.loginWithMetaMask === 'function'
-    );
-    console.log(
-      'isWebAuthnSupported disponibile:',
-      typeof sdk.isWebAuthnSupported === 'function'
-    );
-    console.log(
-      'authenticateWithWebAuthn disponibile:',
-      typeof sdk.authenticateWithWebAuthn === 'function'
-    );
-    console.log(
-      'registerWithWebAuthn disponibile:',
-      typeof sdk.registerWithWebAuthn === 'function'
-    );
+    // Verifica tutti i metodi disponibili nell'SDK
+    console.log('--------- METODI DISPONIBILI NELL\'SDK ---------');
+    
+    // Metodi di metamask
+    console.log('connectMetaMask:', typeof sdk.connectMetaMask === 'function');
+    console.log('loginWithMetaMask:', typeof sdk.loginWithMetaMask === 'function');
+    console.log('signUpWithMetaMask:', typeof sdk.signUpWithMetaMask === 'function');
+    
+    // Metodi di WebAuthn
+    console.log('isWebAuthnSupported:', typeof sdk.isWebAuthnSupported === 'function');
+    console.log('loginWithWebAuthn:', typeof sdk.loginWithWebAuthn === 'function');
+    console.log('signUpWithWebAuthn:', typeof sdk.signUpWithWebAuthn === 'function');
+    console.log('authenticateWithWebAuthn:', typeof sdk.authenticateWithWebAuthn === 'function');
+    console.log('registerWithWebAuthn:', typeof sdk.registerWithWebAuthn === 'function');
+    
+    // Metodi di autenticazione diretta
+    console.log('login:', typeof sdk.login === 'function');
+    console.log('signUp:', typeof sdk.signUp === 'function');
+    console.log('logout:', typeof sdk.logout === 'function');
+    console.log('isLoggedIn:', typeof sdk.isLoggedIn === 'function');
 
     setShogunSDK(sdk);
   });
