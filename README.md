@@ -256,7 +256,7 @@ A: GunDB is a decentralized graph database that allows real-time data synchroniz
 A: Shogun provides key backup mechanisms in shogun-core. User data is synchronized across peers, but it's important to maintain proper key management for user security.
 
 **Q: Can I use Shogun with other blockchains besides Ethereum?**  
-A: While the core focus is on Ethereum, Shogun's architecture allows for integration with other blockchains. Some components already support alternative chains.
+A: For now the core is focused on Ethereum and L2s, but the ecosystem is designed to be modular and compatible with other chains in the future.
 
 **Q: How do I deploy a Shogun application?**  
 A: Shogun applications can be deployed like regular web applications. For optimal performance, we recommend also deploying a shogun-relay instance.
@@ -283,10 +283,7 @@ Please read our [Contributing Guidelines](CONTRIBUTING.md) for more details.
 
 ## Community
 
-- **Discord**: [Join our Discord server](https://discord.gg/shogun)
-- **Twitter**: [@ShogunProtocol](https://twitter.com/ShogunProtocol)
-- **Blog**: [blog.shogunprotocol.com](https://blog.shogunprotocol.com)
-- **Forum**: [forum.shogunprotocol.com](https://forum.shogunprotocol.com)
+---
 
 ## License
 
