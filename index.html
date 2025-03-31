@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Gioco Bruteforce Multiplayer - Hash Dinamico Automatico</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; background: #222; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  
+  <!-- Carica GunDB dal relay su Heroku -->
+  <script src="https://cdn.jsdelivr.net/npm/gun@latest/gun.js"></script>
+  <script>
+    (function(){
+      /******************************************************
+       *            CONFIGURAZIONE GUNDB
+       ******************************************************/
+      const gun = Gun(['https://gun-manhattan.herokuapp.com/gun']);
+      const playersDB = gun.get('bruteforce-game-players');
+      const attacksDB = gun.get('bruteforce-game-attacks');
+
+      /******************************************************
+       *             CONFIGURAZIONE CANVAS
+       ******************************************************/
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Imposta la canvas a piena finestra e gestisci il resize
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      /******************************************************
+       *    FUNZIONI UTILI: generazione ID e hash segreto
+       ******************************************************/
+      function generateRandomId() {
+        return Math.random().toString(36).substring(2, 10);
+      }
+
+      // Genera un hash casuale usando lettere e numeri
+      function generateSecretHash(length) {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        let hash = '';
+        for (let i = 0; i < length; i++) {
+          hash += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return hash;
+      }
+
+      /******************************************************
+       *      CONFIGURAZIONE DEL GIOCATORE LOCALE
+       ******************************************************/
+      // Impostiamo il livello iniziale in automatico (senza scelta manuale)
+      let level = 4; // livello iniziale: determina la lunghezza iniziale dell'hash
+      let secretHash = generateSecretHash(level); // hash segreto locale
+
+      const player = {
+        id: generateRandomId(),
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        color: '#' + Math.floor(Math.random() * 16777215).toString(16),
+        size: 15,
+        alive: true,
+        killedBy: null,
+        hashLength: secretHash.length  // lunghezza pubblica dell'hash
+      };
+
+      // Pubblica le informazioni pubbliche del giocatore (senza il vero hash)
+      playersDB.get(player.id).put({
+        id: player.id,
+        x: player.x,
+        y: player.y,
+        color: player.color,
+        size: player.size,
+        alive: player.alive,
+        killedBy: player.killedBy,
+        hashLength: player.hashLength
+      });
+
+      /******************************************************
+       *     MEMORIZZAZIONE DEI GIOCATORI E UTILS
+       ******************************************************/
+      const allPlayers = {};
+      // Evita che una kill venga conteggiata più volte
+      const killHistory = {};
+      // Per visualizzare il processo di brute force (tentativo corrente)
+      const attackGuesses = {};
+
+      // Aggiorna l'elenco dei giocatori in tempo reale
+      playersDB.map().on((data, key) => {
+        if (!data) return;
+        allPlayers[key] = data;
+
+        // Se un giocatore è stato eliminato da me, incremento automaticamente il mio livello
+        if (data.alive === false && data.killedBy === player.id && !killHistory[key]) {
+          killHistory[key] = true;
+          player.size += 5;  // aumenta la dimensione visiva
+          level += 1;        // aumenta il livello automaticamente
+          player.hashLength = level;  // nuova lunghezza dell'hash
+          // Rigenera il secretHash con la nuova lunghezza
+          secretHash = generateSecretHash(player.hashLength);
+          // Aggiorna le informazioni pubbliche
+          playersDB.get(player.id).put({ size: player.size, hashLength: player.hashLength });
+        }
+      });
+
+      /******************************************************
+       *         GESTIONE DEGLI ATTACCHI IN ARRIVO
+       ******************************************************/
+      attacksDB.get(player.id).on((attack) => {
+        if (!attack || !player.alive) return;
+        console.log("Attacco ricevuto:", attack);
+        // Se il tentativo coincide con il secretHash locale, il giocatore viene eliminato
+        if (attack.guess === secretHash) {
+          alert("Sei stato distrutto dall'attacco di " + attack.attacker + "!");
+          player.alive = false;
+          player.killedBy = attack.attacker;
+          playersDB.get(player.id).put({ alive: false, killedBy: attack.attacker });
+        }
+      });
+
+      /******************************************************
+       *           MOVIMENTO DEL GIOCATORE
+       ******************************************************/
+      const speed = 5;
+      const keys = {};
+      window.addEventListener('keydown', (e) => { keys[e.key] = true; });
+      window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+      function update() {
+        if (!player.alive) return;
+        if (keys['ArrowUp'] || keys['w']) player.y -= speed;
+        if (keys['ArrowDown'] || keys['s']) player.y += speed;
+        if (keys['ArrowLeft'] || keys['a']) player.x -= speed;
+        if (keys['ArrowRight'] || keys['d']) player.x += speed;
+        player.x = Math.max(0, Math.min(canvas.width, player.x));
+        player.y = Math.max(0, Math.min(canvas.height, player.y));
+        // Aggiorna la posizione su GunDB
+        playersDB.get(player.id).put({ x: player.x, y: player.y });
+      }
+
+      /******************************************************
+       *        DISEGNO DEI GIOCATORI E VISUALIZZAZIONE
+       *         DEL PROCESSO DI BRUTE FORCE
+       ******************************************************/
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let id in allPlayers) {
+          const p = allPlayers[id];
+          if (!p) continue;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size || 15, 0, 2 * Math.PI);
+          ctx.fillStyle = p.alive ? p.color : '#555';
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#fff';
+          ctx.font = '10px sans-serif';
+          ctx.fillText(p.id.substring(0, 4), p.x - 10, p.y - (p.size + 5));
+          
+          // Visualizza il tentativo di brute force se presente
+          if (attackGuesses[id]) {
+            ctx.fillStyle = '#ff0';
+            ctx.font = '12px monospace';
+            ctx.fillText("Tentativo: " + attackGuesses[id], p.x - 20, p.y + (p.size + 15));
+          }
+        }
+      }
+
+      /******************************************************
+       *    ATTACCO AUTOMATICO: BRUTE FORCE CON VISUALIZZAZIONE
+       ******************************************************/
+      // Evita duplicazioni memorizzando gli interval attivi
+      const attacking = {};
+
+      function startBruteForce(targetId) {
+        if (attacking[targetId]) return;
+        attacking[targetId] = setInterval(() => {
+          // Se il target non esiste o è già morto, interrompi l'attacco
+          if (!allPlayers[targetId] || !allPlayers[targetId].alive || !player.alive) {
+            clearInterval(attacking[targetId]);
+            attacking[targetId] = null;
+            attackGuesses[targetId] = null;
+            return;
+          }
+          // Genera un tentativo casuale della lunghezza dell'hash del target
+          const targetHashLength = allPlayers[targetId].hashLength || 4;
+          let guess = '';
+          const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+          for (let i = 0; i < targetHashLength; i++) {
+            guess += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          // Visualizza il tentativo per il target
+          attackGuesses[targetId] = guess;
+          // Invia il tentativo al target tramite GunDB
+          attacksDB.get(targetId).put({
+            attacker: player.id,
+            guess: guess
+          });
+        }, 500); // Un tentativo ogni 500ms
+      }
+
+      /******************************************************
+       *            CLICK PER AVVIARE L'ATTACCO
+       ******************************************************/
+      canvas.addEventListener('click', (e) => {
+        if (!player.alive) return;
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+        for (let id in allPlayers) {
+          if (id === player.id) continue;
+          const p = allPlayers[id];
+          if (!p.alive) continue;
+          const dx = clickX - p.x;
+          const dy = clickY - p.y;
+          if (Math.sqrt(dx * dx + dy * dy) < (p.size || 15)) {
+            startBruteForce(id);
+          }
+        }
+      });
+
+      /******************************************************
+       *                LOOP DEL GIOCO
+       ******************************************************/
+      function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+      }
+      gameLoop();
+    })();
+  </script>
+</body>
+</html>

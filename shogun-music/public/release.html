@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dettaglio Release</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h2 id="releaseTitle">Release Title</h2>
+    <p id="releaseMeta"></p>
+  </header>
+  
+  <div class="content">
+    <div class="release-details">
+      <div class="release-artwork">
+        <img id="releaseArtwork" src="" alt="Artwork" />
+      </div>
+      <div>
+        <div class="track-list" id="trackList"></div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script>
+    const gun = Gun({
+        peers: ['http://localhost:3000/gun'],
+        localStorage:false
+    });
+    
+    // Recuperiamo l'ID della release dalla query string (release.html?id=xxx)
+    const urlParams = new URLSearchParams(window.location.search);
+    const releaseId = urlParams.get('id');
+    
+    const releaseTitleEl = document.getElementById('releaseTitle');
+    const releaseMetaEl = document.getElementById('releaseMeta');
+    const releaseArtworkEl = document.getElementById('releaseArtwork');
+    const trackListEl = document.getElementById('trackList');
+    
+    // Carichiamo i dati della release da GunDB
+    gun.get('releases').get(releaseId).on((release) => {
+      if (!release) {
+        releaseTitleEl.textContent = 'Release non trovata.';
+        return;
+      }
+      // Aggiorniamo i campi principali
+      releaseTitleEl.textContent = release.title || 'Untitled';
+      releaseMetaEl.textContent = `${release.type === 'single' ? 'Single' : 'EP'} - ${release.date || ''}`;
+      releaseArtworkEl.src = release.artwork || '';
+      
+      // Puliamo la lista tracce
+      trackListEl.innerHTML = '';
+      
+      // Se la release ha tracce, iteriamo sulle chiavi dell'oggetto
+      if (release.tracks) {
+        const trackKeys = Object.keys(release.tracks);
+        trackKeys.forEach((key, index) => {
+          const track = release.tracks[key];
+          
+          const trackDiv = document.createElement('div');
+          trackDiv.className = 'track-item';
+          
+          trackDiv.innerHTML = `
+            <h4>${track.title || 'Track ' + (index + 1)}</h4>
+            <audio controls src="${track.data}"></audio>
+          `;
+          trackListEl.appendChild(trackDiv);
+        });
+      }
+    });
+  </script>
+</body>
+</html>

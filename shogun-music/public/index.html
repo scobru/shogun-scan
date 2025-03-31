@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>La Mia Etichetta - Home</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>La Mia Etichetta</h1>
+    <p>Benvenuti! Esplora le release disponibili.</p>
+  </header>
+  
+  <div class="content">
+    <div id="releaseGrid" class="release-grid"></div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script>
+const gun = Gun({
+        peers: ['http://localhost:3000/gun'],
+        localStorage:false
+      });    const releaseGrid = document.getElementById('releaseGrid');
+    
+    // Ascoltiamo il nodo "releases" per recuperare la lista di release
+    gun.get('releases').map().on((release, id) => {
+      if (!release) {
+        // Se release viene eliminata o non esiste, rimuoviamo l'elemento dalla griglia
+        const existingCard = document.getElementById(id);
+        if (existingCard) existingCard.remove();
+        return;
+      }
+      
+      // Verifichiamo se esiste già una card per questa release
+      let card = document.getElementById(id);
+      if (!card) {
+        card = document.createElement('div');
+        card.className = 'release-card';
+        card.id = id;
+        releaseGrid.appendChild(card);
+      }
+      
+      // Aggiorniamo il contenuto della card
+      card.innerHTML = `
+        <div class="release-artwork">
+          <img src="${release.artwork || ''}" alt="Artwork" />
+        </div>
+        <h3>${release.title || 'Untitled'}</h3>
+        <p>${release.date || ''}</p>
+        <p>${release.type === 'single' ? 'Single' : 'EP'}</p>
+        <a href="release.html?id=${id}">Ascolta</a>
+      `;
+    });
+  </script>
+</body>
+</html>

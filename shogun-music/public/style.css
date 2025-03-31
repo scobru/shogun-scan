@@ -1,0 +1,108 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #fafafa;
+    color: #333;
+    margin: 0;
+    padding: 0;
+  }
+  
+  header, .content {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  
+  header h1, header h2 {
+    margin: 0;
+  }
+  
+  a {
+    color: #333;
+    text-decoration: none;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  }
+  
+  .release-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  
+  .release-card {
+    background: #fff;
+    border: 1px solid #ccc;
+    width: 200px;
+    padding: 10px;
+    text-align: center;
+  }
+  
+  .release-card img {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  .release-card h3 {
+    margin: 10px 0;
+    font-size: 1em;
+  }
+  
+  .release-details {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .release-artwork img {
+    max-width: 300px;
+    height: auto;
+  }
+  
+  .track-list {
+    margin-top: 20px;
+  }
+  
+  .track-item {
+    border-bottom: 1px solid #ccc;
+    padding: 10px 0;
+  }
+  
+  .track-item h4 {
+    margin: 0;
+  }
+  
+  .form-container {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  input, select, button, textarea {
+    margin: 5px 0;
+    padding: 10px;
+    font-size: 1em;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  button {
+    cursor: pointer;
+    background-color: #eee;
+  }
+  
+  button:hover {
+    background-color: #ddd;
+  }
+  
+  #feedback {
+    margin-top: 10px;
+    font-weight: bold;
+    text-align: center;
+    color: #333;
+  }
+  
