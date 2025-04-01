@@ -16,51 +16,213 @@ console.log(`[DASHBOARD] Porta corrente: ${currentPort}, usando porta server: ${
 const apiBaseUrl = `${window.location.protocol}//${window.location.hostname}:${serverPort}`;
 console.log(`[DASHBOARD] URL base API: ${apiBaseUrl}`);
 
-// Inizializziamo Gun con configurazione esplicita
+// Inizializziamo Gun con configurazione ottimizzata
 const gun = Gun({
   peers: [`${apiBaseUrl}/gun`],
   localStorage: false,
   radisk: false,
   file: false,
-  timeout: 30000 // Timeout più lungo per operazioni Gun (30 secondi)
+  timeout: 15000,    // Aumentiamo il timeout a 15 secondi
+  retry: 1500,       // Riduciamo l'intervallo di retry
+  axe: false,        // Disabilitiamo AXE per debug
+  super: false,      // Disabilitiamo super per performance
+  WebSocket: window.WebSocket // Forziamo l'uso di WebSocket
 });
 
-console.log('[DASHBOARD] Gun inizializzato con peer:', gun._.opt.peers);
+console.log('[DASHBOARD] Gun inizializzato con configurazione:', {
+  peers: gun._.opt.peers,
+  url: apiBaseUrl
+});
 
-// Verifica connessione
-setTimeout(() => {
-  console.log('[DASHBOARD] Verifica connessione Gun...');
-  
-  // Test connettività generale con il server
-  fetch(`${apiBaseUrl}/api/test`)
-    .then(response => response.json())
-    .then(data => {
-      console.log('[DASHBOARD] Test connettività server:', data);
-    })
-    .catch(error => {
-      console.error('[DASHBOARD] Errore connettività server:', error);
+// Miglioriamo il monitoraggio della connessione
+let isGunConnected = false;
+gun.on('hi', peer => {
+  console.log('[GUN] Connesso al peer:', peer);
+  isGunConnected = true;
+});
+
+gun.on('bye', peer => {
+  console.log('[GUN] Disconnesso dal peer:', peer);
+  isGunConnected = false;
+});
+
+gun.on('put', msg => {
+  // Limitiamo il logging per evitare sovraccarichi
+  if (msg.put && Object.keys(msg.put)[0] !== '#') {
+    console.log('[GUN] Messaggio PUT:', {
+      key: Object.keys(msg.put)[0],
+      msgId: msg['#']
     });
+  }
+});
+
+// Funzione per verificare la connessione
+async function checkGunConnection(timeout = 5000) {
+  if (!isGunConnected) {
+    throw new Error('Gun non connesso');
+  }
   
-  // Test salvataggio semplice per verificare connessione
-  gun.get('test').put({
-    message: 'Test connessione',
-    timestamp: Date.now()
-  }, (ack) => {
-    if (ack.err) {
-      console.error('[DASHBOARD] Errore connessione Gun:', ack.err);
-    } else {
-      console.log('[DASHBOARD] Connessione Gun confermata!');
-      
-      // Leggiamo il dato appena salvato per verificare il funzionamento completo
-      gun.get('test').once((data) => {
-        console.log('[DASHBOARD] Test lettura Gun:', data);
-      });
-    }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Timeout verifica connessione'));
+    }, timeout);
+    
+    gun.get('connection_test').put({ timestamp: Date.now() }, ack => {
+      clearTimeout(timer);
+      if (ack.err) {
+        reject(new Error(ack.err));
+      } else {
+        resolve(true);
+      }
+    });
   });
-}, 1000);
+}
+
+// Funzione per salvare una release con retry
+async function saveReleaseWithRetry(releaseData, maxRetries = 3) {
+  console.log('[RELEASE] Tentativo salvataggio release:', releaseData.id);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Prima verifichiamo la connessione
+      await checkGunConnection();
+      
+      // Creiamo/verifichiamo il nodo all_releases
+      await new Promise((resolve, reject) => {
+        gun.get('all_releases').put({ exists: true }, ack => {
+          if (ack.err) reject(new Error(ack.err));
+          else resolve();
+        });
+      });
+      
+      // Salviamo la release
+      await new Promise((resolve, reject) => {
+        const releaseNode = gun.get(`release_${releaseData.id}`);
+        releaseNode.put(releaseData, ack => {
+          if (ack.err) reject(new Error(ack.err));
+          else resolve();
+        });
+      });
+      
+      // Aggiungiamo al set di release
+      await new Promise((resolve, reject) => {
+        gun.get('all_releases').set(
+          gun.get(`release_${releaseData.id}`),
+          ack => {
+            if (ack.err) reject(new Error(ack.err));
+            else resolve();
+          }
+        );
+      });
+      
+      // Verifichiamo il salvataggio
+      const saved = await new Promise((resolve) => {
+        gun.get(`release_${releaseData.id}`).once((data) => {
+          resolve(data);
+        });
+      });
+      
+      if (!saved) throw new Error('Verifica salvataggio fallita');
+      
+      console.log('[RELEASE] Release salvata con successo:', releaseData.id);
+      return saved;
+      
+    } catch (error) {
+      console.error(`[RELEASE] Tentativo ${attempt}/${maxRetries} fallito:`, error);
+      if (attempt === maxRetries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+// Funzione per salvare una traccia con retry
+async function saveTrackWithRetry(releaseId, trackIndex, trackData, maxRetries = 3) {
+  console.log(`[TRACK] Tentativo salvataggio traccia ${trackIndex} per release ${releaseId}`);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Verifichiamo la connessione
+      await checkGunConnection();
+      
+      // Salviamo la traccia
+      const trackNode = gun.get(`track_${releaseId}_${trackIndex}`);
+      await new Promise((resolve, reject) => {
+        trackNode.put({
+          index: trackIndex,
+          title: trackData.title,
+          type: 'audio',
+          mimeType: trackData.mimeType,
+          data: trackData.data,
+          timestamp: Date.now()
+        }, ack => {
+          if (ack.err) reject(new Error(ack.err));
+          else resolve();
+        });
+      });
+      
+      // Colleghiamo la traccia alla release
+      await new Promise((resolve, reject) => {
+        gun.get(`release_${releaseId}`)
+           .get('tracks')
+           .set(trackNode, ack => {
+             if (ack.err) reject(new Error(ack.err));
+             else resolve();
+           });
+      });
+      
+      console.log(`[TRACK] Traccia ${trackIndex} salvata con successo`);
+      return true;
+      
+    } catch (error) {
+      console.error(`[TRACK] Tentativo ${attempt}/${maxRetries} fallito:`, error);
+      if (attempt === maxRetries) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+}
 
 document.querySelector('header p').textContent = 
   `Bentornato! Crea e gestisci le tue release musicali`;
+
+// Aggiungiamo un pulsante di test nascosto per diagnostica
+const testUploadBtn = document.createElement('button');
+testUploadBtn.id = 'testUploadBtn';
+testUploadBtn.textContent = 'Test Upload';
+testUploadBtn.style.position = 'fixed';
+testUploadBtn.style.bottom = '10px';
+testUploadBtn.style.right = '10px';
+testUploadBtn.style.zIndex = '9999';
+document.body.appendChild(testUploadBtn);
+
+// Event listener per il pulsante di test
+testUploadBtn.addEventListener('click', async () => {
+  console.log('[TEST] Avvio test upload...');
+  
+  try {
+    // Creiamo un file di test
+    const blob = new Blob(['Test file content'], { type: 'text/plain' });
+    const formData = new FormData();
+    formData.append('testFile', blob, 'test_file.txt');
+    
+    console.log('[TEST] FormData creato, invio richiesta...');
+    
+    // Inviamo la richiesta
+    const response = await fetch(`${apiBaseUrl}/upload/test`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    console.log('[TEST] Risposta ricevuta, status:', response.status);
+    
+    const data = await response.json();
+    console.log('[TEST] Risposta completa:', data);
+    
+    alert('Test upload completato! Controlla la console per i dettagli.');
+  } catch (error) {
+    console.error('[TEST] Errore test upload:', error);
+    alert('Errore nel test upload: ' + error.message);
+  }
+});
 
 const releaseForm = document.getElementById("releaseForm");
 const releaseType = document.getElementById("releaseType");
@@ -177,581 +339,372 @@ function readFileAsBase64(file) {
   });
 }
 
-// Gestore submit del form (ora associato al pulsante invece che al form)
-submitBtn.addEventListener("click", async () => {
-  console.log("Pulsante Crea Release cliccato");
+// Funzione per salvare una release
+async function saveRelease() {
+  console.log('====== INIZIO PROCESSO CREAZIONE RELEASE ======');
   
-  // Verifica validità del form
-  if (!releaseForm.checkValidity()) {
-    // Trigger della validazione nativa del browser
-    const tmpSubmit = document.createElement('button');
-    releaseForm.appendChild(tmpSubmit);
-    tmpSubmit.click();
-    releaseForm.removeChild(tmpSubmit);
+  // Troviamo il pulsante submit in modo più affidabile
+  const submitButton = document.getElementById('submitBtn') || document.querySelector('.create-release-btn');
+  if (!submitButton) {
+    console.error('[RELEASE] Pulsante submit non trovato');
+    updateStatus('Errore: Pulsante submit non trovato', 'error');
     return;
   }
-
-  // Test connettività prima di procedere
+  
+  submitButton.disabled = true;
+  submitButton.textContent = "Creazione in corso...";
+  
   try {
-    console.log('[SUBMIT] Verifica connettività server prima di procedere...');
-    const testResponse = await fetch(`${apiBaseUrl}/api/test`);
-    const testData = await testResponse.json();
-    console.log('[SUBMIT] Test connettività pre-upload:', testData);
+    // Verifichiamo la connessione a Gun
+    console.log('[RELEASE] Verifica connessione Gun...');
+    const testKey = 'test';
+    const testValue = { ping: Date.now() };
     
-    if (!testData.success) {
-      throw new Error('Test di connettività fallito');
-    }
-  } catch (connError) {
-    console.error('[SUBMIT] Errore connettività:', connError);
-    feedback.textContent = "Errore di connessione al server. Riprova tra poco.";
-    return;
-  }
-
-  // Disabilitiamo il pulsante durante il caricamento
-  submitBtn.disabled = true;
-  submitBtn.textContent = "Creazione in corso...";
-  document.getElementById("submitSpinner").style.display = "inline-block";
-  
-  feedback.textContent = "Preparazione dei file...";
-  loadingSpinner.style.display = "block";
-
-  try {
-    // Preleviamo i campi principali
-    const type = releaseType.value;
-    const title = releaseTitle.value.trim();
-    const date = releaseDate.value || "";
-
-    // Veridica che i campi obbligatori siano presenti
-    if (!title) {
-      throw new Error("Il titolo della release è obbligatorio");
-    }
-
-    feedback.textContent = "Preparazione dei file...";
-
-    // Artwork
-    let artworkBase64 = "";
-    if (artworkFile.files[0]) {
-      try {
-        artworkBase64 = await readFileAsBase64(artworkFile.files[0]);
-        if (!artworkBase64 || !artworkBase64.startsWith('data:')) {
-          console.warn("Problema con l'artwork, proseguiamo senza");
-          artworkBase64 = "";
+    // Promise per il test di connessione
+    const connectionTest = new Promise((resolve, reject) => {
+      gun.get(testKey).put(testValue, ack => {
+        if (ack.err) {
+          reject(new Error(`Errore connessione Gun: ${ack.err}`));
+        } else {
+          resolve();
         }
-      } catch (artworkErr) {
-        console.error("Errore caricamento artwork:", artworkErr);
-        // Non blocchiamo per l'artwork, proseguiamo senza
-        artworkBase64 = "";
-      }
-    }
+      });
+    });
 
-    // Mostriamo una barra di progresso
-    const progressContainer = document.createElement('div');
-    progressContainer.className = 'progress-bar';
-    const progressBar = document.createElement('div');
-    progressBar.className = 'progress-bar-inner';
-    progressContainer.appendChild(progressBar);
-    feedback.appendChild(progressContainer);
+    // Attendiamo il test di connessione con timeout
+    await Promise.race([
+      connectionTest,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout connessione Gun')), 5000))
+    ]);
 
-    const statusMsg = document.createElement('div');
-    statusMsg.className = 'status-message';
-    feedback.appendChild(statusMsg);
+    console.log('[RELEASE] Connessione Gun verificata');
 
-    // Raccogliamo le tracce in un array
-    const trackForms = trackContainer.querySelectorAll(".track-item-form");
-    const tracks = [];
-
-    // Verifica che ci sia almeno una traccia
-    if (trackForms.length === 0) {
-      throw new Error("Devi aggiungere almeno una traccia");
-    }
-
-    feedback.textContent = "Verifica dei file audio...";
-
-    // Prima verifichiamo tutti i file senza caricarli
-    for (let i = 0; i < trackForms.length; i++) {
-      const trackTitleInput = trackForms[i].querySelector(".track-title");
-      const trackFileInput = trackForms[i].querySelector(".track-file");
-
-      const tTitle = trackTitleInput.value.trim();
-      const tFile = trackFileInput.files[0];
-
-      if (!tTitle) {
-        throw new Error(`La traccia #${i+1} non ha un titolo`);
-      }
-      
-      if (!tFile) {
-        throw new Error(`La traccia #${i+1} non ha un file audio`);
-      }
-
-      // Verifica preliminare del file
-      if (!tFile.type.startsWith('audio/')) {
-        throw new Error(`Il file "${tFile.name}" non sembra essere un file audio (tipo: ${tFile.type})`);
-      }
-
-      // Verifica delle dimensioni
-      const MAX_SIZE_MB = 20;
-      const MAX_SIZE = MAX_SIZE_MB * 1024 * 1024;
-      if (tFile.size > MAX_SIZE) {
-        throw new Error(`Il file "${tFile.name}" è troppo grande (${(tFile.size/1024/1024).toFixed(1)}MB). Il limite è ${MAX_SIZE_MB}MB`);
-      }
-    }
-
-    // Ora procediamo con il caricamento uno per uno
-    for (let i = 0; i < trackForms.length; i++) {
-      progressBar.style.width = `${(i / trackForms.length) * 100}%`;
-      statusMsg.textContent = `Elaborazione traccia ${i+1}/${trackForms.length}...`;
-      
-      const trackTitleInput = trackForms[i].querySelector(".track-title");
-      const trackFileInput = trackForms[i].querySelector(".track-file");
-
-      const tTitle = trackTitleInput.value.trim();
-      const tFile = trackFileInput.files[0];
-      
-      // Log dettagliato
-      console.log(`Elaborazione file: "${tFile.name}" (${tFile.type}, ${(tFile.size/1024).toFixed(1)}KB)`);
-      
-      try {
-        const tData = await readFileAsBase64(tFile);
-        
-        // Verifica che i dati siano stati caricati correttamente
-        if (!tData || typeof tData !== 'string' || !tData.startsWith('data:')) {
-          throw new Error(`Errore nel caricamento del file "${tFile.name}". Formato non valido.`);
-        }
-        
-        // Log di debug
-        console.log(`File audio caricato con successo (${tFile.type}): ${tData.substring(0, 30)}...`);
-        
-        tracks.push({
-          title: tTitle,
-          data: tData,
-          mimeType: tFile.type,
-          fileSize: tFile.size,
-          lastModified: tFile.lastModified
-        });
-      } catch (error) {
-        console.error(`Errore caricamento traccia "${tTitle}":`, error);
-        throw new Error(`Errore nella traccia "${tTitle}": ${error.message}`);
-      }
-    }
-
-    // Update progress
-    progressBar.style.width = '100%';
-    statusMsg.textContent = 'Salvataggio della release...';
-
-    // Generiamo un ID univoco (qui usiamo il timestamp)
+    // Raccogliamo i dati del form
+    const form = document.getElementById('releaseForm');
+    const formData = new FormData(form);
+    
+    // Generiamo un ID univoco per la release
     const releaseId = Date.now().toString();
-
-    // Creiamo l'oggetto release utilizzando l'oggetto per le tracce
-    const releaseObj = {
+    
+    // Creiamo l'oggetto release
+    const releaseData = {
       id: releaseId,
-      type: type,
-      title: title,
-      date: date,
+      type: formData.get('type') || 'single',
+      title: formData.get('title'),
+      date: formData.get('date'),
       creator: username,
-      artwork: artworkBase64,
+      artwork: '', // Lo gestiremo separatamente
       createdAt: Date.now(),
-      trackCount: tracks.length
+      trackCount: 1
     };
 
-    console.log("Salvataggio release con ID:", releaseId, "con", tracks.length, "tracce");
+    console.log('[RELEASE DEBUG] ==========================================');
+    console.log('[RELEASE DEBUG] Inizio salvataggio release');
+    console.log('[RELEASE DEBUG] Release ID:', releaseId);
+    console.log('[RELEASE DEBUG] Dati release:', releaseData);
 
-    // Prima salviamo la release senza tracce
-    console.log("[RELEASE] Inizio salvataggio release principale");
+    // Prima creiamo il nodo all_releases se non esiste
+    await new Promise((resolve, reject) => {
+      gun.get('all_releases').put({ exists: true }, ack => {
+        if (ack.err) {
+          reject(new Error(`Errore creazione nodo all_releases: ${ack.err}`));
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    // Ora salviamo la release
+    await new Promise((resolve, reject) => {
+      gun.get('release_' + releaseId).put(releaseData, ack => {
+        if (ack.err) {
+          reject(new Error(`Errore salvataggio release: ${ack.err}`));
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    // Aggiungiamo la release al set di tutte le release
+    await new Promise((resolve, reject) => {
+      gun.get('all_releases').set(gun.get('release_' + releaseId), ack => {
+        if (ack.err) {
+          reject(new Error(`Errore aggiunta a all_releases: ${ack.err}`));
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    // Verifichiamo che la release sia stata salvata
+    const savedRelease = await new Promise((resolve, reject) => {
+      gun.get('release_' + releaseId).once((data, key) => {
+        if (!data) {
+          reject(new Error('Release non trovata dopo il salvataggio'));
+        } else {
+          resolve(data);
+        }
+      });
+    });
+
+    console.log('[RELEASE] Release salvata con successo:', savedRelease);
     
-    // Test salvataggio semplice con miglior gestione degli errori
-    gun.get("releases").get("test").put({test: "ok", timestamp: Date.now()}, (testAck) => {
-      console.log("[RELEASE] Test salvataggio Gun:", testAck);
-      
-      if (testAck.err) {
-        console.error("[RELEASE] Errore nel test di salvataggio:", testAck.err);
-        feedback.textContent = "Errore di connessione a Gun: " + testAck.err;
-        resetForm();
+    // Aggiorniamo l'UI
+    updateStatus('Release salvata con successo!', 'success');
+    showProgress(100);
+    
+    // Reset del form
+    resetForm();
+    
+    // Ricarica le release
+    loadUserReleases();
+
+  } catch (error) {
+    console.error('[RELEASE] Errore durante il salvataggio:', error);
+    updateStatus(`Errore: ${error.message}`, 'error');
+  } finally {
+    // Ripristiniamo il pulsante in ogni caso
+    submitButton.disabled = false;
+    submitButton.textContent = "Crea Release";
+  }
+}
+
+// Funzione per resettare il form
+function resetForm() {
+  console.log('[FORM] Reset del form...');
+  
+  // Reset del form principale
+  const form = document.getElementById('releaseForm');
+  if (form) {
+    form.reset();
+  }
+  
+  // Reset del container delle tracce
+  resetTrackContainer();
+  
+  // Reset degli elementi UI
+  const submitButton = document.getElementById('submitBtn');
+  if (submitButton) {
+    submitButton.disabled = false;
+    submitButton.textContent = "Crea Release";
+  }
+  
+  const spinner = document.getElementById('submitSpinner');
+  if (spinner) {
+    spinner.style.display = "none";
+  }
+  
+  const feedback = document.getElementById('feedback');
+  if (feedback) {
+    feedback.textContent = "";
+  }
+  
+  const loadingSpinner = document.getElementById('loadingSpinner');
+  if (loadingSpinner) {
+    loadingSpinner.style.display = "none";
+  }
+}
+
+// Funzione per resettare il container delle tracce
+function resetTrackContainer() {
+  console.log('[FORM] Reset del container tracce...');
+  
+  const trackContainer = document.getElementById('trackContainer');
+  if (trackContainer) {
+    // Manteniamo solo la prima traccia e resettiamo i suoi campi
+    const trackForms = trackContainer.querySelectorAll('.track-item-form');
+    trackForms.forEach((form, index) => {
+      if (index === 0) {
+        const titleInput = form.querySelector('.track-title');
+        const fileInput = form.querySelector('.track-file');
+        if (titleInput) titleInput.value = '';
+        if (fileInput) fileInput.value = '';
+      } else {
+        form.remove();
+      }
+    });
+  }
+  
+  // Reset del tipo di release
+  const releaseType = document.getElementById('releaseType');
+  if (releaseType) {
+    releaseType.value = 'single';
+    // Trigger dell'evento change per aggiornare la UI
+    releaseType.dispatchEvent(new Event('change'));
+  }
+}
+
+function updateStatus(message, type = 'info') {
+  const statusDiv = document.getElementById('status') || createStatusElement();
+  statusDiv.textContent = message;
+  statusDiv.className = `status ${type}`;
+}
+
+function createStatusElement() {
+  const statusDiv = document.createElement('div');
+  statusDiv.id = 'status';
+  document.querySelector('form').appendChild(statusDiv);
+  return statusDiv;
+}
+
+function showProgress(percent) {
+  const progressBar = document.getElementById('progress') || createProgressBar();
+  progressBar.style.width = `${percent}%`;
+}
+
+function createProgressBar() {
+  const container = document.createElement('div');
+  container.className = 'progress-container';
+  
+  const progressBar = document.createElement('div');
+  progressBar.id = 'progress';
+  progressBar.className = 'progress-bar';
+  
+  container.appendChild(progressBar);
+  document.querySelector('form').appendChild(container);
+  return progressBar;
+}
+
+// Aggiungiamo stili CSS per feedback visivo
+const style = document.createElement('style');
+style.textContent = `
+  .status {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  .status.success {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  .status.error {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  .progress-container {
+    width: 100%;
+    height: 20px;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    margin: 10px 0;
+    overflow: hidden;
+  }
+  .progress-bar {
+    width: 0%;
+    height: 100%;
+    background-color: #4CAF50;
+    transition: width 0.3s ease;
+  }
+`;
+document.head.appendChild(style);
+
+// Funzione per salvare una traccia
+async function saveTrack(releaseId, trackIndex, trackData) {
+  return new Promise((resolve, reject) => {
+    console.log(`[TRACK DEBUG] ==========================================`);
+    console.log(`[TRACK DEBUG] Salvataggio traccia ${trackIndex} per release ${releaseId}`);
+    
+    // Creiamo un nodo per la traccia
+    const trackNode = gun.get(`track_${releaseId}_${trackIndex}`).put({
+      index: trackIndex,
+      title: trackData.title,
+      type: 'audio',
+      mimeType: trackData.mimeType,
+      data: trackData.data,
+      timestamp: Date.now()
+    });
+    
+    // Aggiungiamo la traccia alla release
+    gun.get(`release_${releaseId}`).get('tracks').set(trackNode, (ack) => {
+      if (ack.err) {
+        console.error(`[TRACK DEBUG] Errore salvataggio traccia:`, ack.err);
+        reject(new Error(`Errore durante il salvataggio della traccia: ${ack.err}`));
         return;
       }
       
-      console.log("[RELEASE] Test di salvataggio riuscito, procedo con il salvataggio della release");
-      
-      try {
-        // Salvataggio release vera
-        saveRelease().catch(err => {
-          console.error("Errore promessa saveRelease:", err);
-          feedback.textContent = "Errore: " + err.message;
-          resetForm();
-        });
-      } catch (err) {
-        console.error("Errore nel salvataggio release:", err);
-        feedback.textContent = "Errore: " + err.message;
-        resetForm();
-      }
+      console.log(`[TRACK DEBUG] Traccia salvata con successo`);
+      console.log(`[TRACK DEBUG] ==========================================`);
+      resolve();
     });
+  });
+}
+
+// Modifichiamo il gestore del submit
+submitBtn.addEventListener("click", async (e) => {
+  e.preventDefault();
+  
+  if (!releaseForm.checkValidity()) {
+    console.error("Form non valido");
+    releaseForm.reportValidity();
+    return;
+  }
+  
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Creazione in corso...";
+  feedback.textContent = "Preparazione...";
+  
+  try {
+    // Verifichiamo subito la connessione
+    await checkGunConnection();
     
-    // Funzione per salvare la release
-    async function saveRelease() {
-      return new Promise((resolve, reject) => {
-        console.log("[RELEASE] Avvio salvataggio release con ID:", releaseId);
-        
-        gun.get("releases").get(releaseId).put(releaseObj, (ack) => {
-          console.log("[RELEASE] Risultato salvataggio release:", ack);
-          
-          if (ack.err) {
-            console.error("[RELEASE] Errore salvataggio release:", ack.err);
-            reject(new Error("Errore durante la creazione della release: " + ack.err));
-            return;
-          }
-          
-          console.log("[RELEASE] Salvataggio release riuscito, procedo con le tracce");
-          
-          try {
-            // Procediamo con il salvataggio delle tracce
-            saveAllTracks().then(resolve).catch(reject);
-          } catch (trackError) {
-            console.error("[RELEASE] Errore avvio salvataggio tracce:", trackError);
-            reject(trackError);
-          }
-        });
-      });
-    }
+    // Raccogliamo i dati della release
+    const releaseId = Date.now().toString();
+    const releaseData = {
+      id: releaseId,
+      type: releaseType.value,
+      title: releaseTitle.value.trim(),
+      date: releaseDate.value || "",
+      creator: username,
+      artwork: artworkFile.files[0] ? await readFileAsBase64(artworkFile.files[0]) : "",
+      createdAt: Date.now()
+    };
     
-    // Funzione per salvare tutte le tracce
-    async function saveAllTracks() {
-      console.log("[TRACKS] Inizio salvataggio di", tracks.length, "tracce");
-      const tracksNode = gun.get("releases").get(releaseId).get("tracks");
+    // Salviamo la release
+    feedback.textContent = "Salvataggio release...";
+    await saveReleaseWithRetry(releaseData);
+    
+    // Raccogliamo e salviamo le tracce
+    const trackForms = trackContainer.querySelectorAll(".track-item-form");
+    for (let i = 0; i < trackForms.length; i++) {
+      feedback.textContent = `Salvataggio traccia ${i + 1}/${trackForms.length}...`;
       
-      // Salviamo ogni traccia una per una
-      for (let i = 0; i < tracks.length; i++) {
-        progressBar.style.width = `${((i) / tracks.length) * 100}%`;
-        statusMsg.textContent = `Salvataggio traccia ${i+1}/${tracks.length}...`;
-        
-        // Salviamo la traccia
-        try {
-          await saveTrack(i, tracksNode);
-          console.log(`[TRACKS] Traccia ${i+1}/${tracks.length} salvata con successo`);
-        } catch (trackError) {
-          console.error(`[TRACKS] Errore salvataggio traccia ${i+1}:`, trackError);
-          throw trackError; // Rilanciamo per gestione superiore
-        }
-      }
+      const trackData = {
+        title: trackForms[i].querySelector(".track-title").value.trim(),
+        data: await readFileAsBase64(trackForms[i].querySelector(".track-file").files[0]),
+        mimeType: trackForms[i].querySelector(".track-file").files[0].type
+      };
       
-      // Successo completo
-      statusMsg.textContent = 'Release creata con successo!';
-      feedback.textContent = "Release creata con successo!";
-      
-      // Resettiamo il form e ricarichiamo le release
-      releaseForm.reset();
-      resetTrackContainer();
-      loadUserReleases();
-      resetForm();
+      await saveTrackWithRetry(releaseId, i, trackData);
     }
     
-    // Funzione per salvare una singola traccia
-    async function saveTrack(i, tracksNode) {
-      return new Promise((resolve, reject) => {
-        const trackIndex = i.toString();
-        console.log(`[TRACKS] Salvataggio traccia ${i+1} (${tracks[i].title}) nel nodo ${trackIndex}`);
-        
-        // Creiamo i metadati
-        const trackMetadata = {
-          title: tracks[i].title,
-          index: i,
-          mimeType: tracks[i].mimeType,
-          fileSize: tracks[i].fileSize,
-          lastModified: tracks[i].lastModified
-        };
-        
-        console.log(`[TRACKS] Salvataggio metadati traccia ${i+1}`);
-        
-        // Salviamo i metadati
-        tracksNode.get(trackIndex).put(trackMetadata, async (metaAck) => {
-          if (metaAck.err) {
-            console.error(`[TRACKS] Errore nel salvare i metadati traccia ${i+1}:`, metaAck.err);
-            reject(new Error(`Errore nel salvare i metadati traccia ${i+1}: ${metaAck.err}`));
-            return;
-          }
-          
-          console.log(`[TRACKS] Metadati traccia ${i+1} salvati con successo`);
-          
-          // Ora carichiamo il file audio
-          try {
-            console.log(`[TRACKS] Inizio caricamento file audio per traccia ${i+1} (${tracks[i].mimeType}, ${(tracks[i].fileSize/1024).toFixed(1)}KB)`);
-            const audioUrl = await uploadAudioFile(tracks[i].data, `${releaseId}_${trackIndex}`);
-            
-            console.log(`[TRACKS] File audio caricato con successo, URL: ${audioUrl}`);
-            
-            // Salviamo l'URL nei metadati
-            console.log(`[TRACKS] Salvataggio URL audio nei metadati della traccia ${i+1}`);
-            
-            // Utilizziamo Promise per gestire il salvataggio dell'URL
-            const saveUrlPromise = new Promise((resolveUrl, rejectUrl) => {
-              const maxRetries = 3; // Numero massimo di tentativi
-              let currentRetry = 0;
-              
-              function attemptSave() {
-                currentRetry++;
-                console.log(`[TRACKS] Tentativo ${currentRetry}/${maxRetries} di salvataggio URL per traccia ${i+1}`);
-                
-                tracksNode.get(trackIndex).get('audioUrl').put(audioUrl, (audioUrlAck) => {
-                  if (audioUrlAck.err) {
-                    console.error(`[TRACKS] Errore nel salvare URL audio traccia ${i+1} (tentativo ${currentRetry}):`, audioUrlAck.err);
-                    
-                    if (currentRetry < maxRetries) {
-                      console.log(`[TRACKS] Tentativo ${currentRetry+1}/${maxRetries} tra 1 secondo...`);
-                      setTimeout(attemptSave, 1000); // Riprova dopo 1 secondo
-                    } else {
-                      // Se tutti i tentativi falliscono, proviamo una alternativa diretta tramite PocketBase
-                      console.log(`[TRACKS] Tutti i tentativi Gun falliti, utilizzo soluzione alternativa...`);
-                      
-                      // Creiamo un oggetto che contiene sia i metadati che l'URL audio
-                      const trackData = {
-                        ...trackMetadata,
-                        audioUrl: audioUrl,
-                        releaseId: releaseId
-                      };
-                      
-                      // Salviamo direttamente tramite un endpoint REST
-                      fetch(`${apiBaseUrl}/api/track_data`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(trackData)
-                      })
-                      .then(response => response.json())
-                      .then(data => {
-                        if (data.success) {
-                          console.log(`[TRACKS] Salvataggio alternativo riuscito per traccia ${i+1}`);
-                          resolveUrl();
-                        } else {
-                          console.error(`[TRACKS] Errore nel salvataggio alternativo:`, data.error);
-                          rejectUrl(new Error(`Errore nel salvataggio alternativo: ${data.error}`));
-                        }
-                      })
-                      .catch(err => {
-                        console.error(`[TRACKS] Errore nella chiamata REST alternativa:`, err);
-                        rejectUrl(err);
-                      });
-                    }
-                  } else {
-                    console.log(`[TRACKS] URL audio traccia ${i+1} salvato con successo`);
-                    resolveUrl();
-                  }
-                });
-              }
-              
-              // Inizia il primo tentativo
-              attemptSave();
-            });
-            
-            // Attendi che il salvataggio dell'URL sia completato
-            await saveUrlPromise;
-            resolve();
-            
-          } catch (uploadError) {
-            console.error(`[TRACKS] Errore caricamento file audio traccia ${i+1}:`, uploadError);
-            statusMsg.textContent = `Errore caricamento traccia ${i+1}: ${uploadError.message}`;
-            reject(uploadError);
-          }
-        });
-      });
-    }
+    feedback.textContent = "Release creata con successo!";
+    resetForm();
+    loadUserReleases();
     
-    // Funzione per caricare un file audio
-    async function uploadAudioFile(fileData, trackId) {
-      return new Promise((resolve, reject) => {
-        try {
-          console.log(`[UPLOAD] Inizio elaborazione file audio (lunghezza data URI: ${fileData.length} caratteri)`);
-          
-          const blob = dataURItoBlob(fileData);
-          console.log(`[UPLOAD] Preparazione file audio per il server (${(blob.size/1024).toFixed(1)}KB, trackId: ${trackId})...`);
-          
-          if (!blob || blob.size === 0) {
-            console.error('[UPLOAD] Errore nella preparazione del blob');
-            reject(new Error('Errore nella preparazione del file audio'));
-            return;
-          }
-          
-          // Creiamo un FormData
-          const formData = new FormData();
-          formData.append('trackId', trackId);
-          formData.append('audioFile', blob, `track_${trackId}.mp3`);
-          
-          // Log per verificare che FormData sia corretto
-          console.log(`[UPLOAD] FormData creato con trackId: ${trackId}, filename: track_${trackId}.mp3`);
-          
-          // Impostiamo il timeout più lungo per file grandi
-          const uploadTimeout = Math.max(60000, blob.size / 10); // 60 secondi o più per file grandi
-          console.log(`[UPLOAD] Timeout impostato a ${uploadTimeout/1000} secondi per file di ${(blob.size/1024/1024).toFixed(2)}MB`);
-          
-          // Prima facciamo un test di connettività
-          console.log('[UPLOAD] Test connettività prima di caricare il file...');
-          
-          fetch(`${apiBaseUrl}/api/test`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-              fileSize: blob.size, 
-              trackId: trackId, 
-              action: 'pre-upload test' 
-            })
-          })
-          .then(response => response.json())
-          .then(testData => {
-            console.log('[UPLOAD] Test connettività pre-upload completato:', testData);
-            
-            // Se il test è riuscito, procediamo con l'upload
-            console.log(`[UPLOAD] Avvio upload effettivo a ${apiBaseUrl}/upload/audio`);
-            
-            // Inviamo la richiesta
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-              console.error(`[UPLOAD] Timeout raggiunto dopo ${uploadTimeout/1000} secondi`);
-              controller.abort();
-            }, uploadTimeout);
-            
-            return fetch(`${apiBaseUrl}/upload/audio`, {
-              method: 'POST',
-              body: formData,
-              signal: controller.signal
-            })
-            .then(response => {
-              clearTimeout(timeoutId);
-              console.log(`[UPLOAD] Risposta server: status ${response.status}`);
-              
-              if (!response.ok) {
-                return response.text().then(text => {
-                  console.error(`[UPLOAD] Errore server (${response.status}):`, text);
-                  throw new Error(`Errore server: ${response.status} - ${text}`);
-                });
-              }
-              return response.json();
-            })
-            .then(data => {
-              console.log(`[UPLOAD] Risposta upload completa:`, data);
-              if (data.success) {
-                console.log(`[UPLOAD] Audio file caricato con successo:`, data.fileUrl);
-                resolve(data.fileUrl);
-              } else {
-                console.error(`[UPLOAD] Errore nel caricare audio:`, data.error);
-                reject(new Error(`Errore nel caricare audio: ${data.error}`));
-              }
-            })
-            .catch(error => {
-              clearTimeout(timeoutId);
-              if (error.name === 'AbortError') {
-                console.error(`[UPLOAD] Upload interrotto per timeout dopo ${uploadTimeout/1000} secondi`);
-                reject(new Error(`Timeout durante l'upload del file. Prova con un file più piccolo o verifica la connessione.`));
-              } else {
-                console.error(`[UPLOAD] Errore di rete nel caricare audio:`, error);
-                reject(new Error(`Errore di rete nel caricare audio: ${error.message}`));
-              }
-            });
-          })
-          .catch(testError => {
-            console.error('[UPLOAD] Errore nel test di connettività pre-upload:', testError);
-            reject(new Error('Errore di connessione al server. Verifica che il server sia attivo.'));
-          });
-        } catch (generalError) {
-          console.error('[UPLOAD] Errore generale:', generalError);
-          reject(new Error(`Errore generale durante l'upload: ${generalError.message}`));
-        }
-      });
-    }
-    
-    // Utility per reset del form
-    function resetForm() {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Crea Release";
-      document.getElementById("submitSpinner").style.display = "none";
-      loadingSpinner.style.display = "none";
-    }
-    
-    // Utility per reset del container tracce
-    function resetTrackContainer() {
-      addTrackBtn.style.display = "none";
-      trackContainer.innerHTML = `
-        <div class="track-item-form">
-          <input type="text" placeholder="Titolo Traccia" class="track-title" required />
-          <input type="file" accept="audio/*" class="track-file" required />
-        </div>
-      `;
-    }
-    
-  } catch (err) {
-    console.error("Errore generale:", err);
-    feedback.textContent = "Errore: " + err.message;
-    loadingSpinner.style.display = "none";
-    
-    // Riabilitiamo il pulsante
+  } catch (error) {
+    console.error("[RELEASE] Errore:", error);
+    feedback.textContent = `Errore: ${error.message}`;
+  } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Crea Release";
-    document.getElementById("submitSpinner").style.display = "none";
   }
 });
-
-// Funzione per convertire dataURI in Blob
-function dataURItoBlob(dataURI) {
-  try {
-    // Verifico validità del dataURI
-    if (!dataURI || typeof dataURI !== 'string') {
-      console.error('[BLOB] DataURI non valido:', dataURI ? typeof dataURI : 'null');
-      throw new Error('DataURI non valido');
-    }
-    
-    // Controllo formato dataURI
-    if (!dataURI.startsWith('data:')) {
-      console.error('[BLOB] Formato dataURI non valido:', dataURI.substring(0, 30) + '...');
-      throw new Error('Formato dataURI non valido');
-    }
-    
-    const parts = dataURI.split(',');
-    if (parts.length !== 2) {
-      console.error('[BLOB] Divisione dataURI fallita:', parts.length);
-      throw new Error('Formato dataURI non valido (divisione)');
-    }
-    
-    // Convertiamo il dataURI in un array binario
-    const byteString = atob(parts[1]);
-    console.log(`[BLOB] Lunghezza byteString dopo decodifica base64: ${byteString.length} bytes`);
-    
-    // Estraiamo il MIME type
-    const mimeString = parts[0].split(':')[1].split(';')[0];
-    console.log(`[BLOB] MIME type estratto: ${mimeString}`);
-    
-    // Creiamo un array tipizzato
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    
-    // Convertiamo in binario
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    
-    const blob = new Blob([ab], {type: mimeString});
-    console.log(`[BLOB] Blob creato con successo: ${blob.size} bytes, tipo: ${blob.type}`);
-    return blob;
-  } catch (error) {
-    console.error('[BLOB] Errore nella conversione dataURI a Blob:', error);
-    throw error;
-  }
-}
 
 // Carica le release dell'utente
 function loadUserReleases() {
   userReleases.innerHTML = '<p>Caricamento delle tue release...</p>';
   let found = false;
 
-  gun.get('releases').map().on((release, id) => {
-    if (!release) return;
-    if (release.creator !== username) return;
-
-    found = true;
+  gun.get('all_releases').map().once((release, key) => {
+    if (!release || !release.id || release.creator !== username) return;
     
-    // Controlla se l'elemento esiste già
-    let releaseElement = document.getElementById('release-' + id);
+    found = true;
+    console.log("[LOAD] Release trovata:", release);
+    
+    let releaseElement = document.getElementById('release-' + release.id);
     if (!releaseElement) {
       releaseElement = document.createElement('div');
-      releaseElement.id = 'release-' + id;
+      releaseElement.id = 'release-' + release.id;
       releaseElement.className = 'release-item';
       userReleases.appendChild(releaseElement);
     }
@@ -760,23 +713,21 @@ function loadUserReleases() {
       <h3>${release.title || 'Untitled'}</h3>
       <p>${release.type === 'single' ? 'Single' : 'EP'} - ${release.date || ''}</p>
       <p>
-        <a href="release.html?id=${id}" target="_blank">Visualizza</a> | 
-        <a href="#" class="delete-release" data-id="${id}">Elimina</a>
+        <a href="release.html?id=${release.id}" target="_blank">Visualizza</a> | 
+        <a href="#" class="delete-release" data-id="${release.id}">Elimina</a>
       </p>
     `;
 
-    // Aggiungi listener per eliminazione
     releaseElement.querySelector('.delete-release').addEventListener('click', function(e) {
       e.preventDefault();
       if (confirm('Sei sicuro di voler eliminare questa release?')) {
         const releaseId = this.getAttribute('data-id');
-        gun.get('releases').get(releaseId).put(null);
+        gun.get(`release_${releaseId}`).put(null);
         document.getElementById('release-' + releaseId).remove();
       }
     });
   });
 
-  // Se non ci sono release dopo 2 secondi, mostra un messaggio
   setTimeout(() => {
     if (!found && userReleases.innerHTML.includes('Caricamento')) {
       userReleases.innerHTML = '<p>Non hai ancora creato release. Usa il form sopra per iniziare!</p>';
@@ -800,10 +751,8 @@ document.addEventListener('click', function(e) {
         submitBtn.click();
       } else {
         // Altrimenti, eseguiamo direttamente la logica di submit
-        alert('Implementazione di fallback: gestione diretta della creazione release');
-        // Qui potremmo duplicare la logica dell'event listener di submitBtn
-        // Ma per semplicità, reindiriziamo all'intera pagina per ricaricarla correttamente
-        window.location.reload();
+        console.error('Pulsante submitBtn non trovato, impossibile procedere');
+        feedback.textContent = "Errore: Impossibile trovare il pulsante di submit. Ricarica la pagina.";
       }
     }
   }

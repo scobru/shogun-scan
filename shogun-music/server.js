@@ -49,45 +49,151 @@ const pb = new PocketBase(pbUrl);
 const ADMIN_EMAIL = process.env.PB_ADMIN_EMAIL || 'admin@example.com';
 const ADMIN_PASSWORD = process.env.PB_ADMIN_PASSWORD || 'admin123456';
 
+// Log delle credenziali
+console.log('Email admin predefinita:', ADMIN_EMAIL);
+console.log('Password admin predefinita:', ADMIN_PASSWORD);
+console.log('Per modificare le credenziali admin, usa le variabili d\'ambiente PB_ADMIN_EMAIL e PB_ADMIN_PASSWORD');
+console.log('Es: PB_ADMIN_EMAIL=mia@email.com PB_ADMIN_PASSWORD=miapassword npm run dev');
+
 // Test connessione PocketBase con retry e autenticazione
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 5000; // 5 secondi
+const MAX_RETRIES = 5; // Aumentiamo i tentativi
+const RETRY_DELAY = 3000; // Ridotto a 3 secondi per essere più reattivi
 
 // Configurazione server con timeout più lungo per file grandi
 const serverTimeout = 5 * 60 * 1000; // 5 minuti
 
+// Sistema di fallback per il salvataggio file se PocketBase non è disponibile
+const FALLBACK_STORAGE_DIR = path.join(__dirname, 'fallback_storage');
+
+// Assicuriamoci che la directory esista
+if (!fs.existsSync(FALLBACK_STORAGE_DIR)) {
+  try {
+    fs.mkdirSync(FALLBACK_STORAGE_DIR, { recursive: true });
+    console.log(`[FALLBACK] Directory di storage creata: ${FALLBACK_STORAGE_DIR}`);
+  } catch (err) {
+    console.error(`[FALLBACK] Errore creazione directory: ${err.message}`);
+  }
+}
+
+// Funzione per salvare un file con il sistema di fallback
+function saveFallbackFile(fileName, data, mimeType) {
+  return new Promise((resolve, reject) => {
+    try {
+      const filePath = path.join(FALLBACK_STORAGE_DIR, fileName);
+      
+      // Se il dato è in formato data URI (base64), estraiamo i dati binari
+      if (typeof data === 'string' && data.startsWith('data:')) {
+        // Estrai i dati binari dal data URI
+        const base64Data = data.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        fs.writeFile(filePath, buffer, (err) => {
+          if (err) {
+            console.error(`[FALLBACK] Errore salvataggio file: ${err.message}`);
+            reject(err);
+          } else {
+            console.log(`[FALLBACK] File salvato con successo: ${filePath}`);
+            
+            // Crea un URL accessibile
+            const fileUrl = `/fallback/${fileName}`;
+            resolve({
+              success: true,
+              fileUrl,
+              filePath
+            });
+          }
+        });
+      } else if (Buffer.isBuffer(data)) {
+        // Se è già un buffer, salvalo direttamente
+        fs.writeFile(filePath, data, (err) => {
+          if (err) {
+            console.error(`[FALLBACK] Errore salvataggio file: ${err.message}`);
+            reject(err);
+          } else {
+            console.log(`[FALLBACK] File salvato con successo: ${filePath}`);
+            
+            // Crea un URL accessibile
+            const fileUrl = `/fallback/${fileName}`;
+            resolve({
+              success: true,
+              fileUrl,
+              filePath
+            });
+          }
+        });
+      } else {
+        console.error(`[FALLBACK] Formato dati non supportato`);
+        reject(new Error('Formato dati non supportato'));
+      }
+    } catch (error) {
+      console.error(`[FALLBACK] Errore generale: ${error.message}`);
+      reject(error);
+    }
+  });
+}
+
 async function initializePocketBase(retryCount = 0) {
   try {
-    console.log('Test connessione PocketBase...');
+    console.log(`[PB] Test connessione PocketBase (tentativo ${retryCount + 1}/${MAX_RETRIES})...`);
     const health = await pb.health.check();
-    console.log('PocketBase è attivo:', health);
+    console.log('[PB] PocketBase è attivo:', health);
     
     // Tentiamo di autenticarci come ADMIN (non come utente)
     try {
-      console.log(`Tentativo di autenticazione admin con ${ADMIN_EMAIL}...`);
+      console.log(`[PB] Tentativo di autenticazione admin con ${ADMIN_EMAIL}...`);
       
-      // Utilizziamo l'autenticazione tramite collection _superusers
-      const authData = await pb.collection('_superusers').authWithPassword(
-        ADMIN_EMAIL,
-        ADMIN_PASSWORD
-      );
-      
-      console.log('Autenticazione riuscita come ADMIN');
-      console.log('Stato autenticazione:', pb.authStore.isValid ? 'Autenticato' : 'Non autenticato');
-      console.log('Admin autenticato:', pb.authStore.model?.email);
-      return true;
+      // Utilizziamo l'autenticazione tramite collection admin
+      try {
+        // Prima proviamo con _superusers (nuova versione PB)
+        const authData = await pb.collection('_superusers').authWithPassword(
+          ADMIN_EMAIL,
+          ADMIN_PASSWORD
+        );
+        console.log('[PB] Autenticazione riuscita come ADMIN (_superusers)');
+        console.log('[PB] Admin autenticato:', pb.authStore.model?.email);
+        return true;
+      } catch (err) {
+        // Se fallisce, prova con l'endpoint regolare admin (versioni older)
+        console.log('[PB] Tentativo fallito con _superusers, provo con admin...');
+        const authData = await pb.admins.authWithPassword(
+          ADMIN_EMAIL,
+          ADMIN_PASSWORD
+        );
+        console.log('[PB] Autenticazione riuscita come ADMIN (admin)');
+        console.log('[PB] Admin autenticato:', pb.authStore.model?.email);
+        return true;
+      }
     } catch (authError) {
-      console.error('Errore autenticazione admin:', authError);
-      console.warn('Continuiamo senza autenticazione admin: alcune funzionalità potrebbero non essere disponibili');
+      console.error('[PB] Errore autenticazione admin:', authError);
+      
+      // Se siamo all'ultimo tentativo, suggerisco di verificare le credenziali
+      if (retryCount >= MAX_RETRIES - 1) {
+        console.error('[PB] ATTENZIONE: Tutti i tentativi di autenticazione falliti!');
+        console.error('[PB] Verifica che:');
+        console.error(`[PB] 1. L'utente admin ${ADMIN_EMAIL} esista in PocketBase`);
+        console.error('[PB] 2. La password sia corretta');
+        console.error('[PB] 3. PocketBase sia in esecuzione all\'URL:', pbUrl);
+        console.error('[PB] Puoi modificare le credenziali usando le variabili d\'ambiente:');
+        console.error('[PB] PB_ADMIN_EMAIL=mia@email.com PB_ADMIN_PASSWORD=miapassword npm run dev');
+      }
+      
+      // Continua comunque, anche se alcune funzionalità saranno limitate
+      console.warn('[PB] Continuiamo senza autenticazione admin: alcune funzionalità potrebbero non essere disponibili');
       return false;
     }
   } catch (error) {
-    console.error('ERRORE CRITICO - PocketBase non raggiungibile:', error);
+    console.error('[PB] ERRORE CRITICO - PocketBase non raggiungibile:', error);
     if (retryCount < MAX_RETRIES) {
-      console.log(`Nuovo tentativo tra ${RETRY_DELAY/1000} secondi...`);
+      console.log(`[PB] Nuovo tentativo (${retryCount + 2}/${MAX_RETRIES}) tra ${RETRY_DELAY/1000} secondi...`);
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       return await initializePocketBase(retryCount + 1);
     }
+    console.error('[PB] Impossibile connettersi a PocketBase dopo tutti i tentativi');
+    console.error('[PB] Verifica che:');
+    console.error('[PB] 1. PocketBase sia in esecuzione all\'URL:', pbUrl);
+    console.error('[PB] 2. Non ci siano firewall che bloccano la connessione');
+    console.error('[PB] Puoi modificare l\'URL usando la variabile d\'ambiente:');
+    console.error('[PB] POCKETBASE_URL=http://mio-server:8090 npm run dev');
     return false;
   }
 }
@@ -116,7 +222,7 @@ async function initializePocketBase(retryCount = 0) {
         
         // Creazione collection per dati Gun
         const adapter = new GunPocketBaseAdapter();
-        const gunCollectionCreated = await adapter._ensureCollection(adapter.collectionName);
+        const gunCollectionCreated = await adapter.ensureCollections();
         console.log('Collection gun_data:', gunCollectionCreated ? 'creata/esistente' : 'errore');
       } catch (error) {
         console.error('Errore inizializzazione collection:', error);
@@ -132,16 +238,39 @@ async function initializePocketBase(retryCount = 0) {
       console.log(`Server in ascolto sulla porta ${port}`);
     });
 
-    // Inizializziamo GunDB
+    // Inizializziamo GunDB con configurazione migliorata
     const gun = Gun({
       web: server,
-      radisk: false,
       file: false,
+      radisk: false,
       localStorage: false,
-      multicast: false
+      multicast: false,
+      peers: [`http://localhost:${port}/gun`],
+      axe: false // Disabilitiamo AXE per debug
     });
 
-    console.log('[GUN] Inizializzazione completata');
+    // Log dettagliato per ogni connessione peer
+    gun.on('hi', peer => {
+      console.log('[GUN] Nuovo peer connesso:', peer);
+    });
+
+    gun.on('bye', peer => {
+      console.log('[GUN] Peer disconnesso:', peer);
+    });
+
+    // Listener per tutti i messaggi PUT
+    gun.on('put', function(msg) {
+      console.log('[GUN] Messaggio PUT ricevuto:', {
+        key: msg.put ? Object.keys(msg.put)[0] : 'N/A',
+        data: msg.put,
+        peer: msg['#']
+      });
+    });
+
+    console.log('[GUN] Inizializzazione completata con configurazione:', {
+      port: port,
+      peers: gun._.opt.peers
+    });
 
     // Aggiungiamo middleware per log dettagliati
     app.use((req, res, next) => {
@@ -194,8 +323,10 @@ async function initializePocketBase(retryCount = 0) {
     });
 
     // Registriamo l'adapter personalizzato
-    Gun.on('create', function(root) {
+    gun.on('create', function(root) {
+      console.log('[GUN] ==========================================');
       console.log('[GUN] Evento create attivato');
+      console.log('[GUN] Root options:', root.opt);
       this.to.next(root);
       
       // Registra l'adapter per Gun come store
@@ -205,7 +336,11 @@ async function initializePocketBase(retryCount = 0) {
       
       root.opt.store = {
         put: (key, data, callback) => {
-          console.log(`[GUN PUT] Richiesta PUT per la chiave: ${key}, dimensione dati: ${JSON.stringify(data).length} caratteri`);
+          console.log(`[GUN DEBUG] ==========================================`);
+          console.log(`[GUN DEBUG] Richiesta PUT ricevuta`);
+          console.log(`[GUN DEBUG] Chiave:`, key);
+          console.log(`[GUN DEBUG] Tipo dati:`, typeof data);
+          console.log(`[GUN DEBUG] Dati completi:`, JSON.stringify(data, null, 2));
           
           // Verifichiamo che i dati siano validi
           if (!data) {
@@ -213,33 +348,29 @@ async function initializePocketBase(retryCount = 0) {
             callback(new Error('Dati non validi'));
             return;
           }
-          
-          // Log più dettagliato
-          const dataKeys = Object.keys(data);
-          console.log(`[GUN PUT] Chiave: ${key}, Proprietà: ${dataKeys.join(', ')}`);
-          
-          // Alcuni dati hanno sottochiavi '#'
-          if (data['#']) {
-            console.log(`[GUN PUT] Rilevata chiave speciale '#': ${data['#']}`);
+
+          // Log aggiuntivo per release
+          if (key.startsWith('releases/')) {
+            console.log('[GUN PUT] Rilevata richiesta salvataggio release');
+            console.log('[GUN PUT] Release ID:', key.split('/')[1]);
           }
           
           // Chiamiamo l'adapter con gestione errori migliorata
           adapter.put(key, data, (err) => {
             if (err) {
               console.error(`[GUN PUT] Errore per chiave ${key}:`, err);
-              
-              // Aggiungiamo un secondo tentativo
-              console.log(`[GUN PUT] Secondo tentativo per chiave ${key}...`);
-              adapter.put(key, data, (secondErr) => {
-                if (secondErr) {
-                  console.error(`[GUN PUT] Anche il secondo tentativo è fallito per chiave ${key}:`, secondErr);
-                } else {
-                  console.log(`[GUN PUT] Secondo tentativo riuscito per chiave ${key}`);
-                }
-                callback(secondErr);
-              });
+              console.error(`[GUN PUT] Stack trace:`, err.stack);
+              callback(err);
             } else {
               console.log(`[GUN PUT] Successo per chiave ${key}`);
+              // Verifichiamo che i dati siano stati effettivamente salvati
+              adapter.get(key, (getErr, savedData) => {
+                if (getErr) {
+                  console.error(`[GUN PUT] Errore verifica salvataggio:`, getErr);
+                } else {
+                  console.log(`[GUN PUT] Verifica salvataggio:`, savedData);
+                }
+              });
               callback(null);
             }
           });
@@ -251,7 +382,7 @@ async function initializePocketBase(retryCount = 0) {
               console.error(`[GUN GET] Errore per chiave ${key}:`, err);
               callback(err, null);
             } else if (data) {
-              console.log(`[GUN GET] Dati trovati per chiave ${key} (${typeof data}): ${Object.keys(data).join(', ')}`);
+              console.log(`[GUN GET] Dati trovati per chiave ${key}:`, data);
               callback(null, data);
             } else {
               console.log(`[GUN GET] Nessun dato per chiave ${key}`);
@@ -260,6 +391,16 @@ async function initializePocketBase(retryCount = 0) {
           });
         }
       };
+
+      // Aggiungiamo listener per debug
+      root.on('put', function(msg) {
+        console.log('[GUN] Evento PUT ricevuto:', {
+          key: msg.put ? Object.keys(msg.put)[0] : 'N/A',
+          data: msg.put
+        });
+      });
+
+      console.log('[GUN] ==========================================');
     });
   } catch (error) {
     console.error('Errore fatale durante l\'inizializzazione:', error);
@@ -269,6 +410,9 @@ async function initializePocketBase(retryCount = 0) {
 
 // Serviamo i file statici dalla cartella "public"
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Servi i file salvati con il fallback system
+app.use('/fallback', express.static(FALLBACK_STORAGE_DIR));
 
 console.log('Email admin:', ADMIN_EMAIL);
 console.log('Password admin:', ADMIN_PASSWORD);
@@ -427,66 +571,40 @@ async function createAudioFilesCollection() {
 // Implementazione GunDB PocketBase Adapter
 class GunPocketBaseAdapter {
   constructor() {
+    this.pb = pb;
     this.collectionName = 'gun_data';
     console.log('[ADAPTER] Inizializzazione GunPocketBaseAdapter');
-    // Inizializziamo al primo utilizzo, non nel costruttore
   }
 
-  // Metodo semplificato per controllare/creare la collection
-  async _ensureCollection(collectionName) {
+  async ensureCollections() {
     try {
-      // Verifichiamo che siamo autenticati (l'autenticazione con _superusers implica già che siamo admin)
-      if (!pb.authStore.isValid) {
-        console.warn(`[ADAPTER] Creazione "${collectionName}" richiede autenticazione ADMIN`);
-        // Tentiamo una nuova autenticazione admin
-        try {
-          console.log('[ADAPTER] Tentativo di autenticazione admin...');
-          await pb.collection('_superusers').authWithPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
-          console.log('[ADAPTER] Autenticazione admin riuscita');
-        } catch (authError) {
-          console.error('[ADAPTER] Impossibile autenticarsi come admin:', authError);
-          return false;
-        }
-      }
-      
-      // Verifichiamo nuovamente solo la validità dell'autenticazione
-      if (!pb.authStore.isValid) {
-        console.error('[ADAPTER] Autenticazione admin fallita, impossibile creare collection');
+      // Verifica autenticazione
+      if (!this.pb.authStore.isValid) {
+        console.warn('[ADAPTER] Creazione collection richiede autenticazione ADMIN');
         return false;
       }
-      
-      // Loghiamo le info sull'utente autenticato per debug
-      console.log('[ADAPTER] Autenticazione corrente:', {
-        isValid: pb.authStore.isValid,
-        model: pb.authStore.model ? {
-          id: pb.authStore.model.id,
-          email: pb.authStore.model.email,
-          collection: pb.authStore.model.collectionName || pb.authStore.model.collection
-        } : null
-      });
-      
-      console.log(`[ADAPTER] Verifica esistenza collection "${collectionName}"...`);
+
+      console.log('[ADAPTER] Verifica collection gun_data...');
       
       try {
         // Verifica se esiste
-        await pb.collections.getOne(collectionName);
-        console.log(`[ADAPTER] Collection "${collectionName}" trovata`);
+        await this.pb.collections.getOne('gun_data');
+        console.log('[ADAPTER] Collection gun_data trovata');
         return true;
       } catch (error) {
-        // Se non esiste (404), proviamo a crearla
+        // Se non esiste (404), la creiamo
         if (error.status === 404) {
-          console.log(`[ADAPTER] Collection "${collectionName}" non trovata, creazione...`);
+          console.log('[ADAPTER] Collection gun_data non trovata, creazione...');
           
           try {
-            const collection = await pb.collections.create({
-              name: collectionName,
+            const collection = await this.pb.collections.create({
+              name: 'gun_data',
               type: 'base',
-              // Permessi aperti per tutti
-              listRule: '',    // chiunque può visualizzare la lista
-              viewRule: '',    // chiunque può visualizzare i record
-              createRule: '',  // chiunque può creare record
-              updateRule: '',  // chiunque può aggiornare record
-              deleteRule: '',  // chiunque può eliminare record
+              listRule: '',
+              viewRule: '',
+              createRule: '',
+              updateRule: '',
+              deleteRule: '',
               schema: [
                 {
                   name: 'key',
@@ -496,187 +614,179 @@ class GunPocketBaseAdapter {
                 {
                   name: 'data',
                   type: 'json',
-                  required: true
+                  required: false
+                },
+                {
+                  name: 'type',
+                  type: 'text',
+                  required: false
                 }
               ]
             });
             
-            console.log(`[ADAPTER] Collection "${collectionName}" creata con successo (ID: ${collection.id})`);
-            
-            try {
-              await pb.collections.createIndex(collectionName, {
-                field: 'key',
-                unique: true
-              });
-              console.log(`[ADAPTER] Indice creato su campo "key"`);
-            } catch (indexError) {
-              console.warn(`[ADAPTER] Errore creazione indice: ${indexError.message}`);
-            }
-            
+            console.log('[ADAPTER] Collection gun_data creata con successo');
             return true;
           } catch (createError) {
-            console.error(`[ADAPTER] Errore creazione: ${createError.message}`);
+            console.error('[ADAPTER] Errore creazione collection:', createError);
             return false;
           }
         } else {
-          console.error(`[ADAPTER] Errore verifica: ${error.message}`);
+          console.error('[ADAPTER] Errore verifica collection:', error);
           return false;
         }
       }
     } catch (error) {
-      console.error(`[ADAPTER] Errore generale: ${error.message}`);
+      console.error('[ADAPTER] Errore generale:', error);
       return false;
     }
   }
 
-  async put(key, data, callback) {
+  put(key, data, callback) {
+    console.log('[ADAPTER] ==========================================');
+    console.log('[ADAPTER] PUT richiesto per chiave:', key);
+    console.log('[ADAPTER] Tipo dati:', typeof data);
+
     try {
-      console.log(`[ADAPTER PUT] Inizio operazione PUT per chiave: ${key}`);
-      console.log(`[ADAPTER PUT] Tipo di dati:`, typeof data);
-      console.log(`[ADAPTER PUT] Dimensione dati: ${JSON.stringify(data).length} bytes`);
-      
-      if (!key) {
-        console.error(`[ADAPTER PUT] Errore: chiave non valida`, key);
-        callback(new Error('Chiave non valida'));
-        return;
-      }
-      
+      // Verifichiamo che i dati siano validi
       if (!data) {
-        console.error(`[ADAPTER PUT] Errore: dati non validi`, data);
+        console.error('[ADAPTER] Dati non validi');
         callback(new Error('Dati non validi'));
         return;
       }
-      
-      // 1. Assicuriamoci che la collection esista
-      console.log(`[ADAPTER PUT] Verifica esistenza collection...`);
-      const collectionExists = await this._ensureCollection(this.collectionName);
-      
-      if (!collectionExists) {
-        console.error(`[ADAPTER PUT] La collection non esiste e non può essere creata`);
-        callback(new Error('Collection non disponibile'));
+
+      // Gestiamo diversi tipi di dati
+      if (key === 'all_releases') {
+        console.log('[ADAPTER] Inizializzazione nodo all_releases');
+        this._saveToGunData(key, data, 'node', callback);
         return;
       }
-      
-      // 2. Prepariamo i dati da salvare
-      console.log(`[ADAPTER PUT] Preparazione dati per salvataggio...`);
-      const saveData = {
-        key: key,
-        data: JSON.stringify(data)
-      };
-      
-      // 3. Verifichiamo se esiste già un record
-      console.log(`[ADAPTER PUT] Verifica esistenza record con chiave "${key}"...`);
-      try {
-        const existingRecords = await pb.collection(this.collectionName).getList(1, 1, {
-          filter: `key = "${key}"`
-        });
+
+      // Gestiamo le release
+      if (key.startsWith('release_')) {
+        console.log('[ADAPTER] Salvataggio release');
         
-        if (existingRecords.items.length > 0) {
-          // Aggiorniamo il record esistente
-          const recordId = existingRecords.items[0].id;
-          console.log(`[ADAPTER PUT] Record esistente trovato (ID: ${recordId}), aggiornamento...`);
-          
-          try {
-            await pb.collection(this.collectionName).update(recordId, saveData);
-            console.log(`[ADAPTER PUT] Record aggiornato con successo: ${key}`);
-            callback(null);
-          } catch (updateError) {
-            console.error(`[ADAPTER PUT] Errore aggiornamento record:`, updateError);
-            // Facciamo un secondo tentativo se c'è un errore
-            try {
-              console.log(`[ADAPTER PUT] Secondo tentativo di aggiornamento...`);
-              await pb.collection(this.collectionName).update(recordId, saveData);
-              console.log(`[ADAPTER PUT] Record aggiornato con successo al secondo tentativo: ${key}`);
-              callback(null);
-            } catch (e) {
-              console.error('[ADAPTER PUT] Errore critico nel secondo tentativo:', e);
-              callback(e);
+        // Se c'è un artwork in base64, lo salviamo separatamente
+        let processedData = { ...data };
+        if (data.artwork && data.artwork.startsWith('data:')) {
+          const artworkKey = `artwork_${data.id}`;
+          this._saveBinaryData(artworkKey, data.artwork, (err, artworkUrl) => {
+            if (err) {
+              console.error('[ADAPTER] Errore salvataggio artwork:', err);
+              processedData.artwork = '';
+            } else {
+              processedData.artwork = artworkUrl;
             }
-          }
+            this._saveToGunData(key, processedData, 'release', callback);
+          });
         } else {
-          // Creiamo un nuovo record
-          console.log(`[ADAPTER PUT] Nessun record esistente, creazione nuovo record per chiave "${key}"...`);
-          
-          try {
-            const record = await pb.collection(this.collectionName).create(saveData);
-            console.log(`[ADAPTER PUT] Nuovo record creato con successo: ${key} (ID: ${record.id})`);
-            callback(null);
-          } catch (createError) {
-            console.error('[ADAPTER PUT] Errore creazione record:', createError);
-            callback(createError);
-          }
+          this._saveToGunData(key, processedData, 'release', callback);
         }
-      } catch (e) {
-        console.error('[ADAPTER PUT] Errore verifica record esistente:', e);
-        
-        // Se non riusciamo a verificare, proviamo a creare direttamente
-        try {
-          console.log(`[ADAPTER PUT] Tentativo diretto di creazione record...`);
-          const record = await pb.collection(this.collectionName).create(saveData);
-          console.log(`[ADAPTER PUT] Record creato con approccio di fallback: ${key}`);
-          callback(null);
-        } catch (directCreateError) {
-          console.error('[ADAPTER PUT] Errore anche nel tentativo diretto:', directCreateError);
-          callback(directCreateError);
-        }
+        return;
       }
+
+      // Gestiamo le tracce
+      if (key.startsWith('track_')) {
+        console.log('[ADAPTER] Salvataggio traccia');
+        
+        // Se c'è un file audio in base64, lo salviamo separatamente
+        let processedData = { ...data };
+        if (data.audioData && data.audioData.startsWith('data:')) {
+          const audioKey = `audio_${data.id}`;
+          this._saveBinaryData(audioKey, data.audioData, (err, audioUrl) => {
+            if (err) {
+              console.error('[ADAPTER] Errore salvataggio audio:', err);
+              processedData.audioData = '';
+            } else {
+              processedData.audioUrl = audioUrl;
+              delete processedData.audioData;
+            }
+            this._saveToGunData(key, processedData, 'track', callback);
+          });
+        } else {
+          this._saveToGunData(key, processedData, 'track', callback);
+        }
+        return;
+      }
+
+      // Altri tipi di dati
+      this._saveToGunData(key, data, 'generic', callback);
+
     } catch (error) {
-      console.error('[ADAPTER PUT] Errore critico:', error);
+      console.error('[ADAPTER] Errore generale:', error);
       callback(error);
     }
   }
 
-  async get(key, callback) {
-    try {
-      console.log(`[ADAPTER GET] Inizio operazione GET per chiave: ${key}`);
-      
-      if (!key) {
-        console.error(`[ADAPTER GET] Errore: chiave non valida`, key);
-        callback(new Error('Chiave non valida'), null);
-        return;
-      }
-      
-      // 1. Assicuriamoci che la collection esista
-      const collectionExists = await this._ensureCollection(this.collectionName);
-      if (!collectionExists) {
-        console.log(`[ADAPTER GET] Collection non disponibile, ritorno null`);
-        callback(null, null);
-        return;
-      }
-      
-      // 2. Tentiamo di recuperare il record
-      console.log(`[ADAPTER GET] Ricerca record con chiave "${key}"...`);
-      try {
-        const records = await pb.collection(this.collectionName).getList(1, 1, {
-          filter: `key = "${key}"`
+  _saveToGunData(key, data, type, callback) {
+    const saveData = {
+      key: key,
+      data: data,
+      type: type,
+      timestamp: Date.now()
+    };
+
+    this.pb.collection('gun_data').create(saveData).then(() => {
+      console.log(`[ADAPTER] Dati tipo ${type} salvati con successo`);
+      callback(null);
+    }).catch(err => {
+      if (err.status === 400 && err.data.code === 'record_not_unique') {
+        // Aggiorniamo il record esistente
+        this.pb.collection('gun_data').getFirstListItem(`key="${key}"`).then(record => {
+          this.pb.collection('gun_data').update(record.id, saveData).then(() => {
+            console.log(`[ADAPTER] Dati tipo ${type} aggiornati con successo`);
+            callback(null);
+          });
         });
-        
-        if (records.items.length > 0) {
-          // Record trovato
-          const record = records.items[0];
-          console.log(`[ADAPTER GET] Record trovato (ID: ${record.id})`);
-          
-          let data = null;
-          try {
-            data = JSON.parse(record.data);
-            console.log(`[ADAPTER GET] Dati estratti con successo per chiave: ${key}`);
-          } catch (parseError) {
-            console.error('[ADAPTER GET] Errore parsing JSON:', parseError);
-          }
-          
-          callback(null, data);
-        } else {
-          console.log(`[ADAPTER GET] Nessun dato trovato per chiave: ${key}`);
-          callback(null, null);
-        }
-      } catch (e) {
-        console.error('[ADAPTER GET] Errore recupero record:', e);
-        callback(null, null);
+      } else {
+        console.error('[ADAPTER] Errore salvataggio:', err);
+        callback(err);
       }
+    });
+  }
+
+  _saveBinaryData(key, dataUri, callback) {
+    try {
+      const matches = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) {
+        callback(new Error('Formato data URI non valido'));
+        return;
+      }
+
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      const extension = mimeType.split('/')[1];
+      const fileName = `${key}.${extension}`;
+
+      // Salviamo usando il meccanismo di fallback
+      saveFallbackFile(fileName, buffer, mimeType).then(result => {
+        console.log(`[ADAPTER] File binario salvato: ${result.fileUrl}`);
+        callback(null, result.fileUrl);
+      }).catch(err => {
+        console.error('[ADAPTER] Errore salvataggio file binario:', err);
+        callback(err);
+      });
     } catch (error) {
-      console.error('[ADAPTER GET] Errore critico:', error);
-      callback(null, null);
+      console.error('[ADAPTER] Errore processamento dati binari:', error);
+      callback(error);
     }
+  }
+
+  get(key, callback) {
+    console.log('[ADAPTER] GET richiesto per chiave:', key);
+    
+    this.pb.collection('gun_data').getFirstListItem(`key="${key}"`).then(record => {
+      console.log('[ADAPTER] Dati trovati:', record);
+      callback(null, record.data);
+    }).catch(err => {
+      if (err.status === 404) {
+        console.log('[ADAPTER] Nessun dato trovato per la chiave:', key);
+        callback(null, null);
+      } else {
+        console.error('[ADAPTER] Errore recupero dati:', err);
+        callback(err);
+      }
+    });
   }
 }
 
@@ -843,179 +953,70 @@ app.post('/upload/audio', upload.single('audioFile'), async (req, res) => {
   try {
     console.log('[UPLOAD] Richiesta caricamento file audio ricevuta');
     
-    // Verifichiamo che il file sia stato caricato
     if (!req.file) {
-      console.error('[UPLOAD] Errore: Nessun file audio ricevuto nella richiesta');
+      console.error('[UPLOAD] Errore: Nessun file audio ricevuto');
       return res.status(400).json({
         success: false,
         error: 'Nessun file audio caricato'
       });
     }
     
-    // Verifichiamo che sia fornito un trackId
     const { trackId } = req.body;
     if (!trackId) {
-      console.error('[UPLOAD] Errore: Nessun trackId fornito nella richiesta');
+      console.error('[UPLOAD] Errore: Nessun trackId fornito');
       return res.status(400).json({
         success: false,
         error: 'trackId è obbligatorio'
       });
     }
     
-    console.log(`[UPLOAD] File ricevuto: "${req.file.originalname}", Tipo: ${req.file.mimetype}, Dimensione: ${req.file.size} bytes, Salvato in: ${req.file.path}, Track ID: ${trackId}`);
-    console.log(`[UPLOAD] Headers richiesta: ${JSON.stringify(req.headers['content-type'])}`);
-    console.log(`[UPLOAD] Body parametri: ${JSON.stringify(Object.keys(req.body))}`);
+    console.log(`[UPLOAD] File ricevuto: "${req.file.originalname}", Tipo: ${req.file.mimetype}, Dimensione: ${req.file.size} bytes`);
     
     try {
-      // Controlliamo se siamo autenticati, altrimenti proviamo a riautenticarci
-      if (!pb.authStore.isValid) {
-        console.warn('[UPLOAD] Autenticazione non valida, tentativo di riautenticazione...');
-        try {
-          await pb.collection('_superusers').authWithPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
-          console.log('[UPLOAD] Riautenticazione riuscita');
-        } catch (authError) {
-          console.error('[UPLOAD] Errore di riautenticazione:', authError);
-          // Continuiamo comunque, potrebbe funzionare senza autenticazione se la collection ha permessi aperti
-        }
-      }
+      // Leggiamo il file come Base64
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const base64Data = fileBuffer.toString('base64');
+      const dataUri = `data:${req.file.mimetype};base64,${base64Data}`;
       
-      console.log(`[UPLOAD] Stato autenticazione PocketBase: ${pb.authStore.isValid ? 'Autenticato' : 'Non autenticato'}`);
+      // Creiamo il path in Gun per questo file audio
+      const audioPath = `releases/${trackId.split('_')[0]}/tracks/${trackId.split('_')[1]}/audioData`;
       
-      // Controlliamo se esiste già un record con questo trackId
-      let existingRecord = null;
-      try {
-        const records = await pb.collection('audio_files').getList(1, 1, {
-          filter: `trackId = "${trackId}"`
-        });
-        
-        if (records.items.length > 0) {
-          existingRecord = records.items[0];
-          console.log(`[UPLOAD] Trovato record esistente per trackId "${trackId}"`);
-        }
-      } catch (error) {
-        console.warn(`[UPLOAD] Errore durante la verifica del record esistente: ${error.message}`);
-      }
-      
-      // Creiamo un FormData per PocketBase utilizzando il file su disco
-      console.log('[UPLOAD] Preparazione dati per PocketBase...');
-      
-      // Creiamo un FormData direttamente per l'API di PocketBase
-      const pbFormData = new FormData();
-      
-      // Aggiungiamo i campi di metadati
-      pbFormData.append('trackId', trackId);
-      pbFormData.append('mimeType', req.file.mimetype);
-      
-      // Aggiungiamo il file dal filesystem (non dal buffer in memoria)
-      console.log(`[UPLOAD] Lettura file da disco: ${req.file.path}`);
-      
-      try {
-        // Apriamo il file salvato su disco e lo aggiungiamo
-        const fileStream = fs.createReadStream(req.file.path);
-        pbFormData.append('audioFile', fileStream, {
-          filename: req.file.originalname,
-          contentType: req.file.mimetype
-        });
-        
-        console.log('[UPLOAD] FormData preparato con file da disco e metadati');
-        
-        let record;
-        console.log(`[UPLOAD] Inizio ${existingRecord ? 'aggiornamento' : 'creazione'} record in PocketBase...`);
-        
-        try {
-          if (existingRecord) {
-            // Aggiorniamo il record esistente
-            record = await pb.collection('audio_files').update(existingRecord.id, pbFormData);
-            console.log(`[UPLOAD] Record aggiornato con ID: ${record.id}`);
-          } else {
-            // Creiamo un nuovo record
-            console.log(`[UPLOAD] Tentativo creazione nuovo record in PocketBase con trackId: ${trackId}`);
-            record = await pb.collection('audio_files').create(pbFormData);
-            console.log(`[UPLOAD] Nuovo record creato con ID: ${record.id}`);
-          }
-          
-          // Costruiamo l'URL per accedere al file
-          const fileUrl = `${pbUrl}/api/files/audio_files/${record.id}/${record.audioFile}`;
-          console.log(`[UPLOAD] URL file generato: ${fileUrl}`);
-          
-          // Pulizia file temporaneo
-          try {
-            fs.unlinkSync(req.file.path);
-            console.log(`[UPLOAD] File temporaneo rimosso: ${req.file.path}`);
-          } catch (unlinkError) {
-            console.warn(`[UPLOAD] Impossibile rimuovere file temporaneo: ${unlinkError.message}`);
-          }
-          
-          // Risposta con successo
-          const response = {
-            success: true,
-            message: existingRecord ? 'File audio aggiornato con successo' : 'File audio caricato con successo',
-            fileUrl: fileUrl,
-            recordId: record.id
-          };
-          
-          console.log('[UPLOAD] Invio risposta di successo al client:', response);
-          res.json(response);
-        } catch (pbError) {
-          console.error('[UPLOAD] Errore PocketBase:', pbError);
-          
-          // Dettagli dell'errore per debug
-          if (pbError.response) {
-            console.error('[UPLOAD] Dettagli errore PB:', pbError.response.data || pbError.response);
-            console.error('[UPLOAD] Status errore PB:', pbError.status || 'Unknown');
-            console.error('[UPLOAD] Message errore PB:', pbError.message || 'No message');
-          }
-          
-          // Pulizia file temporaneo
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (unlinkError) {
-            console.warn(`[UPLOAD] Impossibile rimuovere file temporaneo: ${unlinkError.message}`);
-          }
-          
-          throw new Error(`Errore PocketBase: ${pbError.message}`);
-        }
-      } catch (fileError) {
-        console.error('[UPLOAD] Errore gestione file:', fileError);
-        
+      // Salviamo in Gun (che userà l'adapter per salvare in PocketBase)
+      gun.get(audioPath).put({
+        type: 'audio',
+        mimeType: req.file.mimetype,
+        data: dataUri,
+        timestamp: Date.now()
+      }, ack => {
         // Pulizia file temporaneo
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (unlinkError) {
-          console.warn(`[UPLOAD] Impossibile rimuovere file temporaneo: ${unlinkError.message}`);
+        fs.unlinkSync(req.file.path);
+        
+        if(ack.err) {
+          console.error('[UPLOAD] Errore salvataggio in Gun:', ack.err);
+          return res.status(500).json({
+            success: false,
+            error: `Errore durante il salvataggio: ${ack.err}`
+          });
         }
         
-        throw new Error(`Errore gestione file: ${fileError.message}`);
-      }
+        console.log(`[UPLOAD] File audio salvato con successo in Gun al path: ${audioPath}`);
+        
+        res.json({
+          success: true,
+          message: 'File audio caricato con successo',
+          path: audioPath
+        });
+      });
+      
     } catch (error) {
-      console.error('[UPLOAD] Errore durante il caricamento:', error);
-      
-      // Pulizia file temporaneo se esiste
-      if (req.file && req.file.path) {
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (unlinkError) {
-          console.warn(`[UPLOAD] Impossibile rimuovere file temporaneo: ${unlinkError.message}`);
-        }
-      }
-      
+      console.error('[UPLOAD] Errore:', error);
       res.status(500).json({
         success: false,
-        error: error.message || 'Errore durante il caricamento del file'
+        error: `Errore durante il salvataggio: ${error.message}`
       });
     }
   } catch (error) {
     console.error('[UPLOAD] Errore generale:', error);
-    
-    // Pulizia file temporaneo se esiste
-    if (req.file && req.file.path) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (unlinkError) {
-        console.warn(`[UPLOAD] Impossibile rimuovere file temporaneo: ${unlinkError.message}`);
-      }
-    }
-    
     res.status(500).json({
       success: false,
       error: 'Errore interno del server'
@@ -1023,165 +1024,488 @@ app.post('/upload/audio', upload.single('audioFile'), async (req, res) => {
   }
 });
 
-// Endpoint per il salvataggio diretto dei dati delle tracce (soluzione alternativa a Gun)
-app.post('/api/track_data', express.json({ limit: '10mb' }), async (req, res) => {
+// Endpoint per ottenere i dati audio
+app.get('/api/audio/:trackId', async (req, res) => {
+  const { trackId } = req.params;
+  
   try {
-    console.log('[TRACK_DATA] Ricevuta richiesta di salvataggio traccia alternativo');
+    console.log(`[GET AUDIO] Richiesta file audio per trackId: ${trackId}`);
     
-    // Verifichiamo che siano forniti i dati necessari
-    const { title, index, mimeType, fileSize, lastModified, audioUrl, releaseId } = req.body;
+    // Costruiamo il path Gun
+    const [releaseId, trackNum] = trackId.split('_');
+    const audioPath = `releases/${releaseId}/tracks/${trackNum}/audioData`;
     
-    if (!title || !audioUrl || !releaseId) {
-      console.error('[TRACK_DATA] Dati mancanti nella richiesta');
-      return res.status(400).json({
-        success: false,
-        error: 'Dati mancanti: title, audioUrl e releaseId sono obbligatori'
-      });
-    }
-    
-    console.log(`[TRACK_DATA] Salvataggio dati per traccia "${title}" della release ${releaseId}`);
-    
-    try {
-      // Verifichiamo se esiste la collection
-      const collectionName = 'track_data';
-      let collectionExists = false;
-      
-      try {
-        await pb.collections.getOne(collectionName);
-        collectionExists = true;
-        console.log(`[TRACK_DATA] Collection "${collectionName}" trovata`);
-      } catch (error) {
-        if (error.status === 404) {
-          console.log(`[TRACK_DATA] Collection "${collectionName}" non esiste, creazione...`);
-          
-          // Assicuriamoci di essere autenticati come admin
-          if (!pb.authStore.isValid) {
-            console.log('[TRACK_DATA] Tentativo di autenticazione admin...');
-            try {
-              await pb.collection('_superusers').authWithPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
-            } catch (authError) {
-              console.error('[TRACK_DATA] Errore autenticazione admin:', authError);
-              return res.status(500).json({
-                success: false,
-                error: 'Impossibile autenticarsi come admin per creare la collection'
-              });
-            }
-          }
-          
-          // Creazione collection
-          try {
-            await pb.collections.create({
-              name: collectionName,
-              type: 'base',
-              // Permessi aperti per tutti
-              listRule: '',    // chiunque può visualizzare la lista
-              viewRule: '',    // chiunque può visualizzare i record
-              createRule: '',  // chiunque può creare record
-              updateRule: '',  // chiunque può aggiornare record
-              deleteRule: '',  // chiunque può eliminare record
-              schema: [
-                {
-                  name: 'title',
-                  type: 'text',
-                  required: true
-                },
-                {
-                  name: 'index',
-                  type: 'number',
-                  required: true
-                },
-                {
-                  name: 'releaseId',
-                  type: 'text',
-                  required: true
-                },
-                {
-                  name: 'audioUrl',
-                  type: 'text',
-                  required: true
-                },
-                {
-                  name: 'mimeType',
-                  type: 'text',
-                  required: false
-                },
-                {
-                  name: 'fileSize',
-                  type: 'number',
-                  required: false
-                }
-              ]
-            });
-            
-            collectionExists = true;
-            console.log(`[TRACK_DATA] Collection "${collectionName}" creata con successo`);
-          } catch (createError) {
-            console.error('[TRACK_DATA] Errore creazione collection:', createError);
-            return res.status(500).json({
-              success: false,
-              error: 'Errore nella creazione della collection'
-            });
-          }
-        } else {
-          console.error('[TRACK_DATA] Errore verifica collection:', error);
-          return res.status(500).json({
-            success: false,
-            error: 'Errore nella verifica della collection'
-          });
-        }
-      }
-      
-      if (!collectionExists) {
-        return res.status(500).json({
+    // Recuperiamo da Gun
+    gun.get(audioPath).once((data, key) => {
+      if (!data) {
+        console.error(`[GET AUDIO] Nessun file trovato per path: ${audioPath}`);
+        return res.status(404).json({
           success: false,
-          error: 'Impossibile verificare o creare la collection'
+          error: 'File audio non trovato'
         });
       }
       
-      // Creiamo il record
-      const saveData = {
-        title,
-        index,
-        releaseId,
-        audioUrl,
-        mimeType,
-        fileSize
-      };
+      console.log(`[GET AUDIO] File trovato in Gun al path: ${audioPath}`);
       
-      // Verifichiamo se esiste già un record per questa traccia in questa release
-      const filter = `releaseId = "${releaseId}" && index = ${index}`;
-      const existingRecords = await pb.collection(collectionName).getList(1, 1, { filter });
-      
-      let record;
-      if (existingRecords.items.length > 0) {
-        // Aggiorniamo il record esistente
-        const recordId = existingRecords.items[0].id;
-        record = await pb.collection(collectionName).update(recordId, saveData);
-        console.log(`[TRACK_DATA] Record aggiornato con ID: ${record.id}`);
-      } else {
-        // Creiamo un nuovo record
-        record = await pb.collection(collectionName).create(saveData);
-        console.log(`[TRACK_DATA] Nuovo record creato con ID: ${record.id}`);
-      }
-      
-      // Risposta di successo
+      // Restituiamo i dati
       res.json({
         success: true,
-        message: 'Dati traccia salvati con successo',
-        recordId: record.id
+        audioData: data
       });
-    } catch (error) {
-      console.error('[TRACK_DATA] Errore durante il salvataggio:', error);
-      res.status(500).json({
+    });
+    
+  } catch (error) {
+    console.error('[GET AUDIO] Errore:', error);
+    res.status(500).json({
+      success: false,
+      error: `Errore durante il recupero del file: ${error.message}`
+    });
+  }
+});
+
+// Endpoint per i dati delle tracce
+app.post('/api/track_data', async (req, res) => {
+  console.log('[TRACK_DATA] Richiesta ricevuta');
+  try {
+    // Verifichiamo che ci siano tutti i dati necessari
+    const { trackId, audioUrl, releaseId, title, index, mimeType, fileSize, lastModified } = req.body;
+    
+    if (!trackId || !audioUrl || !releaseId) {
+      return res.status(400).json({
         success: false,
-        error: error.message || 'Errore durante il salvataggio dei dati della traccia'
+        error: 'Dati traccia incompleti. Sono richiesti: trackId, audioUrl, releaseId'
       });
     }
+    
+    console.log(`[TRACK_DATA] Salvando dati per traccia ID: ${trackId}, Release: ${releaseId}`);
+    
+    // Creiamo un oggetto minimo con tutti i dati
+    const trackData = {
+      trackId,
+      audioUrl,
+      releaseId,
+      title: title || 'Untitled Track',
+      index: index !== undefined ? index : 0,
+      mimeType: mimeType || 'audio/mpeg',
+      fileSize: fileSize || 0,
+      lastModified: lastModified || Date.now(),
+      storageType: 'pocketbase', // Da dove proviene l'URL 
+      saved: Date.now()
+    };
+    
+    // Verifichiamo se esiste la collection track_data
+    try {
+      console.log('[TRACK_DATA] Verifica esistenza collection "track_data"...');
+      
+      // Creiamo la collection se non esiste
+      try {
+        const existingCollections = await pb.collections.getFullList({
+          filter: `name = "track_data"`
+        });
+        
+        if (existingCollections.length === 0) {
+          console.log('[TRACK_DATA] Collection "track_data" non trovata, creazione...');
+          
+          // Creiamo la collection
+          const newCollection = await pb.collections.create({
+            name: 'track_data',
+            type: 'base',
+            schema: [
+              {
+                name: 'trackId',
+                type: 'text',
+                required: true,
+                unique: true
+              },
+              {
+                name: 'audioUrl',
+                type: 'text',
+                required: true
+              },
+              {
+                name: 'releaseId',
+                type: 'text',
+                required: true
+              },
+              {
+                name: 'title',
+                type: 'text'
+              },
+              {
+                name: 'index',
+                type: 'number'
+              },
+              {
+                name: 'mimeType',
+                type: 'text'
+              },
+              {
+                name: 'fileSize',
+                type: 'number'
+              },
+              {
+                name: 'lastModified',
+                type: 'number'
+              },
+              {
+                name: 'storageType',
+                type: 'text'
+              },
+              {
+                name: 'saved',
+                type: 'number'
+              }
+            ]
+          });
+          
+          console.log('[TRACK_DATA] Collection "track_data" creata con successo');
+          
+          // Impostiamo le regole di accesso aperte
+          await pb.collections.update(newCollection.id, {
+            listRule: '',
+            viewRule: '',
+            createRule: '',
+            updateRule: '',
+            deleteRule: ''
+          });
+          
+          console.log('[TRACK_DATA] Regole di accesso impostate per "track_data"');
+        } else {
+          console.log('[TRACK_DATA] Collection "track_data" trovata, nessuna azione necessaria');
+        }
+      } catch (collectionError) {
+        console.error('[TRACK_DATA] Errore verifica/creazione collection:', collectionError);
+      }
+      
+      // Ora salviamo i dati in PocketBase
+      try {
+        console.log('[TRACK_DATA] Salvataggio dati in PocketBase');
+        
+        // Controlliamo se esiste già un record con questo trackId
+        const existingRecords = await pb.collection('track_data').getList(1, 1, {
+          filter: `trackId='${trackId}'`
+        });
+        
+        if (existingRecords.items.length > 0) {
+          // Aggiorniamo il record esistente
+          const recordId = existingRecords.items[0].id;
+          console.log(`[TRACK_DATA] Record esistente trovato (ID: ${recordId}), aggiornamento...`);
+          
+          await pb.collection('track_data').update(recordId, trackData);
+          console.log(`[TRACK_DATA] Record aggiornato con successo: ${trackId}`);
+        } else {
+          // Creiamo un nuovo record
+          console.log(`[TRACK_DATA] Nessun record esistente, creazione nuovo record...`);
+          
+          const record = await pb.collection('track_data').create(trackData);
+          console.log(`[TRACK_DATA] Nuovo record creato con successo: ${trackId} (ID: ${record.id})`);
+        }
+        
+        console.log('[TRACK_DATA] Dati salvati con successo in PocketBase');
+        return res.json({
+          success: true,
+          message: 'Dati traccia salvati con successo',
+          trackId: trackId
+        });
+      } catch (pbError) {
+        console.error('[TRACK_DATA] Errore salvataggio in PocketBase:', pbError);
+        
+        // Se PocketBase fallisce, salviamo sul filesystem come fallback
+        console.log('[TRACK_DATA] Tentativo salvataggio su filesystem come fallback...');
+        
+        const filePath = path.join(FALLBACK_STORAGE_DIR, 'track_data', `${trackId}.json`);
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        
+        fs.writeFileSync(filePath, JSON.stringify(trackData, null, 2));
+        console.log(`[TRACK_DATA] Dati salvati come fallback su filesystem: ${filePath}`);
+        
+        return res.json({
+          success: true,
+          message: 'Dati traccia salvati con successo (fallback filesystem)',
+          trackId: trackId,
+          fallback: true
+        });
+      }
+      
+    } catch (error) {
+      console.error('[TRACK_DATA] Errore generale:', error);
+      
+      // Se tutto fallisce, tentiamo il salvataggio diretto su filesystem
+      try {
+        const filePath = path.join(FALLBACK_STORAGE_DIR, 'track_data', `${trackId}.json`);
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        
+        fs.writeFileSync(filePath, JSON.stringify(trackData, null, 2));
+        console.log(`[TRACK_DATA] Dati salvati come fallback su filesystem: ${filePath}`);
+        
+        return res.json({
+          success: true,
+          message: 'Dati traccia salvati con successo (fallback filesystem)',
+          trackId: trackId,
+          fallback: true
+        });
+      } catch (fsError) {
+        console.error('[TRACK_DATA] Errore critico anche nel salvataggio filesystem:', fsError);
+        return res.status(500).json({
+          success: false,
+          error: `Errore critico nel salvataggio dati: ${error.message}, fallback: ${fsError.message}`
+        });
+      }
+    }
+    
   } catch (error) {
     console.error('[TRACK_DATA] Errore generale:', error);
     res.status(500).json({
       success: false,
-      error: 'Errore interno del server'
+      error: `Errore nel processare la richiesta: ${error.message}`
+    });
+  }
+});
+
+// Endpoint per caricamento diretto dei file audio (fallback estremo che accetta direttamente Base64)
+app.post('/api/track_data_direct', express.json({ limit: '50mb' }), async (req, res) => {
+  console.log('[TRACK_DATA_DIRECT] Richiesta upload diretto ricevuta');
+  
+  try {
+    // Verifichiamo che ci siano tutti i dati necessari
+    const { trackId, audioData, mimeType } = req.body;
+    
+    if (!trackId || !audioData) {
+      return res.status(400).json({
+        success: false,
+        error: 'Dati incompleti. Sono richiesti: trackId, audioData'
+      });
+    }
+    
+    console.log(`[TRACK_DATA_DIRECT] Salvando file audio per trackId: ${trackId}`);
+    
+    // Decodifichiamo i dati Base64 in un buffer
+    try {
+      // Verifichiamo che i dati siano in formato valido
+      if (!audioData.startsWith('data:')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Formato dati non valido. È richiesto un data URI'
+        });
+      }
+      
+      // Estraiamo il MIME type e i dati
+      const matches = audioData.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        return res.status(400).json({
+          success: false,
+          error: 'Formato data URI non valido'
+        });
+      }
+      
+      const detectedMimeType = matches[1];
+      const base64Data = matches[2];
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+      
+      console.log(`[TRACK_DATA_DIRECT] File decodificato: ${(fileBuffer.length/1024).toFixed(2)}KB, tipo: ${detectedMimeType}`);
+      
+      // Salviamo il file direttamente su disco
+      const extension = mimeType ? mimeType.split('/')[1] : detectedMimeType.split('/')[1] || 'mp3';
+      const fileName = `${trackId}.${extension}`;
+      
+      // Salviamo usando il meccanismo di fallback
+      const result = await saveFallbackFile(fileName, fileBuffer, detectedMimeType);
+      
+      console.log(`[TRACK_DATA_DIRECT] File salvato con successo: ${result.fileUrl}`);
+      
+      return res.json({
+        success: true,
+        message: 'File audio caricato con successo (direct)',
+        fileUrl: result.fileUrl,
+        trackId: trackId
+      });
+      
+    } catch (decodeError) {
+      console.error('[TRACK_DATA_DIRECT] Errore decodifica/salvataggio file:', decodeError);
+      return res.status(500).json({
+        success: false,
+        error: `Errore nel processare il file audio: ${decodeError.message}`
+      });
+    }
+    
+  } catch (error) {
+    console.error('[TRACK_DATA_DIRECT] Errore generale:', error);
+    res.status(500).json({
+      success: false,
+      error: `Errore nel processare la richiesta: ${error.message}`
+    });
+  }
+});
+
+// Funzione per creare la collection release_data
+async function createReleaseDataCollection() {
+  const collectionName = 'release_data';
+  
+  try {
+    console.log(`[COLLECTION] Verifica collection "${collectionName}"...`);
+    
+    try {
+      await pb.collections.getOne(collectionName);
+      console.log(`[COLLECTION] Collection "${collectionName}" già esistente`);
+      return true;
+    } catch (error) {
+      if (error.status === 404) {
+        console.log(`[COLLECTION] Collection "${collectionName}" non trovata, creazione...`);
+        
+        const collection = await pb.collections.create({
+          name: collectionName,
+          type: 'base',
+          // Permessi aperti per tutti
+          listRule: '',    // chiunque può visualizzare la lista
+          viewRule: '',    // chiunque può visualizzare i record
+          createRule: '',  // chiunque può creare record
+          updateRule: '',  // chiunque può aggiornare record
+          deleteRule: '',  // chiunque può eliminare record
+          schema: [
+            {
+              name: 'releaseId',
+              type: 'text',
+              required: true
+            },
+            {
+              name: 'title',
+              type: 'text',
+              required: true
+            },
+            {
+              name: 'type',
+              type: 'text',
+              required: false
+            },
+            {
+              name: 'creator',
+              type: 'text',
+              required: false
+            },
+            {
+              name: 'trackCount',
+              type: 'number',
+              required: false
+            },
+            {
+              name: 'data',
+              type: 'json',
+              required: false
+            }
+          ]
+        });
+        
+        console.log(`[COLLECTION] Collection "${collectionName}" creata con successo`);
+        return true;
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error(`[COLLECTION] Errore creazione collection "${collectionName}":`, error);
+    return false;
+  }
+}
+
+// Endpoint per salvare i dati della release
+app.post('/api/release_data', async (req, res) => {
+  try {
+    const releaseData = req.body;
+    console.log('[RELEASE_DATA] Ricevuta richiesta di salvataggio release');
+    console.log(`[RELEASE_DATA] Salvataggio dati per release "${releaseData.title}" (ID: ${releaseData.id})`);
+
+    // Salviamo direttamente in Gun
+    gun.get('releases').get(releaseData.id).put(releaseData, (ack) => {
+      if (ack.err) {
+        console.error('[RELEASE_DATA] Errore salvataggio Gun:', ack.err);
+        res.status(500).json({
+          success: false,
+          error: `Errore durante il salvataggio: ${ack.err}`
+        });
+        return;
+      }
+
+      console.log('[RELEASE_DATA] Release salvata con successo in Gun');
+      res.json({
+        success: true,
+        message: 'Release salvata con successo'
+      });
+    });
+
+  } catch (error) {
+    console.error('[RELEASE_DATA] Errore:', error);
+    res.status(500).json({
+      success: false,
+      error: `Errore durante il salvataggio: ${error.message}`
+    });
+  }
+});
+
+// Endpoint per ottenere i dati della release
+app.get('/api/release_data/:releaseId', (req, res) => {
+  const { releaseId } = req.params;
+  console.log(`[RELEASE_DATA] Richiesta dati per release ${releaseId}`);
+
+  // Recuperiamo da Gun
+  gun.get('releases').get(releaseId).once((data, key) => {
+    if (!data) {
+      console.log('[RELEASE_DATA] Release non trovata');
+      res.status(404).json({
+        success: false,
+        error: 'Release non trovata'
+      });
+      return;
+    }
+
+    console.log('[RELEASE_DATA] Release trovata:', data);
+    res.json({
+      success: true,
+      data: data
+    });
+  });
+});
+
+// Endpoint di test per upload semplificato
+app.post('/upload/test', upload.single('testFile'), (req, res) => {
+  console.log('[UPLOAD_TEST] Richiesta test upload ricevuta');
+  
+  try {
+    if (!req.file) {
+      console.log('[UPLOAD_TEST] Nessun file ricevuto');
+      return res.json({
+        success: false,
+        message: 'Nessun file ricevuto'
+      });
+    }
+    
+    console.log('[UPLOAD_TEST] File ricevuto:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path
+    });
+    
+    // Rimuoviamo il file temporaneo
+    try {
+      fs.unlinkSync(req.file.path);
+      console.log('[UPLOAD_TEST] File temporaneo rimosso');
+    } catch (unlinkError) {
+      console.warn('[UPLOAD_TEST] Errore rimozione file temporaneo:', unlinkError);
+    }
+    
+    return res.json({
+      success: true,
+      message: 'File ricevuto correttamente',
+      fileDetails: {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      }
+    });
+  } catch (error) {
+    console.error('[UPLOAD_TEST] Errore:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Errore interno'
     });
   }
 });
