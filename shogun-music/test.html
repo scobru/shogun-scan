@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Stazione Radio Decentralizzata</title>
+  <!-- Gun e dipendenze -->
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/lib/radix.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/lib/radisk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/lib/store.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/lib/rindexed.js"></script>
+</head>
+<body style="font-family: sans-serif; margin: 20px;">
+
+  <h1>Stazione Radio Decentralizzata</h1>
+  
+  <!-- Sezione per il caricamento del file audio -->
+  <h2>Carica un File Audio</h2>
+  <div>
+    <input type="file" id="audioFile" accept="audio/*" /><br><br>
+    <label for="title">Titolo:</label><br>
+    <input type="text" id="title" placeholder="Inserisci il titolo della canzone" /><br><br>
+    <label for="artist">Artista:</label><br>
+    <input type="text" id="artist" placeholder="Inserisci l'artista della canzone" /><br><br>
+    <button id="uploadBtn">Carica</button>
+    <div id="uploadStatus" style="margin-top:5px; color: green;"></div>
+  </div>
+  
+  <!-- Sezione per connettersi a uno o più relay ed ascoltare le canzoni -->
+  <h2>Visualizza Canzoni da Relay</h2>
+  <div>
+    <input type="text" id="relayAddress" 
+           placeholder="Inserisci indirizzo del relay (es. http://localhost:8765/gun)" size="50" />
+    <button id="connectRelay">Connetti Relay</button>
+  </div>
+  
+  <!-- Elenco dei relay connessi -->
+  <div id="connectedRelays" style="margin-top:15px;"></div>
+  
+  <!-- Lista delle canzoni -->
+  <h2>Canzoni</h2>
+  <div id="songList"></div>
+  
+  <script>
+    // Elenco dei peer (relay) di default e aggiuntivi
+    // Nota: qui è vuoto (['']), puoi aggiungere un relay di base, es: ['http://localhost:3000/gun']
+    var peers = [''];
+
+    // Inizializzazione di Gun con i peer indicati
+    // Nota: hai disattivato localStorage, radisk, file e axe => i dati non persistono sul client
+    var gun = Gun({
+      peers: peers,
+      localStorage: false,
+      radisk: false,
+      file: false,
+      timeout: 30000,
+      retry: 2500,
+      axe: false
+    });
+
+    // Nodo dove verranno salvate le informazioni relative ai file audio
+    var audioDB = gun.get('audio_files');
+
+    // Mappa per evitare duplicati nella visualizzazione dei brani
+    var songContainers = {};
+
+    // Funzione per convertire il file in formato Base64
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+    }
+    
+    // Caricamento del file audio
+    document.getElementById('uploadBtn').addEventListener('click', async function(){
+      var fileInput = document.getElementById('audioFile');
+      var titleInput = document.getElementById('title');
+      var artistInput = document.getElementById('artist');
+      
+      if(fileInput.files.length === 0) {
+        alert("Seleziona un file audio da caricare.");
+        return;
+      }
+      
+      var file = fileInput.files[0];
+      try {
+        var base64 = await toBase64(file);
+        // Creiamo un oggetto per il brano
+        var song = {
+          filename: file.name,
+          title: titleInput.value || file.name,
+          artist: artistInput.value || "Sconosciuto",
+          data: base64,
+          timestamp: Date.now()
+        };
+        // Generiamo un id casuale per il brano
+        var id = Math.random().toString(36).substr(2, 9);
+
+        // Salviamo il brano in GunDB
+        audioDB.get(id).put(song, function(ack) {
+          if(ack.err) {
+            document.getElementById('uploadStatus').innerText = "Errore nel caricamento.";
+          } else {
+            document.getElementById('uploadStatus').innerText = "File caricato correttamente!";
+            // Puliamo i campi di input
+            titleInput.value = "";
+            artistInput.value = "";
+          }
+        });
+      } catch(e) {
+        alert("Errore nella lettura del file: " + e);
+      }
+    });
+
+    // Funzione per mostrare/aggiornare le canzoni memorizzate nel database
+    function displaySongs(db) {
+      var songListDiv = document.getElementById('songList');
+      // Sottoscrizione in tempo reale
+      db.map().on(function(data, key){
+        if(data && data.data && data.title && data.artist) {
+          // Se non esiste un container per questo brano, crealo
+          if (!songContainers[key]) {
+            var container = document.createElement('div');
+            container.id = 'song-' + key;
+            container.style.marginBottom = '15px';
+
+            var info = document.createElement('p');
+            info.innerHTML = "<strong>" + data.title + "</strong> - " + data.artist;
+
+            var audioElem = document.createElement('audio');
+            audioElem.controls = true;
+            audioElem.src = data.data;
+
+            container.appendChild(info);
+            container.appendChild(audioElem);
+            songListDiv.appendChild(container);
+            
+            songContainers[key] = container;
+          } else {
+            // Se il container esiste, aggiorniamo i dati
+            var container = songContainers[key];
+            container.querySelector('p').innerHTML = "<strong>" + data.title + "</strong> - " + data.artist;
+            container.querySelector('audio').src = data.data;
+          }
+        }
+      });
+    }
+
+    // Aggiorna l'elenco dei relay
+    function updateConnectedRelays() {
+      var connectedRelaysDiv = document.getElementById('connectedRelays');
+      connectedRelaysDiv.innerHTML = "<strong>Relay connessi:</strong>";
+      if(peers.length > 0) {
+        var ul = document.createElement('ul');
+        peers.forEach(function(peer) {
+          var li = document.createElement('li');
+          li.textContent = peer;
+          li.style.margin = '5px 0';
+
+          // Pulsante per rimuovere il relay
+          var removeBtn = document.createElement('button');
+          removeBtn.textContent = 'Rimuovi';
+          removeBtn.style.marginLeft = '10px';
+          removeBtn.onclick = function() {
+            removePeer(peer);
+          };
+          li.appendChild(removeBtn);
+
+          ul.appendChild(li);
+        });
+        connectedRelaysDiv.appendChild(ul);
+      } else {
+        connectedRelaysDiv.innerHTML += "<p>Nessun relay connesso.</p>";
+      }
+    }
+
+    // Aggiunge un nuovo relay
+    function addPeer(relayAddress) {
+      // Evitiamo duplicati
+      if(!peers.includes(relayAddress)) {
+        peers.push(relayAddress);
+        gun.opt({ peers: peers });
+        updateConnectedRelays();
+      }
+    }
+
+    // Rimuove un relay
+    function removePeer(relay) {
+      peers = peers.filter(function(p){ return p !== relay; });
+      gun.opt({ peers: peers });
+      updateConnectedRelays();
+    }
+
+    // Connetti a un relay inserito dall'utente
+    document.getElementById('connectRelay').addEventListener('click', function(){
+      var relayAddress = document.getElementById('relayAddress').value.trim();
+      if(!relayAddress){
+        alert("Inserisci un indirizzo del relay.");
+        return;
+      }
+      addPeer(relayAddress);
+      displaySongs(audioDB);
+
+      // Evita di richiamare più volte displaySongs, la sottoscrizione è già attiva
+    });
+
+    // Avvio sottoscrizione brani e caricamento relay
+    displaySongs(audioDB);
+    updateConnectedRelays();
+  </script>
+</body>
+</html>
