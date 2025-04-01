@@ -2,19 +2,31 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <title>Dashboard Artista</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shogun Music - Dashboard</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <nav class="navbar">
+      <div class="navbar-container">
+        <a href="index.html" class="navbar-brand">Shogun Music</a>
+        <div class="navbar-links">
+          <a href="index.html">Home</a>
+          <a href="dashboard.html">Dashboard</a>
+          <a href="#" id="logoutBtn">Torna alla home</a>
+        </div>
+      </div>
+    </nav>
+
     <header>
       <h1>Dashboard Artista</h1>
-      <p>Crea le tue release in stile Bandcamp</p>
+      <p>Crea e gestisci le tue release musicali</p>
     </header>
 
     <div class="content">
       <div class="form-container">
         <h2>Nuova Release</h2>
-        <form id="releaseForm">
+        <form id="releaseForm" onsubmit="return false;">
           <select id="releaseType" required>
             <option value="single">Single</option>
             <option value="ep">EP</option>
@@ -48,151 +60,23 @@
             Aggiungi Traccia
           </button>
 
-          <button type="submit">Crea Release</button>
+          <!-- Pulsante per creare la release -->
+          <div class="submit-container">
+            <button type="button" id="submitBtn" class="create-release-btn">Crea Release</button>
+            <div class="spinner" id="submitSpinner" style="display: none;"></div>
+          </div>
         </form>
         <div id="feedback"></div>
+        <div class="spinner" id="loadingSpinner"></div>
+      </div>
+
+      <div class="form-container" style="margin-top: 20px;">
+        <h2>Le Tue Release</h2>
+        <div id="userReleases"></div>
       </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
-    <script>
-      const gun = Gun({
-        peers: ['http://localhost:3000/gun'],
-        localStorage:false
-      });
-
-      const releaseForm = document.getElementById("releaseForm");
-      const releaseType = document.getElementById("releaseType");
-      const releaseTitle = document.getElementById("releaseTitle");
-      const releaseDate = document.getElementById("releaseDate");
-      const artworkFile = document.getElementById("artworkFile");
-
-      const trackContainer = document.getElementById("trackContainer");
-      const addTrackBtn = document.getElementById("addTrackBtn");
-      const feedback = document.getElementById("feedback");
-
-      // Mostra o nasconde il pulsante "Aggiungi Traccia" a seconda del tipo di release
-      releaseType.addEventListener("change", () => {
-        if (releaseType.value === "ep") {
-          addTrackBtn.style.display = "block";
-        } else {
-          addTrackBtn.style.display = "none";
-
-          // Se passiamo da EP a Single, lasciamo solo la prima traccia
-          const trackForms =
-            trackContainer.querySelectorAll(".track-item-form");
-          trackForms.forEach((form, index) => {
-            if (index > 0) form.remove();
-          });
-        }
-      });
-
-      // Aggiunge un nuovo blocco di input per la traccia
-      addTrackBtn.addEventListener("click", () => {
-        const div = document.createElement("div");
-        div.className = "track-item-form";
-        div.innerHTML = `
-        <input type="text" placeholder="Titolo Traccia" class="track-title" required />
-        <input type="file" accept="audio/*" class="track-file" required />
-      `;
-        trackContainer.appendChild(div);
-      });
-
-      // Funzione per leggere un file come Base64 (immagini o audio)
-      function readFileAsBase64(file) {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      }
-
-      releaseForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        feedback.textContent = "Caricamento in corso...";
-
-        try {
-          // Preleviamo i campi principali
-          const type = releaseType.value;
-          const title = releaseTitle.value.trim();
-          const date = releaseDate.value || "";
-
-          // Artwork
-          let artworkBase64 = "";
-          if (artworkFile.files[0]) {
-            artworkBase64 = await readFileAsBase64(artworkFile.files[0]);
-          }
-
-          // Raccogliamo le tracce in un array
-          const trackForms =
-            trackContainer.querySelectorAll(".track-item-form");
-          const tracks = [];
-
-          for (let i = 0; i < trackForms.length; i++) {
-            const trackTitleInput = trackForms[i].querySelector(".track-title");
-            const trackFileInput = trackForms[i].querySelector(".track-file");
-
-            const tTitle = trackTitleInput.value.trim();
-            const tFile = trackFileInput.files[0];
-
-            if (!tTitle || !tFile) {
-              throw new Error("Compila correttamente i campi delle tracce.");
-            }
-            const tData = await readFileAsBase64(tFile);
-
-            tracks.push({
-              title: tTitle,
-              data: tData,
-            });
-          }
-
-          // Convertiamo l'array tracks in un oggetto con chiavi numeriche
-          const tracksObj = {};
-          tracks.forEach((track, index) => {
-            tracksObj[index] = track;
-          });
-
-          // Generiamo un ID univoco (qui usiamo il timestamp)
-          const releaseId = Date.now().toString();
-
-          // Creiamo l’oggetto release utilizzando l'oggetto per le tracce
-          const releaseObj = {
-            id: releaseId,
-            type: type, // 'single' o 'ep'
-            title: title,
-            date: date,
-            artwork: artworkBase64,
-            tracks: tracksObj,
-          };
-
-          // Salviamo su Gun
-          gun
-            .get("releases")
-            .get(releaseId)
-            .put(releaseObj, (ack) => {
-              if (ack.err) {
-                feedback.textContent =
-                  "Errore durante la creazione della release.";
-                console.error(ack.err);
-              } else {
-                feedback.textContent = "Release creata con successo!";
-                // Resettiamo il form
-                releaseForm.reset();
-                // Nascondiamo eventuali campi in più
-                addTrackBtn.style.display = "none";
-                trackContainer.innerHTML = `
-          <div class="track-item-form">
-            <input type="text" placeholder="Titolo Traccia" class="track-title" required />
-            <input type="file" accept="audio/*" class="track-file" required />
-          </div>
-        `;
-              }
-            });
-        } catch (err) {
-          feedback.textContent = "Errore: " + err.message;
-        }
-      });
-    </script>
+    <script src="js/dashboard.js"></script>
   </body>
 </html>

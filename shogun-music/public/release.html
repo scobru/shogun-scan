@@ -2,22 +2,46 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>Dettaglio Release</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shogun Music - Release</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="index.html" class="navbar-brand">Shogun Music</a>
+      <div class="navbar-links">
+        <a href="index.html">Home</a>
+        <a href="dashboard.html">Dashboard</a>
+      </div>
+    </div>
+  </nav>
+  
   <header>
-    <h2 id="releaseTitle">Release Title</h2>
+    <h2 id="releaseTitle">Caricamento...</h2>
     <p id="releaseMeta"></p>
   </header>
   
   <div class="content">
     <div class="release-details">
       <div class="release-artwork">
-        <img id="releaseArtwork" src="" alt="Artwork" />
+        <img id="releaseArtwork" src="https://via.placeholder.com/300x300?text=Loading..." alt="Artwork" />
       </div>
       <div>
-        <div class="track-list" id="trackList"></div>
+        <div class="track-list" id="trackList">
+          <div class="spinner" id="loadingSpinner"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="commentSection" style="margin-top: 40px;">
+      <h3>Commenti</h3>
+      <div id="comments"></div>
+      
+      <div class="form-container" style="margin-top: 20px;">
+        <textarea id="commentText" placeholder="Lascia un commento..." rows="3"></textarea>
+        <button id="addCommentBtn">Invia Commento</button>
+        <p id="commentFeedback"></p>
       </div>
     </div>
   </div>
@@ -26,8 +50,11 @@
   <script>
     const gun = Gun({
         peers: ['http://localhost:3000/gun'],
-        localStorage:false
+        localStorage: false
     });
+    
+    // Username temporaneo per i commenti
+    const username = "Visitatore_" + Math.floor(Math.random() * 1000);
     
     // Recuperiamo l'ID della release dalla query string (release.html?id=xxx)
     const urlParams = new URLSearchParams(window.location.search);
@@ -37,38 +64,447 @@
     const releaseMetaEl = document.getElementById('releaseMeta');
     const releaseArtworkEl = document.getElementById('releaseArtwork');
     const trackListEl = document.getElementById('trackList');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const commentText = document.getElementById('commentText');
+    const addCommentBtn = document.getElementById('addCommentBtn');
+    const comments = document.getElementById('comments');
+    const commentFeedback = document.getElementById('commentFeedback');
     
     // Carichiamo i dati della release da GunDB
     gun.get('releases').get(releaseId).on((release) => {
+      loadingSpinner.style.display = 'none';
+      
       if (!release) {
         releaseTitleEl.textContent = 'Release non trovata.';
         return;
       }
+      
       // Aggiorniamo i campi principali
       releaseTitleEl.textContent = release.title || 'Untitled';
       releaseMetaEl.textContent = `${release.type === 'single' ? 'Single' : 'EP'} - ${release.date || ''}`;
-      releaseArtworkEl.src = release.artwork || '';
+      releaseArtworkEl.src = release.artwork || 'https://via.placeholder.com/300x300?text=No+Image';
+      
+      // Aggiorna il titolo della pagina
+      document.title = `${release.title || 'Untitled'} - Shogun Music`;
       
       // Puliamo la lista tracce
       trackListEl.innerHTML = '';
       
-      // Se la release ha tracce, iteriamo sulle chiavi dell'oggetto
-      if (release.tracks) {
-        const trackKeys = Object.keys(release.tracks);
-        trackKeys.forEach((key, index) => {
-          const track = release.tracks[key];
+      // Indice delle tracce trovate per debug
+      let trackCount = 0;
+      
+      // Verifichiamo prima se abbiamo tracce nella release
+      if (!release.tracks) {
+        console.log("Nessuna traccia trovata nella release, cerchiamo nel nodo tracks");
+        // Se non ci sono tracce nell'oggetto release, potrebbero essere in un nodo separato
+        let tracksFound = false;
+        
+        // Mostriamo un messaggio mentre cerchiamo le tracce
+        const loadingMsg = document.createElement('p');
+        loadingMsg.textContent = 'Caricamento tracce...';
+        trackListEl.appendChild(loadingMsg);
+        
+        // Cerchiamo le tracce in un nodo separato
+        gun.get('releases').get(releaseId).get('tracks').map().on((track, key) => {
+          tracksFound = true;
+          loadingMsg.remove();
           
-          const trackDiv = document.createElement('div');
-          trackDiv.className = 'track-item';
+          if (!track) return;
           
-          trackDiv.innerHTML = `
-            <h4>${track.title || 'Track ' + (index + 1)}</h4>
-            <audio controls src="${track.data}"></audio>
-          `;
-          trackListEl.appendChild(trackDiv);
+          trackCount++;
+          console.log(`Traccia ${key} trovata nel nodo tracks:`, {
+            title: track.title,
+            hasData: !!track.data,
+            dataType: typeof track.data,
+            dataStart: track.data ? track.data.substring(0, 50) + '...' : 'none'
+          });
+          
+          // Renderizza la traccia
+          renderTrack(track, key, trackCount);
+        });
+        
+        // Se dopo 5 secondi non abbiamo trovato tracce, mostriamo un messaggio
+        setTimeout(() => {
+          if (!tracksFound) {
+            loadingMsg.textContent = 'Nessuna traccia trovata per questa release.';
+          }
+        }, 5000);
+        
+        return;
+      }
+      
+      // Se abbiamo tracce nell'oggetto release, renderizziamole
+      const trackKeys = Object.keys(release.tracks);
+      trackKeys.forEach((key, index) => {
+        const track = release.tracks[key];
+        trackCount++;
+        
+        // Debug per mostrare cosa stiamo ricevendo
+        console.log(`Track debug [${index}]:`, {
+          title: track.title,
+          hasData: !!track.data,
+          dataType: typeof track.data,
+          dataStart: track.data ? track.data.substring(0, 50) + '...' : 'none',
+          mimeType: track.mimeType || 'non specificato'
+        });
+        
+        // Renderizza la traccia
+        renderTrack(track, key, index + 1);
+      });
+    });
+    
+    // Funzione per renderizzare una traccia
+    function renderTrack(track, key, index) {
+      const trackDiv = document.createElement('div');
+      trackDiv.className = 'track-item';
+      
+      // Aggiungiamo il titolo della traccia
+      const trackTitleEl = document.createElement('h3');
+      trackTitleEl.textContent = `${index + 1}. ${track.title || 'Untitled Track'}`;
+      trackDiv.appendChild(trackTitleEl);
+      
+      // Verifichiamo se abbiamo i dati audio
+      let hasAudio = false;
+      
+      // Prima controlliamo se abbiamo un URL diretto (nuovo formato)
+      if (track.audioUrl) {
+        console.log('Formato URL rilevato:', track.audioUrl.substring(0, 40) + '...');
+        hasAudio = true;
+        
+        // Non serve fare verifiche, usiamo direttamente l'URL
+        renderAudioWithUrl(track.audioUrl, track, trackDiv, index);
+      }
+      // Poi verifichiamo il formato vecchio (dati binari)
+      else if (track.data) {
+        const isBase64 = typeof track.data === 'string' && track.data.startsWith('data:');
+        const isAudioData = isBase64 && track.data.includes('audio');
+        
+        if (isAudioData) {
+          console.log('Rilevato formato data URI valido:', track.data.substring(0, 30) + '...');
+          hasAudio = true;
+          
+          // Usiamo il vecchio sistema con base64
+          renderAudioWithBase64(track.data, track, trackDiv, index);
+        } else if (isBase64) {
+          console.warn('Formato non standard ma tentiamo ugualmente:', track.data.substring(0, 30) + '...');
+          hasAudio = true;
+          
+          // Usiamo il vecchio sistema con base64
+          renderAudioWithBase64(track.data, track, trackDiv, index);
+        }
+      }
+      
+      // Se non abbiamo trovato dati audio, proviamo a recuperare l'audioUrl
+      if (!hasAudio) {
+        console.log('Nessun dato audio trovato, verifico se esiste audioUrl...');
+        
+        // Controlla se esiste un nodo audioUrl
+        gun.get('releases').get(releaseId).get('tracks').get(key).get('audioUrl').once((audioUrl) => {
+          if (audioUrl) {
+            console.log('Trovato audioUrl separato:', audioUrl);
+            renderAudioWithUrl(audioUrl, track, trackDiv, index);
+          } else {
+            console.error('Formato non supportato o dati mancanti:', track);
+            renderErrorMessage(track, trackDiv, key, index);
+          }
         });
       }
+      
+      trackListEl.appendChild(trackDiv);
+    }
+    
+    // Funzione per renderizzare l'audio con URL diretto
+    function renderAudioWithUrl(audioUrl, track, trackDiv, index) {
+      // Mostra un messaggio durante il caricamento
+      const loadingMsg = document.createElement('p');
+      loadingMsg.className = 'audio-loading';
+      loadingMsg.textContent = 'Caricamento audio...';
+      trackDiv.appendChild(loadingMsg);
+      
+      // Creiamo l'elemento audio programmaticamente
+      const audioEl = document.createElement('audio');
+      audioEl.controls = true;
+      audioEl.preload = 'metadata';
+      
+      // Bottone di download
+      const downloadBtn = document.createElement('a');
+      downloadBtn.className = 'download-button';
+      downloadBtn.innerHTML = '⬇️ Scarica audio';
+      downloadBtn.href = audioUrl;
+      downloadBtn.download = `${track.title || 'track-' + index}.mp3`;
+      downloadBtn.style.display = 'none'; // Nascondi inizialmente
+      
+      // Gestione eventi per l'audio
+      audioEl.addEventListener('error', function(e) {
+        console.error('Errore caricamento audio:', e);
+        loadingMsg.textContent = '';
+        
+        const errorMessage = document.createElement('p');
+        errorMessage.className = 'audio-error';
+        errorMessage.textContent = 'Errore nel caricamento dell\'audio. Il formato potrebbe non essere supportato.';
+        trackDiv.appendChild(errorMessage);
+        
+        // Mostra il bottone download come alternativa
+        downloadBtn.style.display = 'block'; 
+        trackDiv.appendChild(downloadBtn);
+      });
+      
+      // Quando i metadati sono caricati, nascondi il messaggio di caricamento
+      audioEl.addEventListener('loadedmetadata', function() {
+        loadingMsg.style.display = 'none';
+        console.log('Audio caricato:', track.title);
+      });
+      
+      // Se il caricamento va a buon fine, mostra comunque il bottone download dopo la riproduzione
+      audioEl.addEventListener('ended', function() {
+        if (downloadBtn.parentNode !== trackDiv) {
+          trackDiv.appendChild(downloadBtn);
+          downloadBtn.style.display = 'block';
+        }
+      });
+      
+      // Aggiungiamo l'elemento audio
+      trackDiv.appendChild(audioEl);
+      
+      // Proviamo a impostare la sorgente dell'audio
+      try {
+        audioEl.src = audioUrl;
+        
+        // Se il caricamento dura troppo, nascondi comunque il messaggio dopo 5 secondi
+        setTimeout(() => {
+          if (loadingMsg.style.display !== 'none') {
+            loadingMsg.style.display = 'none';
+            
+            // Se dopo 5 secondi non abbiamo ancora caricato i metadati, potrebbe esserci un problema
+            if (audioEl.readyState < 1) {
+              console.warn('Possibile problema di caricamento audio:', track.title);
+              
+              const warningMsg = document.createElement('p');
+              warningMsg.className = 'audio-warning';
+              warningMsg.textContent = 'Caricamento lento. Prova a utilizzare il bottone download se l\'audio non si avvia.';
+              trackDiv.appendChild(warningMsg);
+              
+              // Mostra il bottone download come alternativa
+              downloadBtn.style.display = 'block';
+              trackDiv.appendChild(downloadBtn);
+            }
+          }
+        }, 5000);
+      } catch (err) {
+        console.error('Errore impostazione src audio:', err);
+        loadingMsg.textContent = 'Errore: impossibile caricare questo file audio';
+        
+        // Mostra il bottone download come alternativa
+        downloadBtn.style.display = 'block';
+        trackDiv.appendChild(downloadBtn);
+      }
+    }
+    
+    // Funzione per renderizzare l'audio con dati base64
+    function renderAudioWithBase64(audioData, track, trackDiv, index) {
+      // Mostra un messaggio durante il caricamento
+      const loadingMsg = document.createElement('p');
+      loadingMsg.className = 'audio-loading';
+      loadingMsg.textContent = 'Caricamento audio...';
+      trackDiv.appendChild(loadingMsg);
+      
+      // Creiamo l'elemento audio programmaticamente
+      const audioEl = document.createElement('audio');
+      audioEl.controls = true;
+      audioEl.preload = 'metadata';
+      
+      // Bottone di download come fallback
+      const downloadBtn = document.createElement('a');
+      downloadBtn.className = 'download-button';
+      downloadBtn.innerHTML = '⬇️ Scarica audio';
+      downloadBtn.href = audioData;
+      downloadBtn.download = `${track.title || 'track-' + index}.mp3`;
+      downloadBtn.style.display = 'none'; // Nascondi inizialmente
+      
+      // Gestione eventi per l'audio
+      audioEl.addEventListener('error', function(e) {
+        console.error('Errore caricamento audio:', e);
+        loadingMsg.textContent = '';
+        
+        const errorMessage = document.createElement('p');
+        errorMessage.className = 'audio-error';
+        errorMessage.textContent = 'Errore nel caricamento dell\'audio. Il formato potrebbe non essere supportato.';
+        trackDiv.appendChild(errorMessage);
+        
+        // Mostra il bottone download come alternativa
+        downloadBtn.style.display = 'block'; 
+        trackDiv.appendChild(downloadBtn);
+      });
+      
+      // Quando i metadati sono caricati, nascondi il messaggio di caricamento
+      audioEl.addEventListener('loadedmetadata', function() {
+        loadingMsg.style.display = 'none';
+        console.log('Audio caricato:', track.title);
+      });
+      
+      // Aggiungiamo l'elemento audio
+      trackDiv.appendChild(audioEl);
+      
+      // Proviamo a impostare la sorgente dell'audio
+      try {
+        // Se abbiamo il tipo MIME, aggiungiamo un elemento source con il tipo MIME
+        if (track.mimeType) {
+          const sourceEl = document.createElement('source');
+          sourceEl.src = audioData;
+          sourceEl.type = track.mimeType;
+          audioEl.appendChild(sourceEl);
+        } else {
+          audioEl.src = audioData;
+        }
+        
+        // Se il caricamento dura troppo, nascondi comunque il messaggio dopo 5 secondi
+        setTimeout(() => {
+          if (loadingMsg.style.display !== 'none') {
+            loadingMsg.style.display = 'none';
+            // Se dopo 5 secondi non abbiamo ancora caricato i metadati, potrebbe esserci un problema
+            if (audioEl.readyState < 1) {
+              console.warn('Possibile problema di caricamento audio:', track.title);
+              
+              const warningMsg = document.createElement('p');
+              warningMsg.className = 'audio-warning';
+              warningMsg.textContent = 'Caricamento lento. Prova a utilizzare il bottone download se l\'audio non si avvia.';
+              trackDiv.appendChild(warningMsg);
+              
+              // Mostra il bottone download come alternativa
+              downloadBtn.style.display = 'block';
+              trackDiv.appendChild(downloadBtn);
+            }
+          }
+        }, 5000);
+      } catch (err) {
+        console.error('Errore impostazione src audio:', err);
+        loadingMsg.textContent = 'Errore: impossibile caricare questo file audio';
+        
+        // Mostra il bottone download come alternativa
+        downloadBtn.style.display = 'block';
+        trackDiv.appendChild(downloadBtn);
+      }
+    }
+    
+    // Funzione per mostrare un messaggio di errore
+    function renderErrorMessage(track, trackDiv, key, index) {
+      const errorMsg = document.createElement('p');
+      errorMsg.className = 'audio-error';
+      errorMsg.textContent = 'Formato audio non supportato o dati corrotti.';
+      
+      // Aggiungiamo un pulsante per recuperare la traccia
+      const fixButton = document.createElement('button');
+      fixButton.textContent = 'Tenta recupero audio';
+      fixButton.className = 'fix-button';
+      fixButton.addEventListener('click', () => {
+        errorMsg.textContent = 'Tentativo di recupero in corso...';
+        // Proviamo a recuperare direttamente da Gun
+        gun.get('releases').get(releaseId).get('tracks').get(key).once((trackData) => {
+          console.log('Dati recuperati direttamente:', trackData);
+          if (trackData && trackData.data) {
+            // Creiamo un nuovo elemento audio con i dati recuperati
+            const newAudio = document.createElement('audio');
+            newAudio.controls = true;
+            newAudio.src = trackData.data;
+            errorMsg.textContent = 'Recupero completato. Prova a riprodurre.';
+            trackDiv.appendChild(newAudio);
+            
+            // Aggiungiamo anche il bottone di download come alternativa
+            const downloadBtn = document.createElement('a');
+            downloadBtn.className = 'download-button';
+            downloadBtn.innerHTML = '⬇️ Scarica audio';
+            downloadBtn.href = trackData.data;
+            downloadBtn.download = `${track.title || 'track-' + index}.mp3`;
+            downloadBtn.style.display = 'inline-block';
+            trackDiv.appendChild(downloadBtn);
+          } else if (trackData && trackData.audioUrl) {
+            // Se abbiamo un audioUrl, lo utilizziamo
+            const newAudio = document.createElement('audio');
+            newAudio.controls = true;
+            newAudio.src = trackData.audioUrl;
+            errorMsg.textContent = 'Recupero completato. Prova a riprodurre.';
+            trackDiv.appendChild(newAudio);
+            
+            // Aggiungiamo anche il bottone di download come alternativa
+            const downloadBtn = document.createElement('a');
+            downloadBtn.className = 'download-button';
+            downloadBtn.innerHTML = '⬇️ Scarica audio';
+            downloadBtn.href = trackData.audioUrl;
+            downloadBtn.download = `${track.title || 'track-' + index}.mp3`;
+            downloadBtn.style.display = 'inline-block';
+            trackDiv.appendChild(downloadBtn);
+          } else {
+            errorMsg.textContent = 'Impossibile recuperare i dati audio. Prova a ricaricare la pagina.';
+          }
+        });
+      });
+      
+      trackDiv.appendChild(errorMsg);
+      trackDiv.appendChild(fixButton);
+    }
+    
+    // Sistema di commenti
+    function loadComments() {
+      comments.innerHTML = '<p>Caricamento commenti...</p>';
+      
+      gun.get('comments').get(releaseId).map().on((comment, id) => {
+        if (!comment) return;
+        
+        // Controlla se l'elemento esiste già
+        let commentElement = document.getElementById('comment-' + id);
+        if (!commentElement) {
+          commentElement = document.createElement('div');
+          commentElement.id = 'comment-' + id;
+          commentElement.className = 'comment-item';
+          comments.innerHTML = ''; // Pulisce il messaggio di caricamento
+          comments.appendChild(commentElement);
+        }
+        
+        commentElement.innerHTML = `
+          <p><strong>${comment.author || 'Anonimo'}</strong> - ${new Date(parseInt(comment.timestamp)).toLocaleString()}</p>
+          <p>${comment.text}</p>
+        `;
+      });
+      
+      // Dopo 2 secondi, se non ci sono commenti, mostra un messaggio
+      setTimeout(() => {
+        if (comments.innerHTML === '<p>Caricamento commenti...</p>') {
+          comments.innerHTML = '<p>Nessun commento. Sii il primo a commentare!</p>';
+        }
+      }, 2000);
+    }
+    
+    // Aggiungi commento
+    addCommentBtn.addEventListener('click', () => {
+      const text = commentText.value.trim();
+      if (!text) {
+        commentFeedback.textContent = "Inserisci un commento prima di inviare";
+        return;
+      }
+      
+      const commentId = Date.now().toString();
+      
+      gun.get('comments').get(releaseId).get(commentId).put({
+        author: username,
+        text: text,
+        timestamp: commentId
+      }, (ack) => {
+        if (ack.err) {
+          commentFeedback.textContent = 'Errore nel salvare il commento: ' + ack.err;
+        } else {
+          commentText.value = '';
+          commentFeedback.textContent = 'Commento inviato!';
+          
+          // Pulisci il messaggio di feedback dopo 3 secondi
+          setTimeout(() => {
+            commentFeedback.textContent = '';
+          }, 3000);
+        }
+      });
     });
+    
+    // Carica i commenti all'avvio
+    loadComments();
   </script>
 </body>
 </html>

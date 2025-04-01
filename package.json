@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "form-data": "^4.0.2",
     "gun": "^0.2020.1240"
   }
 }
