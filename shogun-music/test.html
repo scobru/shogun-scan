@@ -85,6 +85,72 @@
 <div id="songList"></div>
 
 <script>
+  // Debug function per verificare lo stato dei chunks
+  window.verificaChunks = function(trackId) {
+    if (!trackId) {
+      alert("Inserisci un ID traccia per verificare i chunks");
+      return;
+    }
+    
+    console.log(`Verificando chunks per traccia ${trackId}...`);
+    
+    tracksNode.get(`${trackId}_metadata`).once(metadata => {
+      if (!metadata) {
+        console.error(`Nessun metadata trovato per traccia ${trackId}`);
+        alert(`Nessun metadata trovato per traccia ${trackId}`);
+        return;
+      }
+      
+      console.log("Metadata:", metadata);
+      
+      if (!metadata.chunks) {
+        console.log("La traccia non usa chunks");
+        alert(`La traccia ${trackId} non usa chunks`);
+        return;
+      }
+      
+      console.log(`Traccia ${trackId} ha ${metadata.chunks} chunks. Verificando...`);
+      let trovati = 0;
+      let mancanti = [];
+      
+      for (let i = 0; i < metadata.chunks; i++) {
+        tracksNode.get(`${trackId}_chunk_${i}`).once(chunk => {
+          if (chunk && chunk.data) {
+            trovati++;
+            console.log(`Chunk ${i} trovato (${chunk.data.length} bytes)`);
+          } else {
+            console.warn(`Chunk ${i} MANCANTE`);
+            mancanti.push(i);
+          }
+          
+          if (i === metadata.chunks - 1) {
+            console.log(`Verifica completata: ${trovati}/${metadata.chunks} chunks trovati`);
+            if (mancanti.length > 0) {
+              console.warn(`Chunks mancanti: ${mancanti.join(', ')}`);
+              alert(`Trovati ${trovati}/${metadata.chunks} chunks. Mancanti: ${mancanti.join(', ')}`);
+            } else {
+              alert(`Tutti i ${metadata.chunks} chunks trovati correttamente!`);
+            }
+          }
+        });
+      }
+    });
+  };
+  
+  // Aggiunge pulsante di debug nella UI
+  document.addEventListener('DOMContentLoaded', function() {
+    const debugDiv = document.createElement('div');
+    debugDiv.innerHTML = `
+      <hr>
+      <h3>🔧 Debug</h3>
+      <input type="text" id="trackIdDebug" placeholder="ID Traccia">
+      <button onclick="window.verificaChunks(document.getElementById('trackIdDebug').value)">
+        Verifica Chunks
+      </button>
+    `;
+    document.body.appendChild(debugDiv);
+  });
+
   // Inizializza Gun con super peer pubblici predefiniti
   const defaultRelays = [
     'http://localhost:3002/gun',
@@ -487,26 +553,54 @@
         
         // Prima controlla se ci sono chunks o un file singolo
         tracksNode.get(`${key}_metadata`).once(async metadata => {
+          console.log("Metadati brano:", metadata);
+          
           if (metadata && metadata.chunks) {
             // Il file è salvato in chunks, ricostruiscilo
             try {
-              const chunks = [];
+              console.log(`Caricamento di ${metadata.chunks} chunks per la traccia ${key}`);
+              uploadStatus.innerText = `⏳ Caricamento chunks (0/${metadata.chunks})...`;
+              
+              const chunks = new Array(metadata.chunks);
+              let chunksCaricati = 0;
+              
               for (let i = 0; i < metadata.chunks; i++) {
                 await new Promise(resolve => {
                   tracksNode.get(`${key}_chunk_${i}`).once(chunk => {
                     if (chunk && chunk.data) {
                       chunks[chunk.index] = chunk.data;
+                      chunksCaricati++;
+                      uploadStatus.innerText = `⏳ Caricamento chunks (${chunksCaricati}/${metadata.chunks})...`;
+                      console.log(`Chunk ${i+1}/${metadata.chunks} caricato`);
+                    } else {
+                      console.warn(`Chunk ${i} non trovato o danneggiato`);
                     }
                     resolve();
                   });
                 });
               }
               
+              if (chunks.some(c => !c)) {
+                console.warn("Alcuni chunks mancanti:", chunks.map((c, i) => c ? null : i).filter(i => i !== null));
+                playBtn.textContent = '❌ Dati incompleti';
+                return;
+              }
+              
               // Ricostruisci il file
+              console.log("Ricostruzione file dai chunks...");
               const fullData = joinChunks(chunks);
-              const blob = base64ToBlob(fullData, metadata.mimeType || 'audio/mpeg');
-              initPlayer(blob);
-              playBtn.textContent = '▶️ Ascolta';
+              console.log(`File ricostruito, dimensione: ${fullData.length}`);
+              
+              try {
+                const blob = base64ToBlob(fullData, metadata.mimeType || 'audio/mpeg');
+                console.log("Blob creato, inizializzazione player...");
+                initPlayer(blob);
+                playBtn.textContent = '▶️ Ascolta';
+              } catch (blobError) {
+                console.error("Errore nella conversione del blob:", blobError);
+                playBtn.textContent = '❌ Errore conversione';
+                alert("Errore nella conversione del file: " + blobError.message);
+              }
             } catch (error) {
               console.error("Errore nel ricostruire i chunks:", error);
               playBtn.textContent = '❌ Errore';
@@ -514,9 +608,11 @@
             }
           } else {
             // Prova il metodo tradizionale (file singolo)
+            console.log("Tentativo di caricamento file singolo");
             tracksNode.get(key).once(track => {
               if (track && track.data) {
                 try {
+                  console.log("File singolo trovato, inizializzazione player...");
                   const blob = base64ToBlob(track.data, data.mimeType || 'audio/mpeg');
                   initPlayer(blob);
                   playBtn.textContent = '▶️ Ascolta';
