@@ -126,6 +126,42 @@
         background-color: #f44336;
         color: white;
       }
+      .server-status {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        z-index: 1000;
+        cursor: pointer;
+      }
+      .status-online {
+        background-color: #4CAF50;
+        color: white;
+      }
+      .status-offline {
+        background-color: #f44336;
+        color: white;
+      }
+      .status-warning {
+        background-color: #ff9800;
+        color: white;
+      }
+      .server-details {
+        position: fixed;
+        top: 40px;
+        right: 10px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+        width: 300px;
+        max-height: 400px;
+        overflow-y: auto;
+        z-index: 999;
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -167,6 +203,9 @@
 
     <h2>🎶 Canzoni</h2>
     <div id="songList"></div>
+
+    <div class="server-status status-offline" id="serverStatus">Server: Verifica...</div>
+    <div class="server-details" id="serverDetails"></div>
 
     <script>
       // Debug function per verificare lo stato dei chunks
@@ -245,56 +284,36 @@
         document.body.appendChild(debugDiv);
       });
 
-      // Inizializza Gun con super peer pubblici predefiniti
-      const defaultRelays = [
-        "http://localhost:3002/gun",
-        "https://gun-manhattan.herokuapp.com/gun", // Relay pubblico come fallback
-      ];
-
-      // Configurazione iniziale Gun
-      let gun = Gun({
-        peers: defaultRelays,
-        localStorage: false,
-        radisk: false,
-        retry: 1500, // Riprova ogni 1.5 secondi
-        max: 3, // Massimo 3 tentativi
-      });
-
-      // Aggiunge header di autenticazione a GUN per migliorare la gestione dei messaggi
-      Gun.on("opt", function(ctx) {
-        if (ctx.once) return;
-        
-        // Aumenta il timeout per le operazioni
-        ctx.opt.wait = 99999;
-        
-        // Aumenta la dimensione massima del messaggio (anche se questo dipende dal server)
-        ctx.opt.maxMessages = 5000;
-        
-        // Aggiunge headers per autenticazione (se il server li utilizza)
-        ctx.on("out", function(msg) {
-          var to = this.to;
-          msg.headers = {
-            token: "thisIsTheTokenForReals"
-          };
-          to.next(msg);
-        });
-      });
-
-      // Riferimenti globali ai nodi Gun
-      const relaysNode = gun.get("relays");
-      const tracksNode = gun.get("tracks");
-      const artworkNode = gun.get("artwork");
-      const metadataNode = gun.get("audio_metadata");
-
-      const songList = document.getElementById("songList");
-      const relayList = document.getElementById("relayList");
-      const peerStatus = document
-        .getElementById("peerStatus")
-        .querySelector(".status-badge");
-      const connectedPeers = document.getElementById("connectedPeers");
-
+      // Inizializzazione Gun e variabili
+      // Inizializzazione WaveSurfer
       let wavesurfer;
-      let activeRelays = [...defaultRelays];
+      let isPlaying = false;
+      let currentSongId = null;
+
+      // Inizializzazione di Gun
+      // Replace old Gun initialization with our new method
+      window.gun = null; // Will be set in setupGunWithRetry
+      
+      const songs = gun ? gun.get('songs') : null;
+      const relays = gun ? gun.get('relays') : null;
+
+      document.addEventListener('DOMContentLoaded', function() {
+        // Avvia il monitoraggio del server
+        checkServerStatus();
+        serverMonitoringInterval = setInterval(checkServerStatus, 10000); // Controllo ogni 10 secondi
+        
+        // Usa il nuovo setup di Gun con retry
+        window.gun = setupGunWithRetry();
+        window.songs = gun.get('songs');
+        window.relays = gun.get('relays');
+        
+        // Carica i dati
+        loadRelays();
+        displaySongs();
+        
+        // Inizializza WaveSurfer
+        initWaveSurfer();
+      });
 
       // Monitoraggio connessione
       gun.on("hi", (peer) => {
@@ -506,7 +525,6 @@
             return;
           }
 
-          const id = Math.random().toString(36).substr(2, 9);
           const progressBar = document.getElementById("progressBar");
           const uploadStatus = document.getElementById("uploadStatus");
 
@@ -514,217 +532,50 @@
           progressBar.style.width = "10%";
 
           try {
-            // Prepara metadati
-            const metadata = {
-              id,
-              title,
-              artist,
-              timestamp: Date.now(),
-              mimeType: audioFile.type,
-            };
-
-            progressBar.style.width = "20%";
-
-            // Processa l'artwork se presente
+            // Crea FormData per inviare i file al server
+            const formData = new FormData();
+            formData.append('audioFile', audioFile);
+            formData.append('title', title);
+            formData.append('artist', artist);
+            
             if (artworkInput.files[0]) {
-              uploadStatus.innerText = "⏳ Preparazione artwork...";
-              try {
-                const artworkBase64 = await fileToBase64(artworkInput.files[0]);
-                metadata.hasArtwork = true;
-                metadata.artworkMimeType = artworkInput.files[0].type;
-
-                if (artworkBase64.length > 100000) {
-                  // L'artwork è troppo grande, salviamo in chunks
-                  const artworkChunks = splitIntoChunks(artworkBase64);
-                  metadata.artworkChunks = artworkChunks.length;
-
-                  // Salva chunks in Gun
-                  for (let i = 0; i < artworkChunks.length; i++) {
-                    await new Promise((resolve) => {
-                      artworkNode.get(`${id}_chunk_${i}`).put(
-                        {
-                          data: artworkChunks[i],
-                          index: i,
-                          total: artworkChunks.length,
-                        },
-                        (ack) => resolve()
-                      );
-                    });
-                  }
-                } else {
-                  // Artwork piccolo, salva direttamente
-                  artworkNode.get(id).put({ data: artworkBase64 });
-                }
-              } catch (artworkError) {
-                console.error("Errore nel processare l'artwork:", artworkError);
-                metadata.hasArtwork = false;
-              }
-            } else {
-              metadata.hasArtwork = false;
+              formData.append('artworkFile', artworkInput.files[0]);
             }
-
-            progressBar.style.width = "30%";
-
-            // Salva metadati
-            await new Promise((resolve) => {
-              metadataNode.get(id).put(metadata, (ack) => {
-                console.log("Metadati salvati:", ack);
-                resolve();
-              });
+            
+            progressBar.style.width = "20%";
+            uploadStatus.innerText = "⏳ Upload in corso...";
+            
+            // Invia i file al server tramite API REST
+            const response = await fetch('/api/upload', {
+              method: 'POST',
+              body: formData
             });
-
-            progressBar.style.width = "40%";
-
-            // Carica file audio su Gun
-            uploadStatus.innerText =
-              "⏳ Caricamento del file audio in corso...";
-
-            // Converti in base64
-            try {
-              const audioBase64 = await fileToBase64(audioFile);
-              
-              // Comprimi i dati prima di suddividerli
-              const compressedAudioBase64 = compressBase64(audioBase64);
-              
-              // Dividi in chunks per evitare "Message too big!"
-              const chunkSize = 10000; // Ridotto ulteriormente a 10KB per chunk
-              const chunks = splitIntoChunks(compressedAudioBase64, chunkSize);
-              console.log(`File diviso in ${chunks.length} chunks di circa ${chunkSize} bytes ciascuno`);
-              
-              // Metadati del file con informazioni sui chunks
-              const audioMetadata = {
-                id,
-                mimeType: audioFile.type,
-                chunks: chunks.length,
-                chunkSize: chunkSize,
-                size: audioBase64.length,
-                compressedSize: compressedAudioBase64.length,
-                isCompressed: true,
-                filename: audioFile.name,
-                uploadedAt: Date.now()
-              };
-              
-              // Salva metadati dei chunks
-              console.log(`Salvando metadati: ${JSON.stringify(audioMetadata)}`);
-              await new Promise((resolve) => {
-                tracksNode.get(`${id}_metadata`).put(audioMetadata, (ack) => {
-                  console.log(`Metadati salvati, risposta:`, ack);
-                  resolve();
-                });
-              });
-              
-              progressBar.style.width = "60%";
-              uploadStatus.innerText = `⏳ Caricamento chunks (0/${chunks.length})...`;
-              
-              // Carica chunks uno per uno con una gestione più precisa degli errori
-              let chunksCompletati = 0;
-              let chunkErrors = [];
-              
-              // Funzione per provare a caricare un singolo chunk con più tentativi
-              const uploadChunkWithRetry = async (i, maxRetries = 3) => {
-                let retries = 0;
-                let success = false;
-                
-                while (retries < maxRetries && !success) {
-                  try {
-                    await new Promise((resolve, reject) => {
-                      const timeout = setTimeout(() => {
-                        console.log(`Timeout per chunk ${i}, tentativo ${retries + 1}`);
-                        reject(new Error("Timeout"));
-                      }, 10000); // 10 secondi di timeout
-                      
-                      const chunkData = {
-                        data: chunks[i],
-                        index: i,
-                        total: chunks.length,
-                        retry: retries
-                      };
-                      
-                      tracksNode.get(`${id}_chunk_${i}`).put(chunkData, (ack) => {
-                        clearTimeout(timeout);
-                        if (ack.err) {
-                          console.error(`Errore nel chunk ${i}, tentativo ${retries + 1}:`, ack.err);
-                          reject(new Error(ack.err));
-                        } else {
-                          success = true;
-                          resolve();
-                        }
-                      });
-                    });
-                  } catch (error) {
-                    console.warn(`Tentativo ${retries + 1} fallito per chunk ${i}: ${error.message}`);
-                    retries++;
-                    // Attendi più a lungo tra i tentativi successivi
-                    await new Promise(r => setTimeout(r, 1000 * retries));
-                  }
-                }
-                
-                return success;
-              };
-              
-              // Carica i chunk in piccoli gruppi per evitare di sovraccaricare il server
-              const batchSize = 5; // Carica 5 chunk alla volta
-              for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
-                const batchEnd = Math.min(batchStart + batchSize, chunks.length);
-                const batchPromises = [];
-                
-                for (let i = batchStart; i < batchEnd; i++) {
-                  batchPromises.push(uploadChunkWithRetry(i).then(success => {
-                    if (success) {
-                      chunksCompletati++;
-                      console.log(`Chunk ${i + 1}/${chunks.length} caricato con successo`);
-                    } else {
-                      chunkErrors.push({ index: i, error: "Tentativi esauriti" });
-                      console.error(`Impossibile caricare il chunk ${i} dopo multipli tentativi`);
-                    }
-                    
-                    // Aggiorna la UI
-                    const percentuale = 60 + (chunksCompletati * 40 / chunks.length);
-                    progressBar.style.width = `${percentuale}%`;
-                    uploadStatus.innerText = `⏳ Caricamento chunks (${chunksCompletati}/${chunks.length})...`;
-                  }));
-                }
-                
-                // Attendi che tutti i chunks del batch siano stati processati
-                await Promise.all(batchPromises);
-                
-                // Piccola pausa tra i batch
-                await new Promise(resolve => setTimeout(resolve, 500));
-              }
-
-              if (chunkErrors.length > 0) {
-                console.warn(
-                  `Completato con ${chunkErrors.length} errori nei chunks`,
-                  chunkErrors
-                );
-                uploadStatus.innerText = `⚠️ Caricato con ${chunkErrors.length} errori (${chunksCompletati}/${chunks.length} chunks completati)`;
-              } else {
-                console.log(
-                  `Tutti i ${chunks.length} chunks caricati con successo`
-                );
-                uploadStatus.innerText = "✅ Traccia caricata con successo!";
-              }
-
-              progressBar.style.width = "100%";
-
-              // Reset form
-              fileInput.value = "";
-              artworkInput.value = "";
-              document.getElementById("artworkPreview").innerHTML = "";
-              document.getElementById("title").value = "";
-              document.getElementById("artist").value = "";
-
-              // Aggiorna la lista dopo il caricamento
-              setTimeout(() => {
-                displaySongs();
-                progressBar.style.width = "0%";
-              }, 2000);
-            } catch (audioError) {
-              console.error("Errore nel caricamento dell'audio:", audioError);
-              progressBar.style.width = "0%";
-              uploadStatus.innerText =
-                "❌ Errore nel caricamento dell'audio: " + audioError.message;
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Errore durante l\'upload');
             }
+            
+            const result = await response.json();
+            console.log('Upload completato:', result);
+            
+            // Aggiorna progress bar
+            progressBar.style.width = "100%";
+            uploadStatus.innerText = "✅ Traccia caricata con successo!";
+            
+            // Reset form
+            fileInput.value = "";
+            artworkInput.value = "";
+            document.getElementById("artworkPreview").innerHTML = "";
+            document.getElementById("title").value = "";
+            document.getElementById("artist").value = "";
+            
+            // Aggiorna la lista delle canzoni
+            setTimeout(() => {
+              displaySongs();
+              progressBar.style.width = "0%";
+            }, 2000);
+
           } catch (error) {
             console.error("Errore generale:", error);
             progressBar.style.width = "0%";
@@ -734,288 +585,398 @@
 
       // Visualizza le canzoni
       function displaySongs() {
-        songList.innerHTML = "";
-
-        metadataNode.map().once((data, key) => {
-          if (!data || !data.id) return;
-
-          const container = document.createElement("div");
-          container.className = "song-card";
-          container.id = "song-" + key;
-
-          // Artwork
-          let artworkElement = document.createElement("div");
-          artworkElement.className = "artwork-placeholder";
-          artworkElement.textContent = "🎵";
-          container.appendChild(artworkElement);
-
-          // Carica artwork se disponibile
-          if (data.hasArtwork) {
-            if (data.artworkChunks) {
-              // L'artwork è in chunks, ricostruiscilo
-              const artworkChunks = [];
-              const loadChunks = async () => {
-                for (let i = 0; i < data.artworkChunks; i++) {
-                  await new Promise((resolve) => {
-                    artworkNode.get(`${key}_chunk_${i}`).once((chunk) => {
-                      if (chunk && chunk.data) {
-                        artworkChunks[chunk.index] = chunk.data;
-                      }
-                      resolve();
-                    });
-                  });
-                }
-
-                // Ricostruisci e mostra l'artwork
-                const fullArtwork = joinChunks(artworkChunks);
-                const artworkImg = document.createElement("img");
-                artworkImg.src = fullArtwork;
-                artworkImg.className = "artwork-preview";
-                artworkElement.replaceWith(artworkImg);
-              };
-
-              loadChunks();
-            } else {
-              // Artwork standard
-              artworkNode.get(key).once((artwork) => {
-                if (artwork && artwork.data) {
-                  const artworkImg = document.createElement("img");
-                  artworkImg.src = artwork.data;
-                  artworkImg.className = "artwork-preview";
-                  artworkElement.replaceWith(artworkImg);
-                }
-              });
+        const songList = document.getElementById('songList');
+        songList.innerHTML = '<div class="loading">Caricamento tracce...</div>';
+        
+        // Usa la nuova API REST per ottenere le tracce
+        fetch('/api/tracks')
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Errore nel recupero delle tracce');
             }
-          }
-
-          // Info della canzone
-          const infoContainer = document.createElement("div");
-          infoContainer.className = "song-info";
-
-          const info = document.createElement("div");
-          info.innerHTML = `<strong>${data.title}</strong> – ${data.artist}`;
-          infoContainer.appendChild(info);
-
-          const playBtn = document.createElement("button");
-          playBtn.textContent = "▶️ Ascolta";
-          playBtn.onclick = () => {
-            playBtn.textContent = "⏳ Caricamento...";
-
-            // Prima controlla se ci sono chunks o un file singolo
-            tracksNode.get(`${key}_metadata`).once(async (metadata) => {
-              console.log("Metadati brano:", metadata);
-
-              if (metadata && metadata.chunks) {
-                // Il file è salvato in chunks, ricostruiscilo
-                try {
-                  console.log(
-                    `Caricamento di ${metadata.chunks} chunks per la traccia ${key}`
-                  );
-                  uploadStatus.innerText = `⏳ Caricamento chunks (0/${metadata.chunks})...`;
-
-                  const chunks = new Array(metadata.chunks);
-                  let chunksCaricati = 0;
-
-                  for (let i = 0; i < metadata.chunks; i++) {
-                    await new Promise((resolve) => {
-                      tracksNode.get(`${key}_chunk_${i}`).once((chunk) => {
-                        if (chunk && chunk.data) {
-                          chunks[chunk.index] = chunk.data;
-                          chunksCaricati++;
-                          uploadStatus.innerText = `⏳ Caricamento chunks (${chunksCaricati}/${metadata.chunks})...`;
-                          console.log(
-                            `Chunk ${i + 1}/${metadata.chunks} caricato`
-                          );
-                        } else {
-                          console.warn(`Chunk ${i} non trovato o danneggiato`);
-                        }
-                        resolve();
-                      });
-                    });
-                  }
-
-                  if (chunks.some((c) => !c)) {
-                    console.warn(
-                      "Alcuni chunks mancanti:",
-                      chunks
-                        .map((c, i) => (c ? null : i))
-                        .filter((i) => i !== null)
-                    );
-                    playBtn.textContent = "❌ Dati incompleti";
-                    return;
-                  }
-
-                  // Ricostruisci il file
-                  console.log("Ricostruzione file dai chunks...");
-                  let fullData = joinChunks(chunks);
-                  
-                  // Decompressione se necessario
-                  if (metadata.isCompressed) {
-                    console.log("Il file è compresso, avvio decompressione...");
-                    fullData = decompressBase64(fullData);
-                  }
-                  
-                  console.log(`File ricostruito, dimensione: ${fullData.length}`);
-
-                  try {
-                    const blob = base64ToBlob(
-                      fullData,
-                      metadata.mimeType || "audio/mpeg"
-                    );
-                    console.log("Blob creato, inizializzazione player...");
-                    initPlayer(blob);
-                    playBtn.textContent = "▶️ Ascolta";
-                  } catch (blobError) {
-                    console.error(
-                      "Errore nella conversione del blob:",
-                      blobError
-                    );
-                    playBtn.textContent = "❌ Errore conversione";
-                    alert(
-                      "Errore nella conversione del file: " + blobError.message
-                    );
-                  }
-                } catch (error) {
-                  console.error("Errore nel ricostruire i chunks:", error);
-                  playBtn.textContent = "❌ Errore";
-                  alert(
-                    "Errore nella ricostruzione dei chunks: " + error.message
-                  );
-                }
-              } else {
-                // Prova il metodo tradizionale (file singolo)
-                console.log("Tentativo di caricamento file singolo");
-                tracksNode.get(key).once((track) => {
-                  if (track && track.data) {
-                    try {
-                      console.log(
-                        "File singolo trovato, inizializzazione player..."
-                      );
-                      const blob = base64ToBlob(
-                        track.data,
-                        data.mimeType || "audio/mpeg"
-                      );
-                      initPlayer(blob);
-                      playBtn.textContent = "▶️ Ascolta";
-                    } catch (error) {
-                      console.error(
-                        "Errore nella conversione dell'audio:",
-                        error
-                      );
-                      playBtn.textContent = "❌ Errore";
-                      alert("Errore nella riproduzione: " + error.message);
-                    }
-                  } else {
-                    playBtn.textContent = "❌ Non trovato";
-                    console.error("Traccia non trovata:", key);
-                  }
-                });
+            return response.json();
+          })
+          .then(data => {
+            songList.innerHTML = '';
+            
+            if (!data.success) {
+              throw new Error(data.message || 'Errore nel recupero delle tracce');
+            }
+            
+            if (data.tracks.length === 0) {
+              songList.innerHTML = '<div class="alert alert-info">Nessuna traccia disponibile</div>';
+              return;
+            }
+            
+            // Crea un elemento per ogni traccia
+            data.tracks.forEach(song => {
+              const songCard = document.createElement('div');
+              songCard.className = 'card mb-3';
+              songCard.id = `song-${song.id}`;
+              
+              // Contenuto card
+              const cardBody = document.createElement('div');
+              cardBody.className = 'card-body';
+              
+              // Se c'è un artwork, lo mostriamo
+              if (song.artwork_path) {
+                const artwork = document.createElement('img');
+                artwork.src = song.artwork_path;
+                artwork.className = 'artwork-preview';
+                artwork.alt = song.title;
+                cardBody.appendChild(artwork);
               }
+              
+              // Titolo e artista
+              const title = document.createElement('h5');
+              title.className = 'card-title';
+              title.textContent = song.title;
+              
+              const artist = document.createElement('p');
+              artist.className = 'card-text';
+              artist.textContent = song.artist || 'Artista sconosciuto';
+              
+              // Pulsanti di azione
+              const btnPlay = document.createElement('button');
+              btnPlay.className = 'btn btn-primary me-2';
+              btnPlay.textContent = 'Play';
+              btnPlay.onclick = function() {
+                playSong(song.id, song);
+              };
+              
+              const btnDelete = document.createElement('button');
+              btnDelete.className = 'btn btn-danger';
+              btnDelete.textContent = 'Elimina';
+              btnDelete.onclick = function() {
+                deleteSong(song.id);
+              };
+              
+              // Assembla la card
+              cardBody.appendChild(title);
+              cardBody.appendChild(artist);
+              cardBody.appendChild(btnPlay);
+              cardBody.appendChild(btnDelete);
+              songCard.appendChild(cardBody);
+              songList.appendChild(songCard);
             });
-          };
-          infoContainer.appendChild(playBtn);
+          })
+          .catch(error => {
+            console.error('Errore nel caricamento delle tracce:', error);
+            songList.innerHTML = `<div class="alert alert-danger">Errore: ${error.message}</div>`;
+          });
+      }
 
-          container.appendChild(infoContainer);
-          songList.appendChild(container);
-        });
+      // Aggiorna funzione deleteSong per usare l'API REST
+      function deleteSong(id) {
+        if (!id) {
+          console.error('ID traccia non specificato');
+          return;
+        }
+        
+        if (confirm('Sei sicuro di voler eliminare questa canzone?')) {
+          fetch(`/api/tracks/${id}`, {
+            method: 'DELETE'
+          })
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Errore nell\'eliminazione della traccia');
+            }
+            return response.json();
+          })
+          .then(data => {
+            if (data.success) {
+              console.log('Traccia eliminata con successo');
+              // Rimuovi l'elemento dalla UI
+              const songElement = document.getElementById(`song-${id}`);
+              if (songElement) {
+                songElement.remove();
+              }
+              // Se non ci sono più tracce, aggiorna la UI
+              const songList = document.getElementById('songList');
+              if (songList.children.length === 0) {
+                songList.innerHTML = '<div class="alert alert-info">Nessuna traccia disponibile</div>';
+              }
+            } else {
+              throw new Error(data.message || 'Errore nell\'eliminazione della traccia');
+            }
+          })
+          .catch(error => {
+            console.error('Errore nell\'eliminazione della traccia:', error);
+            alert(`Errore: ${error.message}`);
+          });
+        }
       }
 
       // Gestione relay
       function loadRelays() {
-        relayList.innerHTML = "";
+        const relayList = document.getElementById('relayList');
+        relayList.innerHTML = '';
 
-        // Aggiungi prima i relay predefiniti
-        defaultRelays.forEach((url) => {
-          addRelayToList(url, true);
-        });
+        if (!window.relays) {
+          console.warn('I relays non sono ancora inizializzati');
+          return;
+        }
 
-        // Carica relay salvati in Gun
-        relaysNode.map().once((relay, key) => {
-          if (relay && relay.url && !defaultRelays.includes(relay.url)) {
-            addRelayToList(relay.url);
+        window.relays.map().once(function(relay, id) {
+          if (relay) {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.textContent = relay.url;
+            
+            const btnDelete = document.createElement('button');
+            btnDelete.className = 'btn btn-danger btn-sm';
+            btnDelete.textContent = 'Elimina';
+            btnDelete.onclick = function() {
+              window.relays.get(id).put(null);
+              li.remove();
+            };
+            
+            li.appendChild(btnDelete);
+            relayList.appendChild(li);
           }
         });
       }
 
-      function addRelayToList(url, isDefault = false) {
-        if (activeRelays.includes(url) && !isDefault) return;
-
-        if (!activeRelays.includes(url)) {
-          activeRelays.push(url);
-          // Aggiungi il peer se non è già nella lista
-          gun.opt({ peers: [url] });
-        }
-
-        const relayItem = document.createElement("div");
-        relayItem.className = "relay-item";
-        relayItem.innerHTML = `<span>${url} ${
-          isDefault ? "(predefinito)" : ""
-        }</span>`;
-
-        if (!isDefault) {
-          const removeBtn = document.createElement("button");
-          removeBtn.textContent = "❌";
-          removeBtn.onclick = () => removeRelay(url, relayItem);
-          relayItem.appendChild(removeBtn);
-        }
-
-        relayList.appendChild(relayItem);
-      }
-
-      function removeRelay(url, element) {
-        activeRelays = activeRelays.filter((relay) => relay !== url);
-        element.remove();
-
-        // Rimuovi da Gun
-        relaysNode.get(url).put(null);
-
-        // Rimuovi il peer
-        if (gun._.opt.peers[url]) {
-          gun._.opt.peers[url].wire.close();
-          delete gun._.opt.peers[url];
-        }
-      }
-
-      function connectToRelay(url) {
-        if (!url || !url.trim()) return;
-
-        try {
-          url = url.trim();
-
-          // Verifica se l'URL è ben formato
-          if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            alert(
-              "Errore: l'URL del relay deve iniziare con http:// o https://"
-            );
+      // Aggiorna funzione addRelay
+      document.getElementById('addRelayForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const relayAddress = document.getElementById('relayAddress').value;
+        if (relayAddress) {
+          if (!window.relays) {
+            console.error('I relays non sono ancora inizializzati');
             return;
           }
+          window.relays.set({url: relayAddress, added: new Date().toISOString()});
+          document.getElementById('relayAddress').value = '';
+          setTimeout(loadRelays, 500); // Ricarica i relay dopo un breve ritardo
+        }
+      });
 
-          console.log("Tentativo di connessione al relay:", url);
+      // Sistema di monitoraggio del server
+      let serverMonitoringInterval;
+      let serverOnline = false;
+      let failedHealthchecks = 0;
+      const maxConsecutiveFailures = 3;
 
-          // Salva relay in Gun
-          relaysNode.get(url).put({ url: url, added: Date.now() });
+      function checkServerStatus() {
+        fetch('/healthcheck')
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Stato server non OK');
+            }
+            return response.json();
+          })
+          .then(data => {
+            serverOnline = true;
+            failedHealthchecks = 0;
+            updateServerStatusUI(data);
+          })
+          .catch(error => {
+            console.error('Errore controllo server:', error);
+            failedHealthchecks++;
+            
+            if (failedHealthchecks >= maxConsecutiveFailures) {
+              serverOnline = false;
+              updateServerStatusUI(null);
+            } else {
+              // Imposta lo stato di warning se ci sono fallimenti ma non abbiamo superato la soglia
+              const statusEl = document.getElementById('serverStatus');
+              statusEl.className = 'server-status status-warning';
+              statusEl.textContent = `Server: Instabile (${failedHealthchecks}/${maxConsecutiveFailures})`;
+            }
+          });
+      }
 
-          // Aggiungi alla UI
-          addRelayToList(url);
-
-          // Aggiorna lista canzoni
-          displaySongs();
-        } catch (error) {
-          console.error("Errore nella connessione al relay:", error);
-          alert("Errore nella connessione al relay: " + error.message);
+      function updateServerStatusUI(data) {
+        const statusEl = document.getElementById('serverStatus');
+        const detailsEl = document.getElementById('serverDetails');
+        
+        if (serverOnline && data) {
+          statusEl.className = 'server-status status-online';
+          statusEl.textContent = `Server: Online`;
+          
+          // Aggiorna i dettagli del server
+          const memoryInfo = data.memory;
+          const dbInfo = data.db;
+          
+          detailsEl.innerHTML = `
+            <h4>Stato Server</h4>
+            <p><strong>Uptime:</strong> ${Math.floor(data.uptime / 60)} minuti</p>
+            <p><strong>Timestamp:</strong> ${new Date(data.timestamp).toLocaleTimeString()}</p>
+            <h4>Memoria</h4>
+            <p>RSS: ${memoryInfo.rss}</p>
+            <p>Heap Totale: ${memoryInfo.heapTotal}</p>
+            <p>Heap Usato: ${memoryInfo.heapUsed}</p>
+            <h4>Database</h4>
+            <p>Chiavi: ${dbInfo.keys}</p>
+            <p>Dimensione: ${dbInfo.totalSizeMB.toFixed(2)} MB</p>
+            <button id="cleanupBtn" class="btn btn-sm btn-warning">Esegui Cleanup</button>
+          `;
+          
+          // Aggiungi event listener per il pulsante di cleanup
+          document.getElementById('cleanupBtn').addEventListener('click', function() {
+            fetch('/admin/cleanup', { method: 'POST' })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  alert(`Cleanup completato! Rimossi ${data.cleanup.removedItems} elementi. Spazio liberato: ${data.cleanup.memorySaved}`);
+                  checkServerStatus(); // Aggiorna lo stato
+                } else {
+                  alert('Errore durante il cleanup: ' + data.message);
+                }
+              })
+              .catch(err => {
+                console.error('Errore durante il cleanup:', err);
+                alert('Errore di connessione durante il cleanup');
+              });
+          });
+        } else {
+          statusEl.className = 'server-status status-offline';
+          statusEl.textContent = 'Server: Offline';
+          detailsEl.innerHTML = '<p>Server non disponibile</p>';
         }
       }
 
-      document.getElementById("addRelay").addEventListener("click", () => {
-        const address = document.getElementById("relayAddress").value.trim();
-        if (!address) return alert("Inserisci un relay valido.");
-        connectToRelay(address);
-        document.getElementById("relayAddress").value = "";
+      // Toggle dei dettagli del server
+      document.getElementById('serverStatus').addEventListener('click', function() {
+        const detailsEl = document.getElementById('serverDetails');
+        detailsEl.style.display = detailsEl.style.display === 'none' ? 'block' : 'none';
       });
 
-      // Inizializza
-      loadRelays();
-      displaySongs();
+      // Miglioramento del meccanismo di retry per Gun
+      function setupGunWithRetry() {
+        let retryCount = 0;
+        let gun = null;
+        
+        function connectGun() {
+          console.log(`Tentativo di connessione a Gun (${retryCount + 1})...`);
+          
+          // Verifica se esiste già un'istanza
+          if (gun) {
+            // Pulisci eventuali listener
+            try {
+              gun.off();
+            } catch (e) {
+              console.warn('Errore durante la disconnessione di Gun:', e);
+            }
+          }
+          
+          // Crea una nuova istanza con i parametri corretti
+          gun = Gun({
+            peers: ['http://localhost:3002/gun'],
+            localStorage: false,
+            radisk: false,
+            store: null,
+            radix: false,
+            retry: 1500,
+            max: 3,
+            chunk: 10240,
+            axe: false,
+            // Aggiungi un timeout più lungo per connessioni lente
+            wait: 5000
+          });
+          
+          // Aggiungi logger per Gun
+          gun.on('hi', peer => {
+            console.log('Connesso al peer:', peer);
+            retryCount = 0; // Reset del contatore dei tentativi quando ci connettiamo
+            
+            // Aggiorna UI
+            const statusEl = document.getElementById('serverStatus');
+            statusEl.className = 'server-status status-online';
+            statusEl.textContent = 'Server: Online';
+          });
+          
+          gun.on('bye', peer => {
+            console.log('Disconnesso dal peer:', peer);
+          });
+          
+          // Gestione errori Gun
+          gun.on('error', err => {
+            console.error('Errore Gun:', err);
+            handleGunError(err);
+          });
+          
+          return gun;
+        }
+        
+        function handleGunError(err) {
+          // Controlla se l'errore è dovuto a problemi di connessione
+          if (err.toString().includes('disconnect') || err.toString().includes('timeout')) {
+            retryCount++;
+            
+            const statusEl = document.getElementById('serverStatus');
+            statusEl.className = 'server-status status-warning';
+            statusEl.textContent = `Server: Riconnessione (${retryCount})`;
+            
+            if (retryCount <= 5) {
+              console.log(`Riconnessione a Gun in ${1000 * retryCount}ms...`);
+              setTimeout(() => {
+                gun = connectGun();
+              }, 1000 * retryCount); // Backoff esponenziale
+            } else {
+              console.error('Troppi tentativi di riconnessione, necessario refresh manuale');
+              statusEl.className = 'server-status status-offline';
+              statusEl.textContent = 'Server: Offline (refresh)';
+            }
+          }
+        }
+        
+        // Connessione iniziale
+        gun = connectGun();
+        return gun;
+      }
+
+      // Aggiungere una funzione per riprodurre le canzoni
+      function playSong(id, song) {
+        console.log(`Riproducendo canzone con ID: ${id}`, song);
+        
+        if (!song || !song.audio_path) {
+          alert('Audio non disponibile per questa canzone');
+          return;
+        }
+        
+        // Inizializza WaveSurfer se non è ancora stato fatto
+        if (!wavesurfer) {
+          initWaveSurfer();
+        }
+        
+        // Carica l'audio
+        wavesurfer.load(song.audio_path);
+        
+        // Imposta eventi di WaveSurfer
+        wavesurfer.on('ready', function() {
+          wavesurfer.play();
+          currentSongId = id;
+        });
+        
+        wavesurfer.on('error', function(err) {
+          console.error('Errore durante il caricamento dell\'audio:', err);
+          alert('Errore durante il caricamento dell\'audio');
+        });
+      }
+      
+      // Inizializza WaveSurfer
+      function initWaveSurfer() {
+        if (wavesurfer) {
+          wavesurfer.destroy();
+        }
+        
+        wavesurfer = WaveSurfer.create({
+          container: '#waveform',
+          waveColor: 'violet',
+          progressColor: 'purple',
+          height: 100,
+          responsive: true
+        });
+        
+        // Aggiungi event listener per play/pause
+        document.getElementById('playBtn').addEventListener('click', function() {
+          if (wavesurfer) {
+            wavesurfer.playPause();
+          }
+        });
+      }
     </script>
   </body>
 </html>

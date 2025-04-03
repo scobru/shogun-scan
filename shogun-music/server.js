@@ -44,6 +44,16 @@ app.use('/uploads', express.static(uploadsDir));
 // Serve static files from the current directory
 app.use(express.static(__dirname));
 
+// Middleware per controllare dimensione dei messaggi
+app.use(function(req, res, next) {
+  const contentLength = req.headers['content-length'];
+  if (contentLength && parseInt(contentLength) > 50 * 1024 * 1024) { // 50MB
+    console.warn(`Richiesta troppo grande (${Math.round(contentLength/1024/1024)}MB) rifiutata`);
+    return res.status(413).send('Payload troppo grande');
+  }
+  next();
+});
+
 // Define routes for the main pages
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'player.html'));
@@ -232,25 +242,72 @@ app.post('/api/upload', upload.fields([
   }
 });
 
+// Implementare un semplice database in-memory per Gun
+const inMemoryDB = {};
+
+const simpleFlatStore = {
+  get: function(key, cb) {
+    console.log(`[store.get] Requesting key: ${key}`);
+    setTimeout(() => { // Simuliamo l'I/O asincrono
+      try {
+        const val = inMemoryDB[key];
+        console.log(`[store.get] Retrieved for ${key}:`, val ? 'Found' : 'Not found');
+        cb(null, val);
+      } catch (e) {
+        console.error('[store.get] Error:', e);
+        cb(e);
+      }
+    }, 1);
+  },
+  put: function(key, val, cb) {
+    console.log(`[store.put] Storing key: ${key}, data length: ${val ? JSON.stringify(val).length : 0}`);
+    setTimeout(() => { // Simuliamo l'I/O asincrono
+      try {
+        inMemoryDB[key] = val;
+        cb(null, true);
+      } catch (e) {
+        console.error('[store.put] Error:', e);
+        cb(e);
+      }
+    }, 1);
+  },
+  list: function(cb) {
+    console.log('[store.list] Listing all keys');
+    setTimeout(() => {
+      try {
+        const keys = Object.keys(inMemoryDB);
+        cb(null, keys);
+      } catch (e) {
+        console.error('[store.list] Error:', e);
+        cb(e);
+      }
+    }, 1);
+  }
+};
+
 // Initialize Gun
 const server = require('http').createServer(app);
 const gun = Gun({
   web: server,         // Usa il server http per le connessioni websocket
-  file: 'gundb',       // Salva i dati nel file gundb
+  file: false,         // Non usare file storage
   multicast: false,    // Disabilita il multicast per evitare problemi
   isValid: hasValidToken, // Validazione token
-  radisk: true,        // Salva localmente su disco
+  radisk: false,       // Disabilita radisk per evitare problemi con 'dare'
+  radix: false,        // Disabilita radix
+  store: simpleFlatStore, // Usa il nostro store personalizzato
   axe: false,          // Disabilita axe per problemi di compatibilità
   peers: [],           // Nessun peer iniziale
   websocket: {         // Configurazione websocket
     mode: 'connect',
     path: '/gun'       // Path esplicito per l'endpoint websocket
   },
-  maxSockets: 100, // Aumenta il numero di socket
-  memory: { // Aumenta i limiti di memoria
+  maxSockets: 100,    // Aumenta il numero di socket
+  memory: {           // Aumenta i limiti di memoria
     max: 1000 * 1000 * 100, // 100MB
   },
-  rfs: false, // Disabilita Radix File Storage per evitare problemi di I/O
+  rfs: false,         // Disabilita Radix File Storage per evitare problemi di I/O
+  localStorage: false, // Disabilita localStorage (non è disponibile su Node.js)
+  chunk: 10240        // Limita la dimensione dei chunks a 10KB
 });
 
 // Endpoint specifico per Gun.js
@@ -313,6 +370,85 @@ app.get('/gun/status', (req, res) => {
   });
 });
 
+// Endpoint per verificare lo stato del server
+app.get('/healthcheck', (req, res) => {
+  const memoryUsage = process.memoryUsage();
+  const dbStatus = {
+    keys: Object.keys(inMemoryDB).length,
+    totalSizeMB: Object.values(inMemoryDB).reduce((acc, val) => {
+      return acc + (val ? JSON.stringify(val).length : 0);
+    }, 0) / (1024 * 1024)
+  };
+
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    memory: {
+      rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
+      heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB'
+    },
+    db: dbStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint per forzare un cleanup della memoria
+app.post('/admin/cleanup', (req, res) => {
+  try {
+    // Conta quanti elementi c'erano prima
+    const beforeCount = Object.keys(inMemoryDB).length;
+    const beforeSize = Object.values(inMemoryDB).reduce((acc, val) => {
+      return acc + (val ? JSON.stringify(val).length : 0);
+    }, 0) / (1024 * 1024);
+    
+    // Rimuovi elementi inutilizzati (null, undefined, {})
+    for (const key in inMemoryDB) {
+      const val = inMemoryDB[key];
+      if (!val || Object.keys(val).length === 0) {
+        delete inMemoryDB[key];
+      }
+    }
+    
+    // Conta quanti elementi ci sono dopo
+    const afterCount = Object.keys(inMemoryDB).length;
+    const afterSize = Object.values(inMemoryDB).reduce((acc, val) => {
+      return acc + (val ? JSON.stringify(val).length : 0);
+    }, 0) / (1024 * 1024);
+    
+    global.gc && global.gc(); // Forza la garbage collection se disponibile
+    
+    res.json({
+      success: true,
+      message: 'Cleanup completato con successo',
+      cleanup: {
+        removedItems: beforeCount - afterCount,
+        beforeSize: beforeSize.toFixed(2) + 'MB',
+        afterSize: afterSize.toFixed(2) + 'MB',
+        memorySaved: (beforeSize - afterSize).toFixed(2) + 'MB'
+      }
+    });
+  } catch (error) {
+    console.error('Errore durante il cleanup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore durante il cleanup',
+      error: error.message
+    });
+  }
+});
+
+// Gestione degli errori più dettagliata
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  // Puoi implementare qui un sistema di logging più avanzato
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  // Puoi implementare qui un sistema di logging più avanzato
+});
+
 // Start server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
@@ -365,5 +501,114 @@ app.use((err, req, res, next) => {
 
 // Messaggio di benvenuto
 console.log('Hello wonderful person! :) Thanks for using GUN, please ask for help on http://chat.gun.eco if anything takes you longer than 5min to figure out!');
+
+// Endpoint per ottenere la lista delle tracce audio
+app.get('/api/tracks', (req, res) => {
+  try {
+    console.log('Richiesta lista tracce ricevuta');
+    const tracks = [];
+    
+    // Cerca le entry nel database Gun che contengono informazioni sulle tracce audio
+    app.gun.get('audio_files').map().once((data, id) => {
+      if (data && data.title && data.audio_path) {
+        tracks.push({
+          id: id,
+          title: data.title,
+          artist: data.artist || 'Sconosciuto',
+          audio_path: data.audio_path,
+          artwork_path: data.artwork_path,
+          timestamp: data.timestamp || Date.now()
+        });
+      }
+    });
+    
+    // Invia i risultati dopo un breve ritardo per permettere a Gun di completare le query
+    setTimeout(() => {
+      // Ordina le tracce per timestamp (più recenti prima)
+      tracks.sort((a, b) => b.timestamp - a.timestamp);
+      
+      console.log(`Invio di ${tracks.length} tracce al client`);
+      res.json({
+        success: true,
+        tracks: tracks
+      });
+    }, 300);
+  } catch (error) {
+    console.error('Errore nel recupero delle tracce:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore nel recupero delle tracce',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint per eliminare una traccia audio
+app.delete('/api/tracks/:id', (req, res) => {
+  const trackId = req.params.id;
+  
+  try {
+    console.log(`Richiesta eliminazione traccia ${trackId}`);
+    
+    // Cerca i dati della traccia nel database
+    app.gun.get('audio_files').get(trackId).once((data) => {
+      if (!data) {
+        return res.status(404).json({
+          success: false,
+          message: 'Traccia non trovata'
+        });
+      }
+      
+      // Salva i percorsi dei file prima di eliminare i dati
+      const audioPath = data.audio_path;
+      const artworkPath = data.artwork_path;
+      
+      // Elimina i dati dalla cache Gun
+      app.gun.get('audio_files').get(trackId).put(null);
+      
+      // Elimina anche il riferimento dall'indice delle tracce
+      app.gun.get('audio_files').get('tracks').map().once((track, id) => {
+        if (track && track.id === trackId) {
+          app.gun.get('audio_files').get('tracks').get(id).put(null);
+        }
+      });
+      
+      // Elimina i file fisici dal sistema
+      if (audioPath) {
+        const fullAudioPath = path.join(__dirname, audioPath);
+        if (fs.existsSync(fullAudioPath)) {
+          fs.unlinkSync(fullAudioPath);
+          console.log(`File audio eliminato: ${fullAudioPath}`);
+        }
+      }
+      
+      if (artworkPath) {
+        const fullArtworkPath = path.join(__dirname, artworkPath);
+        if (fs.existsSync(fullArtworkPath)) {
+          fs.unlinkSync(fullArtworkPath);
+          console.log(`File artwork eliminato: ${fullArtworkPath}`);
+        }
+      }
+      
+      // Invia un segnale di refresh per tutti i client
+      app.gun.get('app_events').get('track_deleted').put({
+        id: trackId,
+        timestamp: Date.now()
+      });
+      
+      res.json({
+        success: true,
+        message: 'Traccia eliminata con successo'
+      });
+    });
+  } catch (error) {
+    console.error(`Errore nell'eliminazione della traccia ${trackId}:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore nell\'eliminazione della traccia',
+      error: error.message
+    });
+  }
+});
 
 module.exports = { app, gun }; 
