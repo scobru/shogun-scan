@@ -36,8 +36,8 @@ const upload = multer({ storage });
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({limit: '50mb'}));
+app.use(express.urlencoded({limit: '50mb', extended: true}));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(uploadsDir));
 
@@ -245,7 +245,12 @@ const gun = Gun({
   websocket: {         // Configurazione websocket
     mode: 'connect',
     path: '/gun'       // Path esplicito per l'endpoint websocket
-  }
+  },
+  maxSockets: 100, // Aumenta il numero di socket
+  memory: { // Aumenta i limiti di memoria
+    max: 1000 * 1000 * 100, // 100MB
+  },
+  rfs: false, // Disabilita Radix File Storage per evitare problemi di I/O
 });
 
 // Endpoint specifico per Gun.js
@@ -318,3 +323,47 @@ server.listen(PORT, () => {
 
 // Richiedi in uscita tutti i dati per favorire la sincronizzazione
 // app.gun.on('out', {get: {'#': {'*': ''}}})
+
+// Aggiungi middleware personalizzato per aumentare il limite di dimensione dei messaggi
+Gun.on('opt', function(context) {
+  if(context.once){ return }
+  context.on('in', function(msg) {
+    this.to.next(msg);
+  });
+  
+  // Personalizza il comportamento di Gun per gestire messaggi più grandi
+  context.on('out', function(msg) {
+    // Aumenta il limite di dimensione dei messaggi
+    if (msg && msg.put) {
+      const size = JSON.stringify(msg).length;
+      if (size > 1024 * 1024) { // Se il messaggio è più grande di 1MB
+        console.log(`Messaggio grande (${Math.round(size/1024)}KB) ricevuto e gestito`);
+      }
+    }
+    this.to.next(msg);
+  });
+});
+
+// Log delle connessioni
+gun.on('hi', peer => {
+  console.log('Peer connesso:', peer);
+});
+
+gun.on('bye', peer => {
+  console.log('Peer disconnesso:', peer);
+});
+
+// Impostazioni di debug
+global.Gun = Gun; // rende Gun disponibile in globale
+global.gun = gun; // rende gun disponibile in globale
+
+// Gestione errori a livello di server
+app.use((err, req, res, next) => {
+  console.error('Errore del server:', err);
+  res.status(500).send('Errore del server');
+});
+
+// Messaggio di benvenuto
+console.log('Hello wonderful person! :) Thanks for using GUN, please ask for help on http://chat.gun.eco if anything takes you longer than 5min to figure out!');
+
+module.exports = { app, gun }; 

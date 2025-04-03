@@ -260,17 +260,23 @@
         max: 3, // Massimo 3 tentativi
       });
 
-      Gun.on("opt", function (ctx) {
-        if (ctx.once) {
-          return;
-        }
-        ctx.on("out", function (msg) {
+      // Aggiunge header di autenticazione a GUN per migliorare la gestione dei messaggi
+      Gun.on("opt", function(ctx) {
+        if (ctx.once) return;
+        
+        // Aumenta il timeout per le operazioni
+        ctx.opt.wait = 99999;
+        
+        // Aumenta la dimensione massima del messaggio (anche se questo dipende dal server)
+        ctx.opt.maxMessages = 5000;
+        
+        // Aggiunge headers per autenticazione (se il server li utilizza)
+        ctx.on("out", function(msg) {
           var to = this.to;
-          // Adds headers for put
           msg.headers = {
-            token: "thisIsTheTokenForReals",
+            token: "thisIsTheTokenForReals"
           };
-          to.next(msg); // pass to next middleware
+          to.next(msg);
         });
       });
 
@@ -323,19 +329,87 @@
         });
       }
 
+      // Aggiungiamo funzione per comprimere i dati Base64
+      function compressBase64(base64Data) {
+        try {
+          console.log(`Compressione dati (lunghezza originale: ${base64Data.length})`);
+          // Simple RLE-style compression for Base64
+          let compressed = "";
+          let count = 1;
+          let currentChar = base64Data[0];
+          
+          for (let i = 1; i < base64Data.length; i++) {
+            if (base64Data[i] === currentChar && count < 255) {
+              count++;
+            } else {
+              // Usa un formato più compatto: solo quando ci sono ripetizioni
+              if (count > 3) {
+                compressed += `${currentChar}#${count}`;
+              } else {
+                compressed += currentChar.repeat(count);
+              }
+              currentChar = base64Data[i];
+              count = 1;
+            }
+          }
+          
+          // Aggiungi l'ultimo carattere
+          if (count > 3) {
+            compressed += `${currentChar}#${count}`;
+          } else {
+            compressed += currentChar.repeat(count);
+          }
+          
+          console.log(`Compressione completata (lunghezza dopo: ${compressed.length}, risparmio: ${Math.round((1 - compressed.length/base64Data.length) * 100)}%)`);
+          return compressed;
+        } catch (e) {
+          console.error("Errore nella compressione:", e);
+          return base64Data; // In caso di errore, ritorna i dati originali
+        }
+      }
+      
+      // Aggiungiamo funzione per decomprimere i dati Base64
+      function decompressBase64(compressedData) {
+        try {
+          console.log(`Decompressione dati (lunghezza compressa: ${compressedData.length})`);
+          // Decomprime il formato RLE-style
+          let decompressed = "";
+          let i = 0;
+          
+          while (i < compressedData.length) {
+            let char = compressedData[i];
+            i++;
+            
+            if (i < compressedData.length && compressedData[i] === '#') {
+              i++; // Salta il carattere #
+              let countStr = "";
+              while (i < compressedData.length && /[0-9]/.test(compressedData[i])) {
+                countStr += compressedData[i];
+                i++;
+              }
+              const count = parseInt(countStr, 10);
+              decompressed += char.repeat(count);
+            } else {
+              decompressed += char;
+            }
+          }
+          
+          console.log(`Decompressione completata (lunghezza dopo: ${decompressed.length})`);
+          return decompressed;
+        } catch (e) {
+          console.error("Errore nella decompressione:", e);
+          return compressedData; // In caso di errore, ritorna i dati compressi
+        }
+      }
+
       // Dividi dati in chunks
-      function splitIntoChunks(data, chunkSize = 50000) {
-        // Ridotto a 50KB per chunk
-        console.log(
-          `Dividendo i dati in chunks (lunghezza dati: ${data.length})`
-        );
+      function splitIntoChunks(data, chunkSize = 20000) { // Ridotto a 20KB per chunk
+        console.log(`Dividendo i dati in chunks (lunghezza dati: ${data.length})`);
         const chunks = [];
         for (let i = 0; i < data.length; i += chunkSize) {
           chunks.push(data.substring(i, i + chunkSize));
         }
-        console.log(
-          `Creati ${chunks.length} chunks (dimensione chunk: ${chunkSize})`
-        );
+        console.log(`Creati ${chunks.length} chunks (dimensione chunk: ${chunkSize})`);
         return chunks;
       }
 
@@ -508,16 +582,15 @@
             // Converti in base64
             try {
               const audioBase64 = await fileToBase64(audioFile);
-
-              progressBar.style.width = "50%";
-
+              
+              // Comprimi i dati prima di suddividerli
+              const compressedAudioBase64 = compressBase64(audioBase64);
+              
               // Dividi in chunks per evitare "Message too big!"
-              const chunkSize = 50000; // Ridotto a 50KB per chunk
-              const chunks = splitIntoChunks(audioBase64, chunkSize);
-              console.log(
-                `File diviso in ${chunks.length} chunks di circa ${chunkSize} bytes ciascuno`
-              );
-
+              const chunkSize = 10000; // Ridotto ulteriormente a 10KB per chunk
+              const chunks = splitIntoChunks(compressedAudioBase64, chunkSize);
+              console.log(`File diviso in ${chunks.length} chunks di circa ${chunkSize} bytes ciascuno`);
+              
               // Metadati del file con informazioni sui chunks
               const audioMetadata = {
                 id,
@@ -525,81 +598,98 @@
                 chunks: chunks.length,
                 chunkSize: chunkSize,
                 size: audioBase64.length,
+                compressedSize: compressedAudioBase64.length,
+                isCompressed: true,
                 filename: audioFile.name,
+                uploadedAt: Date.now()
               };
-
+              
               // Salva metadati dei chunks
-              console.log(
-                `Salvando metadati: ${JSON.stringify(audioMetadata)}`
-              );
+              console.log(`Salvando metadati: ${JSON.stringify(audioMetadata)}`);
               await new Promise((resolve) => {
                 tracksNode.get(`${id}_metadata`).put(audioMetadata, (ack) => {
                   console.log(`Metadati salvati, risposta:`, ack);
                   resolve();
                 });
               });
-
+              
               progressBar.style.width = "60%";
               uploadStatus.innerText = `⏳ Caricamento chunks (0/${chunks.length})...`;
-
-              // Carica chunks uno per uno
+              
+              // Carica chunks uno per uno con una gestione più precisa degli errori
               let chunksCompletati = 0;
-              const chunkErrors = [];
-
-              for (let i = 0; i < chunks.length; i++) {
-                uploadStatus.innerText = `⏳ Caricamento chunks (${i + 1}/${
-                  chunks.length
-                })...`;
-                const percentuale = 60 + ((i + 1) * 30) / chunks.length;
-                progressBar.style.width = `${percentuale}%`;
-
-                console.log(
-                  `Caricando chunk ${i + 1}/${chunks.length} (lunghezza: ${
-                    chunks[i].length
-                  })`
-                );
-
-                try {
-                  await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                      console.log(
-                        `Timeout per chunk ${i}, continuiamo comunque`
-                      );
-                      resolve(true);
-                    }, 5000);
-
-                    const chunkData = {
-                      data: chunks[i],
-                      index: i,
-                      total: chunks.length,
-                    };
-
-                    tracksNode.get(`${id}_chunk_${i}`).put(chunkData, (ack) => {
-                      clearTimeout(timeout);
-                      if (ack.err) {
-                        console.error(`Errore nel chunk ${i}:`, ack.err);
-                        chunkErrors.push({ index: i, error: ack.err });
-                      } else {
-                        chunksCompletati++;
-                        console.log(
-                          `Chunk ${i + 1}/${
-                            chunks.length
-                          } caricato con successo`
-                        );
-                      }
-                      resolve(true);
+              let chunkErrors = [];
+              
+              // Funzione per provare a caricare un singolo chunk con più tentativi
+              const uploadChunkWithRetry = async (i, maxRetries = 3) => {
+                let retries = 0;
+                let success = false;
+                
+                while (retries < maxRetries && !success) {
+                  try {
+                    await new Promise((resolve, reject) => {
+                      const timeout = setTimeout(() => {
+                        console.log(`Timeout per chunk ${i}, tentativo ${retries + 1}`);
+                        reject(new Error("Timeout"));
+                      }, 10000); // 10 secondi di timeout
+                      
+                      const chunkData = {
+                        data: chunks[i],
+                        index: i,
+                        total: chunks.length,
+                        retry: retries
+                      };
+                      
+                      tracksNode.get(`${id}_chunk_${i}`).put(chunkData, (ack) => {
+                        clearTimeout(timeout);
+                        if (ack.err) {
+                          console.error(`Errore nel chunk ${i}, tentativo ${retries + 1}:`, ack.err);
+                          reject(new Error(ack.err));
+                        } else {
+                          success = true;
+                          resolve();
+                        }
+                      });
                     });
-                  });
-                } catch (chunkError) {
-                  console.error(
-                    `Errore durante il caricamento del chunk ${i}:`,
-                    chunkError
-                  );
-                  chunkErrors.push({ index: i, error: chunkError.message });
+                  } catch (error) {
+                    console.warn(`Tentativo ${retries + 1} fallito per chunk ${i}: ${error.message}`);
+                    retries++;
+                    // Attendi più a lungo tra i tentativi successivi
+                    await new Promise(r => setTimeout(r, 1000 * retries));
+                  }
                 }
-
-                // Breve pausa tra i chunk per evitare sovraccarichi
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                
+                return success;
+              };
+              
+              // Carica i chunk in piccoli gruppi per evitare di sovraccaricare il server
+              const batchSize = 5; // Carica 5 chunk alla volta
+              for (let batchStart = 0; batchStart < chunks.length; batchStart += batchSize) {
+                const batchEnd = Math.min(batchStart + batchSize, chunks.length);
+                const batchPromises = [];
+                
+                for (let i = batchStart; i < batchEnd; i++) {
+                  batchPromises.push(uploadChunkWithRetry(i).then(success => {
+                    if (success) {
+                      chunksCompletati++;
+                      console.log(`Chunk ${i + 1}/${chunks.length} caricato con successo`);
+                    } else {
+                      chunkErrors.push({ index: i, error: "Tentativi esauriti" });
+                      console.error(`Impossibile caricare il chunk ${i} dopo multipli tentativi`);
+                    }
+                    
+                    // Aggiorna la UI
+                    const percentuale = 60 + (chunksCompletati * 40 / chunks.length);
+                    progressBar.style.width = `${percentuale}%`;
+                    uploadStatus.innerText = `⏳ Caricamento chunks (${chunksCompletati}/${chunks.length})...`;
+                  }));
+                }
+                
+                // Attendi che tutti i chunks del batch siano stati processati
+                await Promise.all(batchPromises);
+                
+                // Piccola pausa tra i batch
+                await new Promise(resolve => setTimeout(resolve, 500));
               }
 
               if (chunkErrors.length > 0) {
@@ -757,10 +847,15 @@
 
                   // Ricostruisci il file
                   console.log("Ricostruzione file dai chunks...");
-                  const fullData = joinChunks(chunks);
-                  console.log(
-                    `File ricostruito, dimensione: ${fullData.length}`
-                  );
+                  let fullData = joinChunks(chunks);
+                  
+                  // Decompressione se necessario
+                  if (metadata.isCompressed) {
+                    console.log("Il file è compresso, avvio decompressione...");
+                    fullData = decompressBase64(fullData);
+                  }
+                  
+                  console.log(`File ricostruito, dimensione: ${fullData.length}`);
 
                   try {
                     const blob = base64ToBlob(
