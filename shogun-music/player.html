@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shogun Music - Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/radix.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/radisk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/store.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/lib/rindexed.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@6.6.3/dist/wavesurfer.min.js"></script>
+
+    <!-- Fallback per WaveSurfer in caso di problemi con il CDN principale -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        if (typeof WaveSurfer === "undefined") {
+          console.warn(
+            "WaveSurfer non caricato dal CDN principale, tentativo con CDN alternativo..."
+          );
+          const script = document.createElement("script");
+          script.src =
+            "https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/6.6.3/wavesurfer.min.js";
+          script.onload = () =>
+            console.log("WaveSurfer caricato da CDN alternativo");
+          script.onerror = () =>
+            console.error("Impossibile caricare WaveSurfer da entrambi i CDN");
+          document.head.appendChild(script);
+        } else {
+          console.log("WaveSurfer caricato correttamente dal CDN principale");
+        }
+      });
+    </script>
+
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #EAEAEA;
+        background-color: #121212;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+      }
+      h1, h2, h3 {
+        color: #FFFFFF;
+      }
+      /* Layout principale con sidebar */
+      .main-container {
+        display: flex;
+        width: 100%;
+        height: 100%;
+      }
+      .sidebar {
+        width: 240px;
+        background-color: #000000;
+        padding: 20px;
+        border-right: 1px solid #282828;
+        overflow-y: auto;
+        flex-shrink: 0;
+      }
+      .main-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .content-area {
+        padding: 20px;
+        flex: 1;
+        overflow-y: auto;
+      }
+      .status-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .server-status {
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: bold;
+      }
+      .status-online {
+        background-color: #1DB954;
+        color: #121212;
+      }
+      .status-offline {
+        background-color: #E22134;
+        color: #FFFFFF;
+      }
+      .status-warning {
+        background-color: #F59B23;
+        color: #121212;
+      }
+      .player-container,
+      .playlist-container,
+      .relay-container {
+        background: #181818;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        margin-bottom: 20px;
+      }
+      button {
+        background-color: #1DB954;
+        color: #121212;
+        border: none;
+        padding: 8px 16px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 14px;
+        border-radius: 20px;
+        cursor: pointer;
+        margin-right: 5px;
+        transition: background-color 0.3s;
+      }
+      button:hover {
+        background-color: #1ED760;
+      }
+      #songsList {
+        list-style-type: none;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        grid-gap: 16px;
+      }
+      .song-item {
+        background-color: #282828;
+        border-radius: 8px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        transition: background-color 0.3s;
+        position: relative;
+      }
+      .song-item:hover {
+        background-color: #333333;
+      }
+      .song-info {
+        flex-grow: 1;
+        margin-top: 12px;
+      }
+      .song-title {
+        font-weight: bold;
+        margin-bottom: 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .song-artist {
+        font-size: 14px;
+        color: #A7A7A7;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .song-actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 5px;
+      }
+      .artwork {
+        width: 100%;
+        height: 170px;
+        object-fit: cover;
+        border-radius: 4px;
+      }
+      .artwork-placeholder {
+        width: 100%;
+        height: 170px;
+        background-color: #333333;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        color: #888;
+      }
+      .player-controls {
+        background-color: #181818;
+        border-top: 1px solid #282828;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-shrink: 0;
+      }
+      .play-btn,
+      .pause-btn {
+        background-color: #1DB954;
+        font-size: 16px;
+        padding: 12px 16px;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .play-btn:hover,
+      .pause-btn:hover {
+        background-color: #1ED760;
+        transform: scale(1.05);
+      }
+      .now-playing {
+        margin-bottom: 20px;
+        padding: 16px;
+        background-color: #282828;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+      }
+      .now-playing-info {
+        margin-left: 16px;
+      }
+      #waveform {
+        width: 100%;
+        height: 60px;
+        background-color: #282828;
+        border-radius: 4px;
+      }
+      .relay-input {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+      .relay-input input {
+        flex-grow: 1;
+        padding: 8px 16px;
+        background-color: #333333;
+        color: #EAEAEA;
+        border: 1px solid #444444;
+        border-radius: 20px;
+        box-sizing: border-box;
+      }
+      #relayList {
+        list-style-type: none;
+        padding: 0;
+      }
+      .relay-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        border-bottom: 1px solid #333333;
+        font-size: 14px;
+      }
+      .relay-item button {
+        margin-left: 10px;
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+      .status-badge {
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 10px;
+      }
+      .status-badge.online {
+        background-color: #1DB954;
+        color: #121212;
+      }
+      .status-badge.offline {
+        background-color: #E22134;
+        color: #FFFFFF;
+      }
+      .status-badge.warning {
+        background-color: #F59B23;
+        color: #121212;
+      }
+      /* Stili per messaggi di caricamento e errore */
+      .loading,
+      .error,
+      .empty-library {
+        padding: 20px;
+        text-align: center;
+        background-color: #282828;
+        border-radius: 8px;
+        margin: 20px 0;
+        width: 100%;
+      }
+      .loading {
+        color: #1DB954;
+        animation: pulse 1.5s infinite ease-in-out;
+      }
+      .error {
+        color: #E22134;
+        border-left: 4px solid #E22134;
+      }
+      .empty-library {
+        color: #A7A7A7;
+        font-style: italic;
+      }
+      @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+      }
+      .admin-link {
+        margin-top: 20px;
+        text-align: center;
+      }
+      .admin-link a {
+        color: #A7A7A7;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .admin-link a:hover {
+        color: #FFFFFF;
+        text-decoration: underline;
+      }
+      /* Token input styling */
+      #customToken {
+        background-color: #333333;
+        color: #EAEAEA;
+        border: 1px solid #444444;
+        border-radius: 20px;
+        padding: 8px 16px;
+        width: 100%;
+      }
+      /* Filter styling */
+      .filter-container {
+        margin-bottom: 20px; 
+        padding: 16px; 
+        background-color: #282828; 
+        border-radius: 8px;
+      }
+      #filterType {
+        padding: 8px 16px;
+        background-color: #333333;
+        color: #EAEAEA;
+        border: 1px solid #444444;
+        border-radius: 20px;
+      }
+      #filterInput {
+        flex-grow: 1;
+        padding: 8px 16px;
+        background-color: #333333;
+        color: #EAEAEA;
+        border: 1px solid #444444;
+        border-radius: 20px;
+      }
+      #clearFilterBtn {
+        padding: 8px 16px;
+        background-color: #333333;
+        color: #EAEAEA;
+      }
+      #clearFilterBtn:hover {
+        background-color: #444444;
+      }
+      /* Stile per il controllo volume */
+      #volumeSlider {
+        -webkit-appearance: none;
+        width: 100px;
+        height: 4px;
+        background: #555555;
+        border-radius: 2px;
+        margin-left: auto;
+      }
+      #volumeSlider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px;
+        height: 12px;
+        background: #FFFFFF;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+      .time-display {
+        font-size: 14px;
+        color: #A7A7A7;
+        min-width: 80px;
+        text-align: center;
+      }
+      .menu-item div {
+        padding: 10px 0;
+        color: #A7A7A7;
+        transition: color 0.3s;
+        cursor: pointer;
+      }
+      .menu-item div:hover {
+        color: #FFFFFF;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <div class="sidebar">
+        <h2>Shogun Music</h2>
+        
+        <div style="margin: 30px 0;">
+          <h3>Il tuo Profilo</h3>
+          <div class="menu-item">
+            <div>
+              <span>Utente</span>
+            </div>
+            <div>
+              <span>La tua libreria</span>
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin: 30px 0">
+          <h3>Server Status</h3>
+          <div class="status-container">
+            <div id="serverStatus" class="server-status status-offline">
+              Server offline
+            </div>
+            <div id="gunStatus" class="server-status status-offline">
+              GUN offline
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin: 30px 0;">
+          <h3>Token</h3>
+          <div style="margin-bottom: 8px;">
+            <input type="text" id="customToken" placeholder="Token personalizzato">
+          </div>
+          <button id="saveTokenBtn" style="width: 100%;">Salva</button>
+          <div id="tokenStatus" style="font-size: 13px; color: #A7A7A7; margin-top: 5px;"></div>
+          <p style="font-size: 12px; color: #666; margin-top: 5px;">
+            Questo token deve essere lo stesso specificato nel pannello Admin e nel server.
+          </p>
+        </div>
+        
+        <div class="admin-link">
+          <a href="/admin">Vai alla pagina di amministrazione</a>
+        </div>
+      </div>
+      
+      <div class="main-content">
+        <div class="content-area">
+          <div class="player-container">
+            <h2>Player</h2>
+            <div id="nowPlaying" class="now-playing" style="display: none">
+              <div id="nowPlayingArtwork" class="artwork-placeholder">♪</div>
+              <div class="now-playing-info">
+                <div id="nowPlayingTitle" class="song-title">Nessuna traccia</div>
+                <div id="nowPlayingArtist" class="song-artist">Nessun artista</div>
+              </div>
+            </div>
+
+            <div id="waveform"></div>
+          </div>
+
+          <div class="playlist-container">
+            <h2>Playlist</h2>
+            
+            <!-- Filtri -->
+            <div class="filter-container">
+              <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <select id="filterType">
+                  <option value="all">Tutto</option>
+                  <option value="title">Titolo</option>
+                  <option value="artist">Artista</option>
+                  <option value="album">Album</option>
+                </select>
+                <input 
+                  type="text" 
+                  id="filterInput" 
+                  placeholder="Cerca..." 
+                >
+                <button id="clearFilterBtn">
+                  Pulisci
+                </button>
+              </div>
+              <div id="filterStatus" style="font-size: 13px; color: #A7A7A7;"></div>
+            </div>
+            
+            <div id="songsLoading" class="loading">
+              Caricamento tracce in corso...
+            </div>
+            <div id="songsError" class="error" style="display: none">
+              Errore nel caricamento delle tracce
+            </div>
+            <div id="songsEmpty" class="empty-library" style="display: none">
+              Nessuna traccia disponibile. Vai alla pagina di Admin per caricare musica.
+            </div>
+            <ul id="songsList"></ul>
+          </div>
+
+          <div class="relay-container">
+            <h2>Relay</h2>
+            <p>Aggiungi relay per connetterti ad altri nodi Gun.js</p>
+            <div class="relay-input">
+              <input
+                type="text"
+                id="relayInput"
+                placeholder="URL relay (es. https://gun-relay.example.com/gun)"
+              />
+              <button id="addRelayBtn">Aggiungi</button>
+            </div>
+            <ul id="relayList"></ul>
+          </div>
+        </div>
+        
+        <div class="player-controls">
+          <button id="playBtn" class="play-btn" disabled>▶</button>
+          <button id="pauseBtn" class="pause-btn" disabled style="display: none;">❚❚</button>
+          <div class="time-display">
+            <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+          </div>
+          <div id="waveformMini" style="flex-grow: 1; height: 4px; background: #555; border-radius: 2px;"></div>
+          <input
+            type="range"
+            id="volumeSlider"
+            min="0"
+            max="1"
+            step="0.01"
+            value="0.7"
+          />
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Gestione del token personalizzato
+        function loadCustomToken() {
+          const savedToken = localStorage.getItem('gunCustomToken');
+          if (savedToken) {
+            document.getElementById('customToken').value = savedToken;
+            document.getElementById('tokenStatus').textContent = "Token personalizzato in uso";
+          } else {
+            document.getElementById('tokenStatus').textContent = "Token predefinito in uso";
+          }
+          return savedToken || "thisIsTheTokenForReals"; // Usa token predefinito se non personalizzato
+        }
+
+        // Salva token personalizzato
+        document.getElementById('saveTokenBtn').addEventListener('click', function() {
+          const tokenInput = document.getElementById('customToken');
+          const token = tokenInput.value.trim();
+          
+          if (token) {
+            localStorage.setItem('gunCustomToken', token);
+            document.getElementById('tokenStatus').textContent = "Token personalizzato salvato";
+          } else {
+            localStorage.removeItem('gunCustomToken');
+            document.getElementById('tokenStatus').textContent = "Token predefinito ripristinato";
+          }
+          
+          alert('Impostazioni token aggiornate. Ricarica la pagina per applicare.');
+          setTimeout(() => location.reload(), 1000);
+        });
+
+        // Carica il token all'avvio
+        const customToken = loadCustomToken();
+
+        // Configurazione di Gun.js
+        const gun = Gun({
+          peers: ["http://localhost:3001/gun"],
+          localStorage: false,
+          axe: false
+        });
+
+        // Configura Gun per usare il token personalizzato
+        Gun.on("opt", function (ctx) {
+          if (ctx.once) return;
+          ctx.on("out", function (msg) {
+            // Adds headers for put
+            msg.headers = {
+              token: customToken, // Usa token personalizzato o predefinito
+            };
+            this.to.next(msg);
+          });
+        });
+
+        let currentWavesurfer = null;
+        let currentTrackId = null;
+        let tracks = [];
+        let allTracks = []; // Variabile per mantenere tutte le tracce originali
+        let relays = [];
+        let isLoadingTracks = false; // Flag per prevenire caricamenti simultanei
+        let lastTracksUpdate = 0; // Timestamp dell'ultimo aggiornamento tracce
+
+        // Elementi DOM
+        const songsList = document.getElementById("songsList");
+        const songsLoading = document.getElementById("songsLoading");
+        const songsError = document.getElementById("songsError");
+        const songsEmpty = document.getElementById("songsEmpty");
+        const playBtn = document.getElementById("playBtn");
+        const pauseBtn = document.getElementById("pauseBtn");
+        const volumeSlider = document.getElementById("volumeSlider");
+        const nowPlaying = document.getElementById("nowPlaying");
+        const nowPlayingTitle = document.getElementById("nowPlayingTitle");
+        const nowPlayingArtist = document.getElementById("nowPlayingArtist");
+        const nowPlayingArtwork = document.getElementById("nowPlayingArtwork");
+        const currentTime = document.getElementById("currentTime");
+        const duration = document.getElementById("duration");
+        const serverStatus = document.getElementById("serverStatus");
+        const gunStatus = document.getElementById("gunStatus");
+        const relayInput = document.getElementById("relayInput");
+        const addRelayBtn = document.getElementById("addRelayBtn");
+        const relayList = document.getElementById("relayList");
+
+        // Verifica stato del server
+        checkServerStatus();
+        setInterval(checkServerStatus, 30000); // Ridotto a 30 secondi invece di 10 secondi
+
+        // Carica lista canzoni (solo una volta all'avvio)
+        loadTracks();
+
+        // Imposta wavesurfer
+        setupWaveform();
+
+        // Eventi
+        playBtn.addEventListener("click", playCurrentTrack);
+        pauseBtn.addEventListener("click", pauseCurrentTrack);
+        volumeSlider.addEventListener("input", updateVolume);
+        addRelayBtn.addEventListener("click", addRelay);
+        
+        // Eventi per i filtri
+        const filterInput = document.getElementById("filterInput");
+        const filterType = document.getElementById("filterType");
+        const clearFilterBtn = document.getElementById("clearFilterBtn");
+        const filterStatus = document.getElementById("filterStatus");
+        
+        filterInput.addEventListener("input", applyFilter);
+        filterType.addEventListener("change", applyFilter);
+        clearFilterBtn.addEventListener("click", clearFilter);
+
+        // Carica relay salvati
+        loadSavedRelays();
+
+        // Funzione per sincronizzare direttamente le tracce da Gun.js
+        function syncTracksFromGun() {
+          console.log("Sincronizzazione iniziale delle tracce da tutti i relay");
+          
+          // Inizializza un set di ID per tenere traccia delle tracce già viste
+          const seenIds = new Set();
+          
+          // Aggiungi le tracce locali già esistenti
+          tracks.forEach(track => {
+            seenIds.add(track.id);
+          });
+          
+          // STRATEGIA 1: Iscriviti ai dati Gun per ottenere tracce da tutti i peer
+          gun.get('audio_files').get('tracks').map().on(function(trackRef) {
+            // Log dettagliato di ciò che riceviamo da Gun
+            console.log('Raw trackRef from Gun:', trackRef);
+            
+            if (trackRef && trackRef.id && !seenIds.has(trackRef.id)) {
+              try {
+                seenIds.add(trackRef.id);
+                
+                // Log prima della creazione dell'oggetto
+                console.log(`Processing trackRef: ID=${trackRef.id}, Title=${trackRef.t}, Artist=${trackRef.a}, AP=${trackRef.ap}, WP=${trackRef.wp}, Origin=${trackRef.o}, Album=${trackRef.alb}`);
+                                
+                const newTrack = {
+                  id: trackRef.id,
+                  title: trackRef.t || 'Senza titolo',
+                  artist: trackRef.a || 'Sconosciuto',
+                  album: trackRef.alb || 'Album sconosciuto', // Aggiungi supporto per album
+                  timestamp: trackRef.ts || Date.now(),
+                  audio_path: trackRef.ap || null,
+                  artwork_path: trackRef.wp || null,
+                  originUrl: trackRef.o || null // Leggi l'URL di origine da Gun
+                };
+                
+                // Aggiungi alla lista attuale
+                tracks.push(newTrack);
+                
+                // IMPORTANTE: Aggiorna anche allTracks per il filtro
+                allTracks.push(newTrack);
+                
+                // Aggiorna la visualizzazione
+                console.log(`Nuova traccia da Gun.js: ${newTrack.title} - ${newTrack.artist}`);
+                displayTracks(allTracks); // Mostra tutte le tracce, non solo quelle locali
+              } catch (e) {
+                console.error("Errore nell'elaborazione della traccia Gun:", e);
+              }
+            }
+          });
+          
+          // STRATEGIA 2: Carica direttamente da tutti i relay tramite API REST
+          console.log("Tentativo caricamento tracce da tutti i relay tramite API");
+          
+          // Per ogni relay, fai una richiesta diretta alla sua API
+          relays.forEach(relay => {
+            if (relay.status !== 'offline') {
+              // Estrai il base URL dal relay
+              let baseUrl = relay.url;
+              // Converte da Gun URL a HTTP base URL (es. http://localhost:3001/gun -> http://localhost:3001)
+              baseUrl = baseUrl.replace('/gun', '');
+              
+              console.log(`Tentativo caricamento tracce da ${baseUrl}/api/tracks`);
+              
+              // Chiama API /api/tracks sul relay
+              fetch(`${baseUrl}/api/tracks`)
+                .then(response => {
+                  if (!response.ok) throw new Error(`Errore API: ${response.statusText}`);
+                  return response.json();
+                })
+                .then(data => {
+                  console.log(`Ricevute ${data.tracks.length} tracce da ${baseUrl}/api/tracks`);
+                  
+                  // Aggiungi le tracce mancanti
+                  data.tracks.forEach(track => {
+                    if (!seenIds.has(track.id)) {
+                      seenIds.add(track.id);
+                      
+                      // Assicurati che ci sia originUrl per questo relay
+                      if (!track.originUrl && baseUrl) {
+                        track.originUrl = baseUrl;
+                      }
+                      
+                      console.log(`Nuova traccia da API relay ${baseUrl}: ${track.title} - ${track.artist}`);
+                      
+                      // Aggiungi sia a tracks che a allTracks
+                      tracks.push(track);
+                      allTracks.push(track);
+                    }
+                  });
+                  
+                  // Aggiorna UI una sola volta alla fine e usa allTracks come fonte
+                  displayTracks(allTracks);
+                  
+                  // Aggiorna il numero di tracce trovate nel filtro status se il filtro è attivo
+                  updateFilterStatus();
+                })
+                .catch(error => {
+                  console.error(`Errore caricamento da ${baseUrl}/api/tracks:`, error);
+                });
+            }
+          });
+        }
+
+        // Configurazione evento di Gun per aggiornamenti (una sola volta)
+        gun.get('app_events').get('track_deleted').on(function(event) {
+          console.log("Evento eliminazione traccia ricevuto", event);
+          if (event && event.id) {
+            // Verifica che sia passato abbastanza tempo dall'ultimo aggiornamento
+            // per evitare aggiornamenti troppo frequenti
+            const now = Date.now();
+            if (now - lastTracksUpdate > 5000) { // Minimo 5 secondi tra un aggiornamento e l'altro
+              lastTracksUpdate = now;
+              loadTracks();
+            }
+          }
+        });
+
+        // Funzione per controllare lo stato del server
+        function checkServerStatus() {
+          fetch("/healthcheck")
+            .then(response => {
+              if (response.ok) {
+                serverStatus.textContent = "Server online";
+                serverStatus.className = "server-status status-online";
+                return response.json();
+              } else {
+                throw new Error("Server non disponibile");
+              }
+            })
+            .then(data => {
+              console.log("Server status:", data);
+              
+              // Se prima era offline e ora è online, ricarica le tracce
+              if (serverStatus.classList.contains("status-offline")) {
+                loadTracks();
+              }
+            })
+            .catch(error => {
+              console.error("Errore controllo server:", error);
+              serverStatus.textContent = "Server offline";
+              serverStatus.className = "server-status status-offline";
+            });
+
+          fetch("/gun/status")
+            .then(response => {
+              if (response.ok) {
+                gunStatus.textContent = "GUN online";
+                gunStatus.className = "server-status status-online";
+              } else {
+                throw new Error("GUN non disponibile");
+              }
+            })
+            .catch(error => {
+              console.error("Errore controllo GUN:", error);
+              gunStatus.textContent = "GUN offline";
+              gunStatus.className = "server-status status-offline";
+            });
+        }
+
+        // Funzione per caricare le tracce audio
+        function loadTracks(forceReload = false) {
+          // Se è già in corso un caricamento, non fare nulla
+          if (isLoadingTracks && !forceReload) {
+            console.log("Caricamento già in corso, richiesta ignorata");
+            return;
+          }
+          
+          isLoadingTracks = true;
+          console.log("Caricamento tracce...");
+          songsLoading.style.display = "block";
+          songsError.style.display = "none";
+          songsEmpty.style.display = "none";
+          // Non svuotiamo la lista durante il caricamento per evitare flickering
+          // songsList.innerHTML = "";
+
+          // Includiamo il parametro per forzare l'aggiornamento quando necessario
+          const endpoint = forceReload ? "/api/tracks?force=true" : "/api/tracks";
+          
+          fetch(endpoint)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+              return response.json();
+            })
+            .then(data => {
+              console.log("Tracce caricate:", data);
+              tracks = data.tracks || [];
+              // IMPORTANTE: aggiorniamo completamente allTracks, non solo copiamo le tracce locali
+              allTracks = [...tracks]; 
+              songsLoading.style.display = "none";
+              lastTracksUpdate = Date.now();
+              
+              if (tracks.length === 0) {
+                songsEmpty.style.display = "block";
+                songsList.innerHTML = ""; // Svuota solo se non ci sono tracce
+              } else {
+                displayTracks(allTracks); // Usa allTracks come fonte
+              }
+              
+              // Se c'è un filtro attivo, riapplicalo dopo aver caricato le tracce
+              if (filterInput.value.trim() !== "") {
+                applyFilter();
+              }
+              
+              isLoadingTracks = false;
+            })
+            .catch(error => {
+              console.error("Errore caricamento tracce:", error);
+              songsLoading.style.display = "none";
+              songsError.style.display = "block";
+              songsError.textContent = `Errore: ${error.message}`;
+              isLoadingTracks = false;
+            });
+        }
+
+        // Visualizza la lista delle tracce
+        function displayTracks(tracks) {
+          songsList.innerHTML = "";
+          
+          tracks.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+            .forEach(track => {
+              const li = document.createElement("li");
+              li.className = "song-item";
+              li.dataset.id = track.id;
+
+              // Crea elemento artwork
+              let artworkElement;
+              if (track.artwork_path) {
+                // Usa l'originUrl se disponibile, altrimenti fallback
+                const baseUrl = track.originUrl || 'http://localhost:3001';
+                let artworkPath = track.artwork_path;
+                if (artworkPath && !artworkPath.startsWith('http') && !artworkPath.startsWith('data:')) {
+                  artworkPath = `${baseUrl}${artworkPath}`;
+                }
+                
+                artworkElement = document.createElement("img");
+                artworkElement.src = artworkPath;
+                artworkElement.className = "artwork";
+                artworkElement.alt = `Artwork per ${track.title}`;
+                artworkElement.onerror = function() {
+                  this.style.display = "none";
+                  const placeholder = document.createElement("div");
+                  placeholder.className = "artwork-placeholder";
+                  placeholder.textContent = "♪";
+                  this.parentNode.insertBefore(placeholder, this);
+                };
+              } else {
+                artworkElement = document.createElement("div");
+                artworkElement.className = "artwork-placeholder";
+                artworkElement.textContent = "♪";
+              }
+
+              // Info traccia
+              const songInfo = document.createElement("div");
+              songInfo.className = "song-info";
+              
+              const songTitle = document.createElement("div");
+              songTitle.className = "song-title";
+              songTitle.textContent = track.title || "Senza titolo";
+              
+              const songArtist = document.createElement("div");
+              songArtist.className = "song-artist";
+              songArtist.textContent = track.artist || "Artista sconosciuto";
+              
+              const songAlbum = document.createElement("div");
+              songAlbum.className = "song-artist"; // Riuso dello stile di song-artist
+              songAlbum.textContent = track.album ? `Album: ${track.album}` : "";
+
+              songInfo.appendChild(songTitle);
+              songInfo.appendChild(songArtist);
+              songInfo.appendChild(songAlbum);
+
+              // Azioni
+              const songActions = document.createElement("div");
+              songActions.className = "song-actions";
+              
+              const playButton = document.createElement("button");
+              playButton.textContent = "Play";
+              playButton.addEventListener("click", function() {
+                loadAndPlayTrack(track);
+              });
+
+              songActions.appendChild(playButton);
+
+              // Assembla elementi
+              li.appendChild(artworkElement);
+              li.appendChild(songInfo);
+              li.appendChild(songActions);
+              songsList.appendChild(li);
+            });
+        }
+
+        // Configura wavesurfer
+        function setupWaveform() {
+          if (currentWavesurfer) {
+            currentWavesurfer.destroy();
+          }
+
+          currentWavesurfer = WaveSurfer.create({
+            container: "#waveform",
+            waveColor: "#4caf50",
+            progressColor: "#2196f3",
+            cursorColor: "#333",
+            barWidth: 2,
+            barRadius: 3,
+            cursorWidth: 1,
+            height: 80,
+            barGap: 3,
+            responsive: true
+          });
+
+          // Eventi wavesurfer
+          currentWavesurfer.on("ready", function() {
+            console.log("WaveSurfer pronto");
+            playBtn.disabled = false;
+            pauseBtn.disabled = false;
+            updateDuration();
+            playCurrentTrack();
+          });
+
+          currentWavesurfer.on("audioprocess", function() {
+            updateCurrentTime();
+          });
+
+          currentWavesurfer.on("finish", function() {
+            console.log("Riproduzione completata");
+            playNextTrack();
+          });
+
+          currentWavesurfer.on("error", function(err) {
+            console.error("Errore WaveSurfer:", err);
+            alert("Errore durante il caricamento dell'audio");
+          });
+
+          // Imposta volume iniziale
+          currentWavesurfer.setVolume(volumeSlider.value);
+        }
+
+        // Carica e riproduce una traccia
+        function loadAndPlayTrack(track) {
+          console.log("Caricamento traccia:", track);
+          
+          if (currentTrackId === track.id && currentWavesurfer.isReady) {
+            playCurrentTrack();
+            return;
+          }
+          
+          currentTrackId = track.id;
+          
+          // Aggiorna UI player
+          nowPlaying.style.display = "flex";
+          nowPlayingTitle.textContent = track.title || "Senza titolo";
+          nowPlayingArtist.textContent = track.artist || "Artista sconosciuto";
+          
+          if (track.artwork_path) {
+            nowPlayingArtwork.innerHTML = "";
+            const img = document.createElement("img");
+            
+            // Usa l'originUrl se disponibile, altrimenti fallback
+            const baseUrl = track.originUrl || 'http://localhost:3001';
+            let artworkPath = track.artwork_path;
+            if (artworkPath && !artworkPath.startsWith('http') && !artworkPath.startsWith('data:')) {
+              artworkPath = `${baseUrl}${artworkPath}`;
+            }
+            
+            img.src = artworkPath;
+            img.className = "artwork";
+            img.alt = "Artwork";
+            img.onerror = function() {
+              nowPlayingArtwork.innerHTML = "♪";
+              nowPlayingArtwork.className = "artwork-placeholder";
+            };
+            nowPlayingArtwork.className = "";
+            nowPlayingArtwork.appendChild(img);
+          } else {
+            nowPlayingArtwork.innerHTML = "♪";
+            nowPlayingArtwork.className = "artwork-placeholder";
+          }
+          
+          // Reset UI controlli
+          playBtn.disabled = true;
+          pauseBtn.disabled = true;
+          currentTime.textContent = "0:00";
+          duration.textContent = "0:00";
+          
+          // Carica audio con gestione dei percorsi
+          let audioPath = track.audio_path;
+          
+          // Se il percorso non inizia con http/https, costruisci l'URL assoluto
+          // usando l'originUrl della traccia o il fallback a localhost:3001
+          if (audioPath && !audioPath.startsWith('http')) {
+            const baseUrl = track.originUrl || 'http://localhost:3001';
+            audioPath = `${baseUrl}${audioPath}`;
+          }
+          
+          console.log(`Caricamento audio da: ${audioPath}`);
+          
+          // Controllo di sicurezza: non caricare se il percorso è null o vuoto
+          if (!audioPath) {
+            console.error("Tentativo di caricare una traccia senza percorso audio valido:", track);
+            alert(`Errore: Impossibile trovare il file audio per la traccia "${track.title}".`);
+            // Resetta lo stato di riproduzione
+            if (currentWavesurfer) currentWavesurfer.empty();
+            nowPlaying.style.display = "none";
+            playBtn.disabled = true;
+            pauseBtn.disabled = true;
+            currentTrackId = null;
+            return;
+          }
+          
+          currentWavesurfer.load(audioPath);
+        }
+
+        // Riproduce la traccia corrente
+        function playCurrentTrack() {
+          if (currentWavesurfer && currentWavesurfer.isReady) {
+            currentWavesurfer.play();
+            playBtn.style.display = "none";
+            pauseBtn.style.display = "inline-block";
+          } else if (tracks.length > 0 && !currentTrackId) {
+            // Se nessuna traccia è caricata, carica la prima
+            loadAndPlayTrack(tracks[0]);
+          }
+        }
+
+        // Mette in pausa la traccia corrente
+        function pauseCurrentTrack() {
+          if (currentWavesurfer) {
+            currentWavesurfer.pause();
+            playBtn.style.display = "inline-block";
+            pauseBtn.style.display = "none";
+          }
+        }
+
+        // Riproduce la traccia successiva
+        function playNextTrack() {
+          if (tracks.length === 0 || !currentTrackId) return;
+          
+          const currentIndex = tracks.findIndex(t => t.id === currentTrackId);
+          if (currentIndex === -1) return;
+          
+          const nextIndex = (currentIndex + 1) % tracks.length;
+          loadAndPlayTrack(tracks[nextIndex]);
+        }
+
+        // Aggiorna il volume
+        function updateVolume() {
+          if (currentWavesurfer) {
+            currentWavesurfer.setVolume(volumeSlider.value);
+          }
+        }
+
+        // Aggiorna il tempo corrente
+        function updateCurrentTime() {
+          if (currentWavesurfer) {
+            const time = currentWavesurfer.getCurrentTime();
+            currentTime.textContent = formatTime(time);
+          }
+        }
+
+        // Aggiorna la durata
+        function updateDuration() {
+          if (currentWavesurfer) {
+            const totalTime = currentWavesurfer.getDuration();
+            duration.textContent = formatTime(totalTime);
+          }
+        }
+
+        // Formatta il tempo in mm:ss
+        function formatTime(seconds) {
+          seconds = Math.round(seconds);
+          const minutes = Math.floor(seconds / 60);
+          seconds = seconds % 60;
+          return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Aggiunge un relay
+        function addRelay() {
+          const relayUrl = relayInput.value.trim();
+          if (!relayUrl) return;
+          
+          if (!relayUrl.startsWith('http://') && !relayUrl.startsWith('https://')) {
+            alert('URL non valido. Deve iniziare con http:// o https://');
+            return;
+          }
+          
+          if (relays.some(r => r.url === relayUrl)) {
+            alert('Questo relay è già stato aggiunto');
+            return;
+          }
+          
+          const relay = {
+            url: relayUrl,
+            status: 'connecting'
+          };
+          
+          relays.push(relay);
+          saveRelays();
+          displayRelays();
+          
+          // Aggiungi peer a Gun
+          gun.opt({peers: [relayUrl]});
+          
+          // Verifica stato
+          checkRelayStatus(relay);
+          
+          // Sincronizza le tracce con il nuovo relay
+          setTimeout(() => {
+            console.log(`Sincronizzazione tracce con il nuovo relay: ${relayUrl}`);
+            syncTracksFromGun(); // Sincronizzazione diretta con Gun.js
+            loadTracks(true);    // Caricamento dal server
+          }, 2000); // Attendi 2 secondi per dare tempo alla connessione di stabilizzarsi
+          
+          relayInput.value = '';
+        }
+
+        // Verifica lo stato di connessione di un relay
+        function checkRelayStatus(relay) {
+          console.log(`Verifica stato relay: ${relay.url}`);
+          
+          // Estrai base URL e fai una richiesta a /healthcheck
+          let baseUrl = relay.url.replace('/gun', '');
+          
+          // Prima verifica che il server API sia attivo
+          fetch(`${baseUrl}/healthcheck`, { 
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            // Aggiunge timeout breve per evitare attese
+            signal: AbortSignal.timeout(3000) 
+          })
+          .then(response => {
+            if (response.ok) {
+              relay.status = 'online';
+              console.log(`Relay ${relay.url} è online`);
+            } else {
+              relay.status = 'offline';
+              console.warn(`Relay ${relay.url} ha risposto con errore: ${response.status}`);
+            }
+            displayRelays();
+          })
+          .catch(error => {
+            relay.status = 'offline';
+            console.error(`Relay ${relay.url} non raggiungibile:`, error);
+            displayRelays();
+          });
+        }
+
+        // Rimuove un relay
+        function removeRelay(relayUrl) {
+          relays = relays.filter(r => r.url !== relayUrl);
+          saveRelays();
+          displayRelays();
+          
+          // Rimuovi il peer da Gun
+          if (gun && gun._.opt && gun._.opt.peers) {
+            delete gun._.opt.peers[relayUrl];
+          }
+          
+          // Ricarica le tracce per aggiornare la vista
+          setTimeout(() => {
+            console.log(`Aggiornamento tracce dopo rimozione relay: ${relayUrl}`);
+            loadTracks(true);
+          }, 1000);
+        }
+
+        // Salva i relay nel localStorage
+        function saveRelays() {
+          localStorage.setItem('shogunMusicRelays', JSON.stringify(relays));
+        }
+
+        // Carica i relay dal localStorage
+        function loadSavedRelays() {
+          const savedRelays = localStorage.getItem('shogunMusicRelays');
+          if (savedRelays) {
+            relays = JSON.parse(savedRelays);
+            displayRelays();
+            
+            // Aggiungi peers a Gun
+            relays.forEach(relay => {
+              gun.opt({peers: [relay.url]});
+              checkRelayStatus(relay);
+            });
+            
+            // Sincronizza le tracce da tutti i relay dopo l'inizializzazione
+            setTimeout(() => {
+              console.log("Sincronizzazione iniziale delle tracce da tutti i relay");
+              syncTracksFromGun();
+            }, 2000);
+          }
+        }
+
+        // Visualizza la lista dei relay
+        function displayRelays() {
+          relayList.innerHTML = '';
+          
+          relays.forEach(relay => {
+            const li = document.createElement('li');
+            li.className = 'relay-item';
+            
+            const relayText = document.createElement('span');
+            relayText.textContent = relay.url;
+            
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `status-badge ${relay.status}`;
+            statusBadge.textContent = relay.status;
+            
+            const removeButton = document.createElement('button');
+            removeButton.textContent = 'Rimuovi';
+            removeButton.className = 'delete-btn';
+            removeButton.addEventListener('click', () => removeRelay(relay.url));
+            
+            li.appendChild(relayText);
+            li.appendChild(statusBadge);
+            li.appendChild(removeButton);
+            relayList.appendChild(li);
+          });
+        }
+
+        // Funzione per applicare il filtro alle tracce
+        function applyFilter() {
+          const filterText = filterInput.value.toLowerCase().trim();
+          const filterOption = filterType.value;
+          
+          if (!filterText) {
+            displayTracks(allTracks);
+            filterStatus.textContent = "";
+            return;
+          }
+          
+          // Assicuriamoci di filtrare da allTracks che contiene tutte le tracce da tutti i relay
+          const filteredTracks = allTracks.filter(track => {
+            if (filterOption === "all") {
+              return (
+                (track.title && track.title.toLowerCase().includes(filterText)) || 
+                (track.artist && track.artist.toLowerCase().includes(filterText)) || 
+                (track.album && track.album.toLowerCase().includes(filterText))
+              );
+            } else if (filterOption === "title") {
+              return track.title && track.title.toLowerCase().includes(filterText);
+            } else if (filterOption === "artist") {
+              return track.artist && track.artist.toLowerCase().includes(filterText);
+            } else if (filterOption === "album") {
+              // Fix per la ricerca album - verifichiamo che l'album esista prima di cercare
+              return track.album && track.album.toLowerCase().includes(filterText);
+            }
+            return true;
+          });
+          
+          displayTracks(filteredTracks);
+          updateFilterStatus(filteredTracks.length);
+        }
+        
+        // Funzione per aggiornare lo stato del filtro
+        function updateFilterStatus(count) {
+          if (filterInput.value.trim() === "") {
+            filterStatus.textContent = "";
+            return;
+          }
+          
+          if (count === 0) {
+            filterStatus.textContent = "Nessun risultato trovato";
+          } else if (count !== undefined) {
+            filterStatus.textContent = `Trovate ${count} tracce`;
+          } else {
+            // Se count non è definito, controlla se c'è un filtro attivo
+            const filterText = filterInput.value.toLowerCase().trim();
+            if (filterText) {
+              applyFilter(); // Riapplica il filtro per aggiornare il conteggio
+            }
+          }
+        }
+        
+        // Funzione per pulire il filtro
+        function clearFilter() {
+          filterInput.value = "";
+          filterType.value = "all";
+          filterStatus.textContent = "";
+          displayTracks(allTracks);
+        }
+      });
+    </script>
+  </body>
+</html> 
