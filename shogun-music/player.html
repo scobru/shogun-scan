@@ -10,6 +10,42 @@
     <script src="https://cdn.jsdelivr.net/npm/gun/lib/store.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/lib/rindexed.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@6.6.3/dist/wavesurfer.min.js"></script>
+    <script src="./shogun-core.js"></script>
+
+    <!-- Verifica caricamento di Shogun Core -->
+    <script>
+      function checkShogunLoaded() {
+        if (typeof window.initShogunBrowser === 'undefined') {
+          console.error("Shogun Core non è stato caricato correttamente. Tentativo di caricamento manuale.");
+          
+          // Prova prima il file locale
+          const script = document.createElement('script');
+          script.src = "./shogun-core.js";
+          script.onload = () => {
+            console.log("Shogun Core caricato manualmente con successo.");
+            // Notifica DOM che Shogun è pronto
+            document.dispatchEvent(new CustomEvent('shogun:loaded'));
+          };
+          script.onerror = (err) => {
+            console.error("Impossibile caricare il file locale, provo con CDN:", err);
+            
+            // Se fallisce, prova con un CDN (esempio ipotetico, sostituire con il CDN effettivo)
+          };
+          document.head.appendChild(script);
+          return false;
+        }
+        return true;
+      }
+      
+      // Controlla se Shogun è già caricato
+      window.shogunIsReady = checkShogunLoaded();
+      
+      // Registra un evento per quando Shogun è pronto
+      document.addEventListener('shogun:loaded', () => {
+        window.shogunIsReady = true;
+        console.log("Shogun Core è ora disponibile.");
+      });
+    </script>
 
     <!-- Fallback per WaveSurfer in caso di problemi con il CDN principale -->
     <script>
@@ -386,10 +422,326 @@
       .menu-item div:hover {
         color: #FFFFFF;
       }
+      /* Stili per l'autenticazione */
+      .auth-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .auth-form {
+        background-color: #282828;
+        padding: 30px;
+        border-radius: 8px;
+        width: 400px;
+        max-width: 90%;
+      }
+      .auth-logo {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .auth-logo h1 {
+        color: #1DB954;
+        margin: 0;
+      }
+      .auth-tabs {
+        display: flex;
+        margin-bottom: 20px;
+      }
+      .auth-tab {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+      }
+      .auth-tab.active {
+        border-bottom: 2px solid #1DB954;
+        color: #1DB954;
+      }
+      .auth-input {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 15px;
+        background-color: #333;
+        border: none;
+        border-radius: 4px;
+        color: #fff;
+        box-sizing: border-box;
+      }
+      .auth-button {
+        width: 100%;
+        padding: 12px;
+        background-color: #1DB954;
+        color: #000;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .auth-button:hover {
+        background-color: #1ED760;
+      }
+      .auth-separator {
+        display: flex;
+        align-items: center;
+        text-align: center;
+        margin: 20px 0;
+      }
+      .auth-separator::before,
+      .auth-separator::after {
+        content: '';
+        flex: 1;
+        border-bottom: 1px solid #444;
+      }
+      .auth-separator span {
+        padding: 0 10px;
+        color: #888;
+      }
+      .auth-options {
+        display: flex;
+        gap: 10px;
+      }
+      .auth-option-button {
+        flex: 1;
+        padding: 10px;
+        background-color: #333;
+        border: 1px solid #444;
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .auth-option-button:hover {
+        background-color: #444;
+      }
+      .auth-form-group {
+        margin-bottom: 15px;
+      }
+      .auth-error {
+        color: #e74c3c;
+        margin-top: -10px;
+        margin-bottom: 15px;
+        font-size: 14px;
+      }
+      .auth-success {
+        color: #1DB954;
+        margin-top: -10px;
+        margin-bottom: 15px;
+        font-size: 14px;
+      }
+      .auth-hidden {
+        display: none;
+      }
+      /* Stili per le playlist personali */
+      .playlists-menu {
+        margin-top: 10px;
+      }
+      .playlist-item {
+        padding: 8px 0;
+        color: #A7A7A7;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: color 0.2s;
+      }
+      .playlist-item:hover {
+        color: #FFFFFF;
+      }
+      .playlist-item.active {
+        color: #1DB954;
+      }
+      .playlist-actions {
+        margin-top: 10px;
+      }
+      .playlist-small-button {
+        background-color: transparent;
+        color: #A7A7A7;
+        border: 1px solid #444;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        cursor: pointer;
+        margin-left: 5px;
+        padding: 0;
+      }
+      .playlist-small-button:hover {
+        background-color: #333;
+        color: #FFFFFF;
+      }
+      .playlist-create {
+        display: flex;
+        margin-top: 15px;
+      }
+      .playlist-create input {
+        flex-grow: 1;
+        background-color: #333;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 8px;
+        color: #EAEAEA;
+        margin-right: 5px;
+      }
+      .favorites-section {
+        margin-top: 20px;
+      }
+      .favorite-item {
+        padding: 8px 0;
+        color: #A7A7A7;
+        cursor: pointer;
+      }
+      .favorite-item:hover {
+        color: #FFFFFF;
+      }
+      /* Badge per conteggio elementi */
+      .count-badge {
+        background-color: #333;
+        color: #A7A7A7;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 11px;
+        margin-left: 5px;
+      }
+      /* Dropdown per le opzioni traccia */
+      .track-dropdown {
+        position: relative;
+        display: inline-block;
+      }
+      .track-dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #333;
+        min-width: 160px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        border-radius: 4px;
+        z-index: 1;
+        right: 0;
+      }
+      .track-dropdown:hover .track-dropdown-content {
+        display: block;
+      }
+      .dropdown-item {
+        color: #EAEAEA;
+        padding: 8px 16px;
+        display: block;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .dropdown-item:hover {
+        background-color: #444;
+      }
+      /* Tab di visualizzazione */
+      .content-tabs {
+        display: flex;
+        border-bottom: 1px solid #333;
+        margin-bottom: 20px;
+      }
+      .content-tab {
+        padding: 12px 20px;
+        cursor: pointer;
+        color: #A7A7A7;
+        border-bottom: 2px solid transparent;
+      }
+      .content-tab.active {
+        color: #1DB954;
+        border-bottom: 2px solid #1DB954;
+      }
+      .content-tab:hover {
+        color: #FFFFFF;
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
     </style>
   </head>
   <body>
-    <div class="main-container">
+    <!-- Auth Container -->
+    <div id="authContainer" class="auth-container">
+      <div class="auth-form">
+        <div class="auth-logo">
+          <h1>Shogun Music</h1>
+          <p>Accedi per ascoltare la tua musica</p>
+        </div>
+        <div class="auth-tabs">
+          <div class="auth-tab active" data-tab="login">Accedi</div>
+          <div class="auth-tab" data-tab="signup">Registrati</div>
+        </div>
+        
+        <!-- Login Form -->
+        <div id="loginForm" class="auth-form-content">
+          <div class="auth-form-group">
+            <input type="text" id="loginUsername" class="auth-input" placeholder="Username">
+          </div>
+          <div class="auth-form-group">
+            <input type="password" id="loginPassword" class="auth-input" placeholder="Password">
+          </div>
+          <div id="loginError" class="auth-error auth-hidden"></div>
+          <div id="loginSuccess" class="auth-success auth-hidden"></div>
+          <button id="loginButton" class="auth-button">Accedi</button>
+          
+          <div class="auth-separator">
+            <span>OPPURE</span>
+          </div>
+          
+          <div class="auth-options">
+            <button id="webauthnLoginBtn" class="auth-option-button">
+              <span>WebAuthn</span>
+            </button>
+            <button id="metamaskLoginBtn" class="auth-option-button">
+              <span>MetaMask</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Signup Form -->
+        <div id="signupForm" class="auth-form-content auth-hidden">
+          <div class="auth-form-group">
+            <input type="text" id="signupUsername" class="auth-input" placeholder="Username">
+          </div>
+          <div class="auth-form-group">
+            <input type="password" id="signupPassword" class="auth-input" placeholder="Password">
+          </div>
+          <div class="auth-form-group">
+            <input type="password" id="signupPasswordConfirm" class="auth-input" placeholder="Conferma password">
+          </div>
+          <div id="signupError" class="auth-error auth-hidden"></div>
+          <div id="signupSuccess" class="auth-success auth-hidden"></div>
+          <button id="signupButton" class="auth-button">Registrati</button>
+          
+          <div class="auth-separator">
+            <span>OPPURE</span>
+          </div>
+          
+          <div class="auth-options">
+            <button id="webauthnSignupBtn" class="auth-option-button">
+              <span>WebAuthn</span>
+            </button>
+            <button id="metamaskSignupBtn" class="auth-option-button">
+              <span>MetaMask</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main App Content -->
+    <div class="main-container" id="appContainer" style="display: none;">
       <div class="sidebar">
         <h2>Shogun Music</h2>
         
@@ -397,10 +749,13 @@
           <h3>Il tuo Profilo</h3>
           <div class="menu-item">
             <div>
-              <span>Utente</span>
+              <span id="userProfileUsername">Utente</span>
             </div>
             <div>
               <span>La tua libreria</span>
+            </div>
+            <div>
+              <button id="logoutBtn" style="width: 100%; margin-top: 10px;">Logout</button>
             </div>
           </div>
         </div>
@@ -432,6 +787,49 @@
         <div class="admin-link">
           <a href="/admin">Vai alla pagina di amministrazione</a>
         </div>
+
+        <div class="favorites-section">
+          <h3>Preferiti</h3>
+          <div class="menu-item">
+            <div class="favorite-item" data-section="favorite-songs">
+              <span>Brani</span>
+              <span class="count-badge" id="favoriteSongsCount">0</span>
+            </div>
+            <div class="favorite-item" data-section="favorite-artists">
+              <span>Artisti</span>
+              <span class="count-badge" id="favoriteArtistsCount">0</span>
+            </div>
+            <div class="favorite-item" data-section="favorite-albums">
+              <span>Album</span>
+              <span class="count-badge" id="favoriteAlbumsCount">0</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="playlists-section" style="margin: 30px 0;">
+          <h3>Le tue Playlist</h3>
+          <div class="playlists-menu" id="playlistsMenu">
+            <!-- Le playlist verranno aggiunte qui dinamicamente -->
+          </div>
+          <div class="playlist-create">
+            <input type="text" id="newPlaylistName" placeholder="Nuova playlist...">
+            <button class="playlist-small-button" id="createPlaylistBtn">+</button>
+          </div>
+        </div>
+        
+        <div style="margin: 30px 0">
+          <h3>Relay</h3>
+          <p>Aggiungi relay per connetterti ad altri nodi Gun.js</p>
+          <div class="relay-input">
+            <input
+              type="text"
+              id="relayInput"
+              placeholder="URL relay (es. https://gun-relay.example.com/gun)"
+            />
+            <button id="addRelayBtn">Aggiungi</button>
+          </div>
+          <ul id="relayList"></ul>
+        </div>
       </div>
       
       <div class="main-content">
@@ -450,53 +848,99 @@
           </div>
 
           <div class="playlist-container">
-            <h2>Playlist</h2>
+            <div class="content-tabs">
+              <div class="content-tab active" data-tab="all-tracks">Libreria</div>
+              <div class="content-tab" data-tab="playlists">Le tue Playlist</div>
+              <div class="content-tab" data-tab="favorites">Preferiti</div>
+            </div>
             
-            <!-- Filtri -->
-            <div class="filter-container">
-              <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
-                <select id="filterType">
-                  <option value="all">Tutto</option>
-                  <option value="title">Titolo</option>
-                  <option value="artist">Artista</option>
-                  <option value="album">Album</option>
-                </select>
-                <input 
-                  type="text" 
-                  id="filterInput" 
-                  placeholder="Cerca..." 
-                >
-                <button id="clearFilterBtn">
-                  Pulisci
-                </button>
+            <!-- Tab Libreria -->
+            <div class="tab-content active" id="all-tracks-tab">
+              <h2>Libreria Completa</h2>
+              
+              <!-- Filtri -->
+              <div class="filter-container">
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                  <select id="filterType">
+                    <option value="all">Tutto</option>
+                    <option value="title">Titolo</option>
+                    <option value="artist">Artista</option>
+                    <option value="album">Album</option>
+                  </select>
+                  <input 
+                    type="text" 
+                    id="filterInput" 
+                    placeholder="Cerca..." 
+                  >
+                  <button id="clearFilterBtn">
+                    Pulisci
+                  </button>
+                </div>
+                <div id="filterStatus" style="font-size: 13px; color: #A7A7A7;"></div>
               </div>
-              <div id="filterStatus" style="font-size: 13px; color: #A7A7A7;"></div>
+              
+              <div id="songsLoading" class="loading">
+                Caricamento tracce in corso...
+              </div>
+              <div id="songsError" class="error" style="display: none">
+                Errore nel caricamento delle tracce
+              </div>
+              <div id="songsEmpty" class="empty-library" style="display: none">
+                Nessuna traccia disponibile. Vai alla pagina di Admin per caricare musica.
+              </div>
+              <ul id="songsList"></ul>
             </div>
             
-            <div id="songsLoading" class="loading">
-              Caricamento tracce in corso...
+            <!-- Tab Playlist -->
+            <div class="tab-content" id="playlists-tab">
+              <div id="playlistHeader">
+                <h2 id="currentPlaylistName">Seleziona una playlist</h2>
+                <div id="playlistInfo" style="color: #A7A7A7; margin-bottom: 20px; display: none;">
+                  <span id="playlistTrackCount">0 brani</span> • 
+                  <span id="playlistDuration">0 min</span>
+                </div>
+              </div>
+              
+              <div id="playlistEmpty" class="empty-library">
+                Seleziona una playlist dalla barra laterale o creane una nuova
+              </div>
+              
+              <ul id="playlistSongsList"></ul>
             </div>
-            <div id="songsError" class="error" style="display: none">
-              Errore nel caricamento delle tracce
+            
+            <!-- Tab Preferiti -->
+            <div class="tab-content" id="favorites-tab">
+              <div id="favoritesHeader">
+                <h2 id="currentFavoriteSection">I tuoi Preferiti</h2>
+              </div>
+              
+              <!-- Sezione brani preferiti -->
+              <div id="favoriteSongsSection">
+                <h3>Brani preferiti</h3>
+                <div id="favoriteSongsEmpty" class="empty-library">
+                  Non hai ancora brani preferiti
+                </div>
+                <ul id="favoriteSongsList"></ul>
+              </div>
+              
+              <!-- Sezione artisti preferiti -->
+              <div id="favoriteArtistsSection">
+                <h3>Artisti preferiti</h3>
+                <div id="favoriteArtistsEmpty" class="empty-library">
+                  Non hai ancora artisti preferiti
+                </div>
+                <ul id="favoriteArtistsList"></ul>
+              </div>
+              
+              <!-- Sezione album preferiti -->
+              <div id="favoriteAlbumsSection">
+                <h3>Album preferiti</h3>
+                <div id="favoriteAlbumsEmpty" class="empty-library">
+                  Non hai ancora album preferiti
+                </div>
+                <ul id="favoriteAlbumsList"></ul>
+              </div>
             </div>
-            <div id="songsEmpty" class="empty-library" style="display: none">
-              Nessuna traccia disponibile. Vai alla pagina di Admin per caricare musica.
-            </div>
-            <ul id="songsList"></ul>
-          </div>
-
-          <div class="relay-container">
-            <h2>Relay</h2>
-            <p>Aggiungi relay per connetterti ad altri nodi Gun.js</p>
-            <div class="relay-input">
-              <input
-                type="text"
-                id="relayInput"
-                placeholder="URL relay (es. https://gun-relay.example.com/gun)"
-              />
-              <button id="addRelayBtn">Aggiungi</button>
-            </div>
-            <ul id="relayList"></ul>
           </div>
         </div>
         
@@ -520,294 +964,255 @@
     </div>
 
     <script>
+      // Variabili globali per playlist e preferiti
+      let userPlaylists = [];
+      let userFavorites = {
+        songs: [],
+        artists: [],
+        albums: []
+      };
+      
+      // Variabile per tracciare la playlist corrente
+      let currentPlaylistId = null;
+      
+      // Variabili per le tracce
+      let tracks = [];
+      let allTracks = []; // Mantiene tutte le tracce originali
+      
+      // Funzione per aggiornare i contatori dei preferiti
+      function updateFavoriteCounts() {
+        if (!userFavorites) {
+          userFavorites = { songs: [], artists: [], albums: [] };
+        }
+
+        const favoriteSongsCount = document.getElementById('favoriteSongsCount');
+        const favoriteArtistsCount = document.getElementById('favoriteArtistsCount');
+        const favoriteAlbumsCount = document.getElementById('favoriteAlbumsCount');
+
+        if (favoriteSongsCount) favoriteSongsCount.textContent = userFavorites.songs ? userFavorites.songs.length : 0;
+        if (favoriteArtistsCount) favoriteArtistsCount.textContent = userFavorites.artists ? userFavorites.artists.length : 0;
+        if (favoriteAlbumsCount) favoriteAlbumsCount.textContent = userFavorites.albums ? userFavorites.albums.length : 0;
+      }
+      
+      // Funzione per caricare il token personalizzato
+      function loadCustomToken() {
+        const savedToken = localStorage.getItem('gunCustomToken');
+        if (savedToken) {
+          console.log("Token personalizzato caricato");
+          return savedToken;
+        }
+        return "thisIsTheTokenForReals"; // Token predefinito
+      }
+
+      // Carica i dati salvati all'inizio
+      document.addEventListener("DOMContentLoaded", function() {
+        // Carica le playlist e i preferiti da localStorage
+        const savedPlaylists = localStorage.getItem('userPlaylists');
+        if (savedPlaylists) {
+          try {
+            userPlaylists = JSON.parse(savedPlaylists);
+            console.log("Playlist caricate da localStorage:", userPlaylists.length);
+          } catch (e) {
+            console.error("Errore nel parsing delle playlist:", e);
+            userPlaylists = [];
+          }
+        }
+
+        const savedFavorites = localStorage.getItem('userFavorites');
+        if (savedFavorites) {
+          try {
+            userFavorites = JSON.parse(savedFavorites);
+            console.log("Preferiti caricati da localStorage:", 
+              "Brani:", userFavorites.songs?.length || 0,
+              "Artisti:", userFavorites.artists?.length || 0,
+              "Album:", userFavorites.albums?.length || 0
+            );
+          } catch (e) {
+            console.error("Errore nel parsing dei preferiti:", e);
+            userFavorites = { songs: [], artists: [], albums: [] };
+          }
+        }
+      });
+      
+      // Logica di autenticazione
       document.addEventListener("DOMContentLoaded", function () {
-        // Gestione del token personalizzato
-        function loadCustomToken() {
-          const savedToken = localStorage.getItem('gunCustomToken');
-          if (savedToken) {
-            document.getElementById('customToken').value = savedToken;
-            document.getElementById('tokenStatus').textContent = "Token personalizzato in uso";
-          } else {
-            document.getElementById('tokenStatus').textContent = "Token predefinito in uso";
-          }
-          return savedToken || "thisIsTheTokenForReals"; // Usa token predefinito se non personalizzato
-        }
-
-        // Salva token personalizzato
-        document.getElementById('saveTokenBtn').addEventListener('click', function() {
-          const tokenInput = document.getElementById('customToken');
-          const token = tokenInput.value.trim();
-          
-          if (token) {
-            localStorage.setItem('gunCustomToken', token);
-            document.getElementById('tokenStatus').textContent = "Token personalizzato salvato";
-          } else {
-            localStorage.removeItem('gunCustomToken');
-            document.getElementById('tokenStatus').textContent = "Token predefinito ripristinato";
-          }
-          
-          alert('Impostazioni token aggiornate. Ricarica la pagina per applicare.');
-          setTimeout(() => location.reload(), 1000);
-        });
-
-        // Carica il token all'avvio
-        const customToken = loadCustomToken();
-
-        // Configurazione di Gun.js
-        const gun = Gun({
-          peers: ["http://localhost:3001/gun"],
-          localStorage: false,
-          axe: false
-        });
-
-        // Configura Gun per usare il token personalizzato
-        Gun.on("opt", function (ctx) {
-          if (ctx.once) return;
-          ctx.on("out", function (msg) {
-            // Adds headers for put
-            msg.headers = {
-              token: customToken, // Usa token personalizzato o predefinito
-            };
-            this.to.next(msg);
-          });
-        });
-
-        let currentWavesurfer = null;
-        let currentTrackId = null;
-        let tracks = [];
-        let allTracks = []; // Variabile per mantenere tutte le tracce originali
-        let relays = [];
-        let isLoadingTracks = false; // Flag per prevenire caricamenti simultanei
-        let lastTracksUpdate = 0; // Timestamp dell'ultimo aggiornamento tracce
-
-        // Elementi DOM
-        const songsList = document.getElementById("songsList");
-        const songsLoading = document.getElementById("songsLoading");
-        const songsError = document.getElementById("songsError");
-        const songsEmpty = document.getElementById("songsEmpty");
-        const playBtn = document.getElementById("playBtn");
-        const pauseBtn = document.getElementById("pauseBtn");
-        const volumeSlider = document.getElementById("volumeSlider");
-        const nowPlaying = document.getElementById("nowPlaying");
-        const nowPlayingTitle = document.getElementById("nowPlayingTitle");
-        const nowPlayingArtist = document.getElementById("nowPlayingArtist");
-        const nowPlayingArtwork = document.getElementById("nowPlayingArtwork");
-        const currentTime = document.getElementById("currentTime");
-        const duration = document.getElementById("duration");
-        const serverStatus = document.getElementById("serverStatus");
-        const gunStatus = document.getElementById("gunStatus");
-        const relayInput = document.getElementById("relayInput");
-        const addRelayBtn = document.getElementById("addRelayBtn");
-        const relayList = document.getElementById("relayList");
-
-        // Verifica stato del server
-        checkServerStatus();
-        setInterval(checkServerStatus, 30000); // Ridotto a 30 secondi invece di 10 secondi
-
-        // Carica lista canzoni (solo una volta all'avvio)
-        loadTracks();
-
-        // Imposta wavesurfer
-        setupWaveform();
-
-        // Eventi
-        playBtn.addEventListener("click", playCurrentTrack);
-        pauseBtn.addEventListener("click", pauseCurrentTrack);
-        volumeSlider.addEventListener("input", updateVolume);
-        addRelayBtn.addEventListener("click", addRelay);
+        // Riferimenti agli elementi DOM di autenticazione
+        const authContainer = document.getElementById('authContainer');
+        const appContainer = document.getElementById('appContainer');
+        const authTabs = document.querySelectorAll('.auth-tab');
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
         
-        // Eventi per i filtri
-        const filterInput = document.getElementById("filterInput");
-        const filterType = document.getElementById("filterType");
-        const clearFilterBtn = document.getElementById("clearFilterBtn");
-        const filterStatus = document.getElementById("filterStatus");
+        // Username/password login/signup
+        const loginUsername = document.getElementById('loginUsername');
+        const loginPassword = document.getElementById('loginPassword');
+        const loginButton = document.getElementById('loginButton');
+        const loginError = document.getElementById('loginError');
+        const loginSuccess = document.getElementById('loginSuccess');
         
-        filterInput.addEventListener("input", applyFilter);
-        filterType.addEventListener("change", applyFilter);
-        clearFilterBtn.addEventListener("click", clearFilter);
+        const signupUsername = document.getElementById('signupUsername');
+        const signupPassword = document.getElementById('signupPassword');
+        const signupPasswordConfirm = document.getElementById('signupPasswordConfirm');
+        const signupButton = document.getElementById('signupButton');
+        const signupError = document.getElementById('signupError');
+        const signupSuccess = document.getElementById('signupSuccess');
+        
+        // WebAuthn buttons
+        const webauthnLoginBtn = document.getElementById('webauthnLoginBtn');
+        const webauthnSignupBtn = document.getElementById('webauthnSignupBtn');
+        
+        // MetaMask buttons
+        const metamaskLoginBtn = document.getElementById('metamaskLoginBtn');
+        const metamaskSignupBtn = document.getElementById('metamaskSignupBtn');
+        
+        // Shogun Core initialization
+        let shogun;
+        
+        // Inizializzazione di Shogun Core
+        function initShogun() {
+          try {
+            // Verifica che Shogun sia stato caricato correttamente
+            if (typeof window.initShogunBrowser === 'undefined') {
+              console.error("Shogun Core non è stato caricato correttamente.");
+              return;
+            }
 
-        // Carica relay salvati
-        loadSavedRelays();
-
-        // Funzione per sincronizzare direttamente le tracce da Gun.js
-        function syncTracksFromGun() {
-          console.log("Sincronizzazione iniziale delle tracce da tutti i relay");
-          
-          // Inizializza un set di ID per tenere traccia delle tracce già viste
-          const seenIds = new Set();
-          
-          // Aggiungi le tracce locali già esistenti
-          tracks.forEach(track => {
-            seenIds.add(track.id);
-          });
-          
-          // STRATEGIA 1: Iscriviti ai dati Gun per ottenere tracce da tutti i peer
-          gun.get('audio_files').get('tracks').map().on(function(trackRef) {
-            // Log dettagliato di ciò che riceviamo da Gun
-            console.log('Raw trackRef from Gun:', trackRef);
+            // Inizializza Shogun Core con la configurazione appropriata
+            shogun = window.initShogunBrowser({
+              peers: ['http://localhost:3001/gun'],
+              localStorage: true,
+              token: loadCustomToken()
+            });
             
-            if (trackRef && trackRef.id && !seenIds.has(trackRef.id)) {
-              try {
-                seenIds.add(trackRef.id);
-                
-                // Log prima della creazione dell'oggetto
-                console.log(`Processing trackRef: ID=${trackRef.id}, Title=${trackRef.t}, Artist=${trackRef.a}, AP=${trackRef.ap}, WP=${trackRef.wp}, Origin=${trackRef.o}, Album=${trackRef.alb}`);
-                                
-                const newTrack = {
-                  id: trackRef.id,
-                  title: trackRef.t || 'Senza titolo',
-                  artist: trackRef.a || 'Sconosciuto',
-                  album: trackRef.alb || 'Album sconosciuto', // Aggiungi supporto per album
-                  timestamp: trackRef.ts || Date.now(),
-                  audio_path: trackRef.ap || null,
-                  artwork_path: trackRef.wp || null,
-                  originUrl: trackRef.o || null // Leggi l'URL di origine da Gun
-                };
-                
-                // Aggiungi alla lista attuale
-                tracks.push(newTrack);
-                
-                // IMPORTANTE: Aggiorna anche allTracks per il filtro
-                allTracks.push(newTrack);
-                
-                // Aggiorna la visualizzazione
-                console.log(`Nuova traccia da Gun.js: ${newTrack.title} - ${newTrack.artist}`);
-                displayTracks(allTracks); // Mostra tutte le tracce, non solo quelle locali
-              } catch (e) {
-                console.error("Errore nell'elaborazione della traccia Gun:", e);
-              }
-            }
-          });
-          
-          // STRATEGIA 2: Carica direttamente da tutti i relay tramite API REST
-          console.log("Tentativo caricamento tracce da tutti i relay tramite API");
-          
-          // Per ogni relay, fai una richiesta diretta alla sua API
-          relays.forEach(relay => {
-            if (relay.status !== 'offline') {
-              // Estrai il base URL dal relay
-              let baseUrl = relay.url;
-              // Converte da Gun URL a HTTP base URL (es. http://localhost:3001/gun -> http://localhost:3001)
-              baseUrl = baseUrl.replace('/gun', '');
-              
-              console.log(`Tentativo caricamento tracce da ${baseUrl}/api/tracks`);
-              
-              // Chiama API /api/tracks sul relay
-              fetch(`${baseUrl}/api/tracks`)
-                .then(response => {
-                  if (!response.ok) throw new Error(`Errore API: ${response.statusText}`);
-                  return response.json();
-                })
-                .then(data => {
-                  console.log(`Ricevute ${data.tracks.length} tracce da ${baseUrl}/api/tracks`);
-                  
-                  // Aggiungi le tracce mancanti
-                  data.tracks.forEach(track => {
-                    if (!seenIds.has(track.id)) {
-                      seenIds.add(track.id);
-                      
-                      // Assicurati che ci sia originUrl per questo relay
-                      if (!track.originUrl && baseUrl) {
-                        track.originUrl = baseUrl;
-                      }
-                      
-                      console.log(`Nuova traccia da API relay ${baseUrl}: ${track.title} - ${track.artist}`);
-                      
-                      // Aggiungi sia a tracks che a allTracks
-                      tracks.push(track);
-                      allTracks.push(track);
-                    }
-                  });
-                  
-                  // Aggiorna UI una sola volta alla fine e usa allTracks come fonte
-                  displayTracks(allTracks);
-                  
-                  // Aggiorna il numero di tracce trovate nel filtro status se il filtro è attivo
-                  updateFilterStatus();
-                })
-                .catch(error => {
-                  console.error(`Errore caricamento da ${baseUrl}/api/tracks:`, error);
-                });
-            }
-          });
-        }
+            console.log("Shogun Core inizializzato con successo");
 
-        // Configurazione evento di Gun per aggiornamenti (una sola volta)
-        gun.get('app_events').get('track_deleted').on(function(event) {
-          console.log("Evento eliminazione traccia ricevuto", event);
-          if (event && event.id) {
-            // Verifica che sia passato abbastanza tempo dall'ultimo aggiornamento
-            // per evitare aggiornamenti troppo frequenti
-            const now = Date.now();
-            if (now - lastTracksUpdate > 5000) { // Minimo 5 secondi tra un aggiornamento e l'altro
-              lastTracksUpdate = now;
-              loadTracks();
+            // Invece di usare il metodo 'on', verifichiamo se l'utente è già autenticato
+            // e aggiungiamo event listener per gli eventi di autenticazione
+            
+            document.addEventListener('shogun:login', () => {
+              console.log("Utente autenticato con successo.");
+              // Mostra il contenuto principale dell'app
+              authContainer.style.display = 'none';
+              appContainer.style.display = 'flex';
+              
+              // Aggiorna il nome utente nel profilo
+              const userProfileUsername = document.getElementById('userProfileUsername');
+              if (shogun.user && shogun.user.username) {
+                userProfileUsername.textContent = shogun.user.username;
+              }
+              
+              // Inizializza il contenuto utente
+              initUserContent();
+            });
+
+            document.addEventListener('shogun:logout', () => {
+              console.log("Utente disconnesso.");
+              // Mostra la sezione di autenticazione
+              authContainer.style.display = 'flex';
+              appContainer.style.display = 'none';
+              
+              // Pulisci il nome utente nel profilo
+              const userProfileUsername = document.getElementById('userProfileUsername');
+              userProfileUsername.textContent = 'Utente';
+            });
+
+            document.addEventListener('shogun:error', (event) => {
+              console.error("Errore in Shogun Core:", event.detail);
+            });
+
+            // Verifica se l'utente è già autenticato
+            if (shogun.isLoggedIn && shogun.isLoggedIn()) {
+              console.log("Utente già autenticato.");
+              // Genera l'evento login per attivare le azioni appropriate
+              document.dispatchEvent(new CustomEvent('shogun:login'));
+            } else {
+              console.log("Utente non autenticato. Mostra schermata di login.");
+              authContainer.style.display = 'flex';
+              appContainer.style.display = 'none';
             }
+          } catch (error) {
+            console.error("Errore durante l'inizializzazione di Shogun Core:", error);
           }
-        });
-
-        // Funzione per controllare lo stato del server
-        function checkServerStatus() {
-          fetch("/healthcheck")
-            .then(response => {
-              if (response.ok) {
-                serverStatus.textContent = "Server online";
-                serverStatus.className = "server-status status-online";
-                return response.json();
-              } else {
-                throw new Error("Server non disponibile");
-              }
-            })
-            .then(data => {
-              console.log("Server status:", data);
-              
-              // Se prima era offline e ora è online, ricarica le tracce
-              if (serverStatus.classList.contains("status-offline")) {
-                loadTracks();
-              }
-            })
-            .catch(error => {
-              console.error("Errore controllo server:", error);
-              serverStatus.textContent = "Server offline";
-              serverStatus.className = "server-status status-offline";
-            });
-
-          fetch("/gun/status")
-            .then(response => {
-              if (response.ok) {
-                gunStatus.textContent = "GUN online";
-                gunStatus.className = "server-status status-online";
-              } else {
-                throw new Error("GUN non disponibile");
-              }
-            })
-            .catch(error => {
-              console.error("Errore controllo GUN:", error);
-              gunStatus.textContent = "GUN offline";
-              gunStatus.className = "server-status status-offline";
-            });
         }
 
-        // Funzione per caricare le tracce audio
-        function loadTracks(forceReload = false) {
-          // Se è già in corso un caricamento, non fare nulla
-          if (isLoadingTracks && !forceReload) {
-            console.log("Caricamento già in corso, richiesta ignorata");
+        // Verifica se Shogun Core è già caricato
+        if (typeof window.initShogunBrowser !== 'undefined') {
+          initShogun();
+        } else {
+          // Aggiungi un listener per l'evento di caricamento di Shogun
+          document.addEventListener('shogun:loaded', initShogun);
+        }
+
+        // Funzione per inizializzare il contenuto utente
+        function initUserContent() {
+          console.log("Inizializzazione contenuti utente...");
+          
+          // Aggiorna i contatori
+          updateFavoriteCounts();
+          
+          // Mostra le playlist
+          displayPlaylists();
+          
+          // Inizializza i tab
+          setupContentTabs();
+          
+          console.log("Aggiunta listener per items preferiti nella sidebar");
+          // Gestione click sui preferiti nella sidebar
+          document.querySelectorAll('.favorite-item').forEach(item => {
+            const section = item.getAttribute('data-section');
+            const type = section.split('-')[1]; // 'favorite-songs' -> 'songs'
+            console.log("Aggiunto listener a sezione preferiti:", type);
+            
+            item.addEventListener('click', () => {
+              console.log("Click su sezione preferiti:", type);
+              displayFavorites(type);
+            });
+          });
+          
+          // Gestione creazione playlist
+          document.getElementById('createPlaylistBtn').addEventListener('click', () => {
+            const newPlaylistName = document.getElementById('newPlaylistName').value.trim();
+            if (newPlaylistName) {
+              createPlaylist(newPlaylistName);
+              document.getElementById('newPlaylistName').value = '';
+            }
+          });
+          
+          // Permetti di premere Enter per creare playlist
+          document.getElementById('newPlaylistName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+              const newPlaylistName = document.getElementById('newPlaylistName').value.trim();
+              if (newPlaylistName) {
+                createPlaylist(newPlaylistName);
+                document.getElementById('newPlaylistName').value = '';
+              }
+            }
+          });
+          
+          console.log("Inizializzazione contenuti utente completata");
+          
+          // Carica le tracce
+          loadTracks();
+        }
+
+        // Funzione per caricare le tracce
+        function loadTracks() {
+          console.log("Caricamento tracce...");
+          const songsLoading = document.getElementById("songsLoading");
+          const songsError = document.getElementById("songsError");
+          const songsEmpty = document.getElementById("songsEmpty");
+          
+          if (!songsLoading || !songsError || !songsEmpty) {
+            console.error("Elementi DOM per il caricamento delle tracce non trovati");
             return;
           }
           
-          isLoadingTracks = true;
-          console.log("Caricamento tracce...");
           songsLoading.style.display = "block";
           songsError.style.display = "none";
           songsEmpty.style.display = "none";
-          // Non svuotiamo la lista durante il caricamento per evitare flickering
-          // songsList.innerHTML = "";
-
-          // Includiamo il parametro per forzare l'aggiornamento quando necessario
-          const endpoint = forceReload ? "/api/tracks?force=true" : "/api/tracks";
           
-          fetch(endpoint)
+          // Chiamata API per ottenere le tracce
+          fetch("/api/tracks")
             .then(response => {
               if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -817,118 +1222,767 @@
             .then(data => {
               console.log("Tracce caricate:", data);
               tracks = data.tracks || [];
-              // IMPORTANTE: aggiorniamo completamente allTracks, non solo copiamo le tracce locali
-              allTracks = [...tracks]; 
+              allTracks = [...tracks]; // Copiamo le tracce in allTracks
+              
               songsLoading.style.display = "none";
-              lastTracksUpdate = Date.now();
               
               if (tracks.length === 0) {
                 songsEmpty.style.display = "block";
-                songsList.innerHTML = ""; // Svuota solo se non ci sono tracce
-              } else {
-                displayTracks(allTracks); // Usa allTracks come fonte
+                return;
               }
               
-              // Se c'è un filtro attivo, riapplicalo dopo aver caricato le tracce
-              if (filterInput.value.trim() !== "") {
-                applyFilter();
-              }
-              
-              isLoadingTracks = false;
+              // Mostra le tracce
+              displayTracks(tracks);
             })
             .catch(error => {
-              console.error("Errore caricamento tracce:", error);
+              console.error("Errore nel caricamento delle tracce:", error);
               songsLoading.style.display = "none";
               songsError.style.display = "block";
               songsError.textContent = `Errore: ${error.message}`;
-              isLoadingTracks = false;
             });
         }
 
-        // Visualizza la lista delle tracce
-        function displayTracks(tracks) {
-          songsList.innerHTML = "";
-          
-          tracks.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-            .forEach(track => {
-              const li = document.createElement("li");
-              li.className = "song-item";
-              li.dataset.id = track.id;
+        // Funzione per gestire il login con username/password
+        async function loginWithUsernamePassword() {
+          const username = loginUsername.value.trim();
+          const password = loginPassword.value.trim();
 
-              // Crea elemento artwork
-              let artworkElement;
-              if (track.artwork_path) {
-                // Usa l'originUrl se disponibile, altrimenti fallback
-                const baseUrl = track.originUrl || 'http://localhost:3001';
-                let artworkPath = track.artwork_path;
-                if (artworkPath && !artworkPath.startsWith('http') && !artworkPath.startsWith('data:')) {
-                  artworkPath = `${baseUrl}${artworkPath}`;
-                }
-                
-                artworkElement = document.createElement("img");
-                artworkElement.src = artworkPath;
-                artworkElement.className = "artwork";
-                artworkElement.alt = `Artwork per ${track.title}`;
-                artworkElement.onerror = function() {
-                  this.style.display = "none";
-                  const placeholder = document.createElement("div");
-                  placeholder.className = "artwork-placeholder";
-                  placeholder.textContent = "♪";
-                  this.parentNode.insertBefore(placeholder, this);
-                };
-              } else {
-                artworkElement = document.createElement("div");
-                artworkElement.className = "artwork-placeholder";
-                artworkElement.textContent = "♪";
-              }
-
-              // Info traccia
-              const songInfo = document.createElement("div");
-              songInfo.className = "song-info";
-              
-              const songTitle = document.createElement("div");
-              songTitle.className = "song-title";
-              songTitle.textContent = track.title || "Senza titolo";
-              
-              const songArtist = document.createElement("div");
-              songArtist.className = "song-artist";
-              songArtist.textContent = track.artist || "Artista sconosciuto";
-              
-              const songAlbum = document.createElement("div");
-              songAlbum.className = "song-artist"; // Riuso dello stile di song-artist
-              songAlbum.textContent = track.album ? `Album: ${track.album}` : "";
-
-              songInfo.appendChild(songTitle);
-              songInfo.appendChild(songArtist);
-              songInfo.appendChild(songAlbum);
-
-              // Azioni
-              const songActions = document.createElement("div");
-              songActions.className = "song-actions";
-              
-              const playButton = document.createElement("button");
-              playButton.textContent = "Play";
-              playButton.addEventListener("click", function() {
-                loadAndPlayTrack(track);
-              });
-
-              songActions.appendChild(playButton);
-
-              // Assembla elementi
-              li.appendChild(artworkElement);
-              li.appendChild(songInfo);
-              li.appendChild(songActions);
-              songsList.appendChild(li);
-            });
-        }
-
-        // Configura wavesurfer
-        function setupWaveform() {
-          if (currentWavesurfer) {
-            currentWavesurfer.destroy();
+          if (!username || !password) {
+            loginError.textContent = "Inserisci username e password.";
+            loginError.style.display = "block";
+            return;
           }
 
-          currentWavesurfer = WaveSurfer.create({
+          try {
+            // Verifica se il metodo di login esiste
+            if (shogun.login && typeof shogun.login === 'function') {
+              await shogun.login(username, password);
+              loginSuccess.textContent = "Accesso effettuato con successo.";
+              loginSuccess.style.display = "block";
+              loginError.style.display = "none";
+              
+              // Genera l'evento login per attivare le azioni appropriate
+              document.dispatchEvent(new CustomEvent('shogun:login'));
+            } else {
+              console.error("Metodo login non disponibile in Shogun");
+              loginError.textContent = "Errore: metodo di login non disponibile.";
+              loginError.style.display = "block";
+            }
+          } catch (error) {
+            loginError.textContent = "Errore durante l'accesso: " + error.message;
+            loginError.style.display = "block";
+            loginSuccess.style.display = "none";
+            
+            // Genera l'evento errore
+            document.dispatchEvent(new CustomEvent('shogun:error', { 
+              detail: error
+            }));
+          }
+        }
+
+        // Funzione per gestire la registrazione con username/password
+        async function signupWithUsernamePassword() {
+          const username = signupUsername.value.trim();
+          const password = signupPassword.value.trim();
+          const passwordConfirm = signupPasswordConfirm.value.trim();
+
+          if (!username || !password || !passwordConfirm) {
+            signupError.textContent = "Compila tutti i campi.";
+            signupError.style.display = "block";
+            return;
+          }
+
+          if (password !== passwordConfirm) {
+            signupError.textContent = "Le password non corrispondono.";
+            signupError.style.display = "block";
+            return;
+          }
+
+          try {
+            // Verifica se il metodo signUp esiste
+            if (shogun.signUp && typeof shogun.signUp === 'function') {
+              await shogun.signUp(username, password);
+              signupSuccess.textContent = "Registrazione effettuata con successo.";
+              signupSuccess.style.display = "block";
+              signupError.style.display = "none";
+              
+              // Dopo la registrazione, l'utente potrebbe essere già loggato
+              // Verifichiamo lo stato di login
+              if (shogun.isLoggedIn && shogun.isLoggedIn()) {
+                document.dispatchEvent(new CustomEvent('shogun:login'));
+              }
+            } else {
+              console.error("Metodo signUp non disponibile in Shogun");
+              signupError.textContent = "Errore: metodo di registrazione non disponibile.";
+              signupError.style.display = "block";
+            }
+          } catch (error) {
+            signupError.textContent = "Errore durante la registrazione: " + error.message;
+            signupError.style.display = "block";
+            signupSuccess.style.display = "none";
+            
+            // Genera l'evento errore
+            document.dispatchEvent(new CustomEvent('shogun:error', { 
+              detail: error
+            }));
+          }
+        }
+
+        // Funzione per gestire il login con WebAuthn
+        async function loginWithWebAuthn() {
+          try {
+            if (shogun.loginWithWebAuthn && typeof shogun.loginWithWebAuthn === 'function') {
+              await shogun.loginWithWebAuthn();
+              // Genera l'evento login
+              document.dispatchEvent(new CustomEvent('shogun:login'));
+            } else {
+              console.error("WebAuthn non supportato da questa istanza di Shogun");
+              alert("WebAuthn non supportato");
+            }
+          } catch (error) {
+            console.error("Errore durante l'accesso con WebAuthn:", error);
+            // Genera l'evento errore
+            document.dispatchEvent(new CustomEvent('shogun:error', { 
+              detail: error
+            }));
+          }
+        }
+
+        // Funzione per gestire la registrazione con WebAuthn
+        async function signupWithWebAuthn() {
+          try {
+            if (shogun.signUpWithWebAuthn && typeof shogun.signUpWithWebAuthn === 'function') {
+              await shogun.signUpWithWebAuthn();
+              // Dopo la registrazione, l'utente sarà anche loggato
+              document.dispatchEvent(new CustomEvent('shogun:login'));
+            } else {
+              console.error("WebAuthn non supportato da questa istanza di Shogun");
+              alert("WebAuthn non supportato");
+            }
+          } catch (error) {
+            console.error("Errore durante la registrazione con WebAuthn:", error);
+            // Genera l'evento errore
+            document.dispatchEvent(new CustomEvent('shogun:error', { 
+              detail: error
+            }));
+          }
+        }
+
+        // Funzione per gestire il login con MetaMask
+        async function loginWithMetaMask() {
+          try {
+            if (shogun.loginWithMetaMask && typeof shogun.loginWithMetaMask === 'function') {
+              await shogun.loginWithMetaMask();
+              // Genera l'evento login
+              document.dispatchEvent(new CustomEvent('shogun:login'));
+            } else {
+              console.error("MetaMask non supportato da questa istanza di Shogun");
+              alert("MetaMask non supportato");
+            }
+          } catch (error) {
+            console.error("Errore durante l'accesso con MetaMask:", error);
+            // Genera l'evento errore
+            document.dispatchEvent(new CustomEvent('shogun:error', { 
+              detail: error
+            }));
+          }
+        }
+
+        // Funzione per gestire la registrazione con MetaMask
+        async function signupWithMetaMask() {
+          try {
+            if (shogun.signUpWithMetaMask && typeof shogun.signUpWithMetaMask === 'function') {
+              await shogun.signUpWithMetaMask();
+              // Dopo la registrazione, l'utente sarà anche loggato
+              document.dispatchEvent(new CustomEvent('shogun:login'));
+            } else {
+              console.error("MetaMask non supportato da questa istanza di Shogun");
+              alert("MetaMask non supportato");
+            }
+          } catch (error) {
+            console.error("Errore durante la registrazione con MetaMask:", error);
+            // Genera l'evento errore
+            document.dispatchEvent(new CustomEvent('shogun:error', { 
+              detail: error
+            }));
+          }
+        }
+
+        // Gestione dei tab di autenticazione
+        authTabs.forEach(tab => {
+          tab.addEventListener('click', () => {
+            authTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            const tabName = tab.getAttribute('data-tab');
+            if (tabName === 'login') {
+              loginForm.style.display = 'block';
+              signupForm.style.display = 'none';
+            } else {
+              loginForm.style.display = 'none';
+              signupForm.style.display = 'block';
+            }
+          });
+        });
+
+        // Gestione del logout
+        const logoutBtn = document.getElementById('logoutBtn');
+        logoutBtn.addEventListener('click', async () => {
+          try {
+            // Verifica se il metodo di logout esiste
+            if (shogun.logout && typeof shogun.logout === 'function') {
+              await shogun.logout();
+              
+              // Genera l'evento logout
+              document.dispatchEvent(new CustomEvent('shogun:logout'));
+            } else {
+              console.error("Metodo logout non disponibile in Shogun");
+              alert("Funzione di logout non disponibile");
+            }
+          } catch (error) {
+            console.error("Errore durante il logout:", error);
+            
+            // Genera l'evento errore
+            document.dispatchEvent(new CustomEvent('shogun:error', { 
+              detail: error
+            }));
+          }
+        });
+
+        // Gestione dei pulsanti di autenticazione
+        loginButton.addEventListener('click', loginWithUsernamePassword);
+        signupButton.addEventListener('click', signupWithUsernamePassword);
+        webauthnLoginBtn.addEventListener('click', loginWithWebAuthn);
+        webauthnSignupBtn.addEventListener('click', signupWithWebAuthn);
+        metamaskLoginBtn.addEventListener('click', loginWithMetaMask);
+        metamaskSignupBtn.addEventListener('click', signupWithMetaMask);
+      });
+
+      // Funzione per visualizzare le tracce
+      function displayTracks(tracks) {
+        const songsList = document.getElementById('songsList');
+        songsList.innerHTML = '';
+
+        if (!tracks || tracks.length === 0) {
+          document.getElementById('songsEmpty').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('songsEmpty').style.display = 'none';
+
+        tracks.forEach(track => {
+          const li = document.createElement('li');
+          li.className = 'song-item';
+          
+          // Crea l'HTML per l'artwork
+          let artworkHTML = '';
+          if (track.artwork_path) {
+            let artworkUrl = track.artwork_path;
+            if (track.artwork_path.startsWith('/') && track.originUrl) {
+              artworkUrl = `${track.originUrl}${track.artwork_path}`;
+            } else if (track.artwork_path.startsWith('/')) {
+              // Se il percorso inizia con / ma non c'è originUrl, usa il server corrente
+              artworkUrl = `${window.location.origin}${track.artwork_path}`;
+            }
+            
+            artworkHTML = `<img class="artwork" src="${artworkUrl}" alt="${track.title}" onerror="this.parentNode.innerHTML='<div class=\\'artwork-placeholder\\'>♪</div>';" />`;
+          } else {
+            artworkHTML = `<div class="artwork-placeholder">♪</div>`;
+          }
+          
+          li.innerHTML = `
+            ${artworkHTML}
+            <div class="song-info">
+              <div class="song-title">${track.title}</div>
+              <div class="song-artist">${track.artist}</div>
+            </div>
+            <div class="song-actions">
+              <button class="play-button" data-track-id="${track.id}">Play</button>
+              <button class="favorite-button" data-track-id="${track.id}">${isFavorite(track.id) ? '★' : '☆'}</button>
+              <button class="options-button" data-track-id="${track.id}">⋮</button>
+            </div>
+          `;
+          songsList.appendChild(li);
+        });
+
+        // Aggiungi eventi ai pulsanti
+        const playButtons = document.querySelectorAll('.play-button');
+        const favoriteButtons = document.querySelectorAll('.favorite-button');
+        const optionsButtons = document.querySelectorAll('.options-button');
+
+        playButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            const trackId = button.getAttribute('data-track-id');
+            playSong(trackId);
+          });
+        });
+
+        favoriteButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            const trackId = button.getAttribute('data-track-id');
+            toggleFavorite(trackId);
+          });
+        });
+
+        optionsButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            const trackId = button.getAttribute('data-track-id');
+            showTrackOptions(trackId);
+          });
+        });
+      }
+
+      // Funzione per verificare se una traccia è nei preferiti
+      function isFavorite(trackId) {
+        if (!userFavorites || !userFavorites.songs) {
+          return false;
+        }
+        return userFavorites.songs.includes(trackId);
+      }
+
+      // Funzione per aggiungere/rimuovere un item dai preferiti
+      function toggleFavorite(itemId, type = 'songs') {
+        if (!userFavorites) {
+          userFavorites = {
+            songs: [],
+            artists: [],
+            albums: []
+          };
+        }
+        
+        // Assicurati che l'array per questo tipo esista
+        if (!userFavorites[type]) {
+          userFavorites[type] = [];
+        }
+        
+        const index = userFavorites[type].indexOf(itemId);
+        if (index === -1) {
+          // Aggiungi ai preferiti
+          userFavorites[type].push(itemId);
+          console.log(`Aggiunto ${itemId} ai preferiti di tipo ${type}`);
+        } else {
+          // Rimuovi dai preferiti
+          userFavorites[type].splice(index, 1);
+          console.log(`Rimosso ${itemId} dai preferiti di tipo ${type}`);
+        }
+        
+        // Aggiorna i contatori dei preferiti
+        updateFavoriteCounts();
+        
+        // Salva i preferiti in localStorage
+        localStorage.setItem('userFavorites', JSON.stringify(userFavorites));
+        
+        // Aggiorna l'icona nella lista tracce
+        const favoriteButtons = document.querySelectorAll(`.favorite-button[data-track-id="${itemId}"]`);
+        favoriteButtons.forEach(button => {
+          button.textContent = userFavorites[type].includes(itemId) ? '★' : '☆';
+        });
+        
+        // Se siamo nella vista preferiti, aggiorna la visualizzazione
+        if (document.querySelector('.content-tab[data-tab="favorites"]').classList.contains('active')) {
+          displayFavorites(type);
+        }
+      }
+
+      // Funzione per visualizzare i preferiti
+      function displayFavorites(type = 'songs') {
+        console.log("Visualizzazione preferiti di tipo:", type);
+        
+        // Mostra il tab Preferiti
+        const favoritesTab = document.querySelector('.content-tab[data-tab="favorites"]');
+        if (favoritesTab) {
+          console.log("Click sul tab Preferiti");
+          favoritesTab.click();
+        }
+        
+        // Aggiorna l'intestazione
+        let sectionTitle = '';
+        switch (type) {
+          case 'songs':
+            sectionTitle = 'Brani preferiti';
+            break;
+          case 'artists':
+            sectionTitle = 'Artisti preferiti';
+            break;
+          case 'albums':
+            sectionTitle = 'Album preferiti';
+            break;
+        }
+        
+        const favoriteSectionTitle = document.getElementById('currentFavoriteSection');
+        if (favoriteSectionTitle) {
+          favoriteSectionTitle.textContent = sectionTitle;
+        }
+        
+        // Nascondi tutte le sezioni di preferiti
+        document.getElementById('favoriteSongsSection').style.display = 'none';
+        document.getElementById('favoriteArtistsSection').style.display = 'none';
+        document.getElementById('favoriteAlbumsSection').style.display = 'none';
+        
+        // Mostra la sezione richiesta
+        const sectionId = `favorite${type.charAt(0).toUpperCase() + type.slice(1)}Section`;
+        const sectionToShow = document.getElementById(sectionId);
+        if (sectionToShow) {
+          sectionToShow.style.display = 'block';
+        }
+        
+        // Mostra i preferiti specifici in base al tipo
+        switch (type) {
+          case 'songs':
+            displayFavoriteSongs();
+            break;
+          case 'artists':
+            // Implementare la visualizzazione degli artisti preferiti
+            break;
+          case 'albums':
+            // Implementare la visualizzazione degli album preferiti
+            break;
+        }
+      }
+      
+      // Funzione per visualizzare i brani preferiti
+      function displayFavoriteSongs() {
+        const favoriteSongsList = document.getElementById('favoriteSongsList');
+        favoriteSongsList.innerHTML = '';
+
+        if (!userFavorites || !userFavorites.songs || userFavorites.songs.length === 0) {
+          document.getElementById('favoriteSongsEmpty').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('favoriteSongsEmpty').style.display = 'none';
+
+        userFavorites.songs.forEach(trackId => {
+          const track = getTrackById(trackId);
+          if (track) {
+            const li = document.createElement('li');
+            li.className = 'song-item';
+            li.innerHTML = `
+              <div class="song-info">
+                <div class="song-title">${track.title}</div>
+                <div class="song-artist">${track.artist}</div>
+              </div>
+              <div class="song-actions">
+                <button class="play-button" data-track-id="${track.id}">Play</button>
+                <button class="favorite-button" data-track-id="${track.id}">★</button>
+                <button class="options-button" data-track-id="${track.id}">⋮</button>
+              </div>
+            `;
+            favoriteSongsList.appendChild(li);
+          }
+        });
+
+        // Aggiungi eventi ai pulsanti
+        const playButtons = document.querySelectorAll('.play-button');
+        const favoriteButtons = document.querySelectorAll('.favorite-button');
+        const optionsButtons = document.querySelectorAll('.options-button');
+
+        playButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            const trackId = button.getAttribute('data-track-id');
+            playSong(trackId);
+          });
+        });
+
+        favoriteButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            const trackId = button.getAttribute('data-track-id');
+            toggleFavorite(trackId);
+          });
+        });
+
+        optionsButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            const trackId = button.getAttribute('data-track-id');
+            showTrackOptions(trackId);
+          });
+        });
+      }
+
+      // Funzione per ottenere una traccia dal suo ID
+      function getTrackById(trackId) {
+        // Prima cerchiamo nelle tracce locali
+        if (typeof tracks !== 'undefined' && tracks.length > 0) {
+          const track = tracks.find(t => t.id === trackId);
+          if (track) return track;
+        }
+        
+        // Poi cerchiamo in allTracks se esiste
+        if (typeof allTracks !== 'undefined' && allTracks.length > 0) {
+          return allTracks.find(t => t.id === trackId);
+        }
+        
+        console.warn(`Traccia con ID ${trackId} non trovata`);
+        return null;
+      }
+
+      // Funzione per mostrare le opzioni di una traccia
+      function showTrackOptions(trackId) {
+        // Verifico se esiste già un menu dropdown
+        let dropdown = document.querySelector('.track-options-dropdown');
+        if (dropdown) {
+          dropdown.remove();
+        }
+        
+        // Trova il pulsante delle opzioni cliccato
+        const optionsButton = document.querySelector(`.options-button[data-track-id="${trackId}"]`);
+        if (!optionsButton) return;
+        
+        // Crea il menu dropdown
+        dropdown = document.createElement('div');
+        dropdown.className = 'track-options-dropdown';
+        dropdown.style.position = 'absolute';
+        dropdown.style.backgroundColor = '#333';
+        dropdown.style.borderRadius = '4px';
+        dropdown.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+        dropdown.style.zIndex = '100';
+        dropdown.style.minWidth = '200px';
+        
+        // Posiziona il dropdown vicino al pulsante
+        const rect = optionsButton.getBoundingClientRect();
+        dropdown.style.top = `${rect.bottom + window.scrollY}px`;
+        dropdown.style.left = `${rect.left + window.scrollX - 150}px`; // Allineato a destra del pulsante
+        
+        // Aggiungi opzioni al dropdown
+        dropdown.innerHTML = `
+          <div style="padding: 10px; border-bottom: 1px solid #444;">
+            <div style="color: #CCC; font-size: 14px;">Aggiungi a playlist</div>
+          </div>
+        `;
+        
+        // Crea lista delle playlist
+        const playlistsList = document.createElement('div');
+        playlistsList.style.maxHeight = '200px';
+        playlistsList.style.overflowY = 'auto';
+        
+        if (!userPlaylists || userPlaylists.length === 0) {
+          playlistsList.innerHTML = `
+            <div style="padding: 10px; color: #999; font-style: italic;">
+              Nessuna playlist disponibile
+            </div>
+          `;
+        } else {
+          userPlaylists.forEach(playlist => {
+            const playlistItem = document.createElement('div');
+            playlistItem.style.padding = '8px 16px';
+            playlistItem.style.cursor = 'pointer';
+            playlistItem.style.transition = 'background-color 0.2s';
+            playlistItem.textContent = playlist.name;
+            
+            // Evidenzia se il mouse passa sopra
+            playlistItem.addEventListener('mouseover', () => {
+              playlistItem.style.backgroundColor = '#444';
+            });
+            playlistItem.addEventListener('mouseout', () => {
+              playlistItem.style.backgroundColor = 'transparent';
+            });
+            
+            // Evento click per aggiungere alla playlist
+            playlistItem.addEventListener('click', () => {
+              addToPlaylist(trackId, playlist.id);
+              dropdown.remove();
+            });
+            
+            playlistsList.appendChild(playlistItem);
+          });
+        }
+        
+        dropdown.appendChild(playlistsList);
+        
+        // Aggiungi opzione per creare nuova playlist
+        const createPlaylistOption = document.createElement('div');
+        createPlaylistOption.style.padding = '10px';
+        createPlaylistOption.style.borderTop = '1px solid #444';
+        
+        const createPlaylistForm = document.createElement('div');
+        createPlaylistForm.style.display = 'flex';
+        createPlaylistForm.style.gap = '5px';
+        
+        const playlistNameInput = document.createElement('input');
+        playlistNameInput.type = 'text';
+        playlistNameInput.placeholder = 'Nuova playlist...';
+        playlistNameInput.style.flex = '1';
+        playlistNameInput.style.padding = '5px';
+        playlistNameInput.style.backgroundColor = '#444';
+        playlistNameInput.style.border = 'none';
+        playlistNameInput.style.borderRadius = '3px';
+        playlistNameInput.style.color = '#FFF';
+        
+        const createBtn = document.createElement('button');
+        createBtn.textContent = 'Crea';
+        createBtn.style.padding = '5px 10px';
+        createBtn.style.backgroundColor = '#1DB954';
+        createBtn.style.color = '#000';
+        createBtn.style.border = 'none';
+        createBtn.style.borderRadius = '3px';
+        createBtn.style.cursor = 'pointer';
+        
+        createBtn.addEventListener('click', () => {
+          const playlistName = playlistNameInput.value.trim();
+          if (playlistName) {
+            const playlistId = createPlaylist(playlistName);
+            if (playlistId) {
+              addToPlaylist(trackId, playlistId);
+              dropdown.remove();
+            }
+          }
+        });
+        
+        // Anche premendo Enter si crea la playlist
+        playlistNameInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            const playlistName = playlistNameInput.value.trim();
+            if (playlistName) {
+              const playlistId = createPlaylist(playlistName);
+              if (playlistId) {
+                addToPlaylist(trackId, playlistId);
+                dropdown.remove();
+              }
+            }
+          }
+        });
+        
+        createPlaylistForm.appendChild(playlistNameInput);
+        createPlaylistForm.appendChild(createBtn);
+        createPlaylistOption.appendChild(createPlaylistForm);
+        dropdown.appendChild(createPlaylistOption);
+        
+        // Aggiungi il dropdown al documento
+        document.body.appendChild(dropdown);
+        
+        // Chiudi il dropdown quando si clicca altrove
+        setTimeout(() => {
+          const closeDropdown = (e) => {
+            if (!dropdown.contains(e.target) && e.target !== optionsButton) {
+              dropdown.remove();
+              document.removeEventListener('click', closeDropdown);
+            }
+          };
+          document.addEventListener('click', closeDropdown);
+        }, 0);
+      }
+      
+      // Funzione per aggiungere una traccia a una playlist
+      function addToPlaylist(trackId, playlistId) {
+        const playlist = userPlaylists.find(p => p.id === playlistId);
+        if (!playlist) {
+          console.error("Playlist non trovata:", playlistId);
+          return false;
+        }
+        
+        // Inizializza l'array tracks se non esiste
+        if (!playlist.tracks) {
+          playlist.tracks = [];
+        }
+        
+        // Controlla se la traccia è già presente
+        if (playlist.tracks.includes(trackId)) {
+          alert(`Il brano è già presente nella playlist "${playlist.name}"`);
+          return false;
+        }
+        
+        // Aggiungi la traccia alla playlist
+        playlist.tracks.push(trackId);
+        
+        // Salva le modifiche
+        saveUserPlaylists();
+        
+        // Mostra un messaggio di conferma
+        alert(`Brano aggiunto alla playlist "${playlist.name}"`);
+        
+        // Aggiorna la visualizzazione se necessario
+        if (currentPlaylistId === playlistId) {
+          displayPlaylistTracks(playlistId);
+        }
+        
+        // Aggiorna il contatore nella sidebar
+        displayPlaylists();
+        
+        return true;
+      }
+
+      // Funzione per riprodurre una traccia
+      function playSong(trackData) {
+        console.log("Riproduzione traccia:", trackData);
+        
+        // Controllo che wavesurfer sia stato inizializzato
+        if (typeof WaveSurfer === 'undefined') {
+          console.error("WaveSurfer non è disponibile");
+          alert("Impossibile riprodurre: il player audio non è disponibile");
+          return;
+        }
+        
+        // Se abbiamo un oggetto track, usiamo quello, altrimenti cerchiamo per ID
+        let track = trackData;
+        if (typeof trackData === 'string') {
+          track = getTrackById(trackData);
+          if (!track) {
+            console.error("Traccia non trovata:", trackData);
+            return;
+          }
+        }
+        
+        // Aggiorna UI player
+        const nowPlaying = document.getElementById('nowPlaying');
+        const nowPlayingTitle = document.getElementById('nowPlayingTitle');
+        const nowPlayingArtist = document.getElementById('nowPlayingArtist');
+        const nowPlayingArtwork = document.getElementById('nowPlayingArtwork');
+        
+        if (nowPlaying) nowPlaying.style.display = "flex";
+        if (nowPlayingTitle) nowPlayingTitle.textContent = track.title || "Senza titolo";
+        if (nowPlayingArtist) nowPlayingArtist.textContent = track.artist || "Artista sconosciuto";
+        
+        if (nowPlayingArtwork) {
+          if (track.artwork_path) {
+            nowPlayingArtwork.innerHTML = "";
+            const img = document.createElement("img");
+            
+            // Usa l'originUrl se disponibile, altrimenti fallback
+            let artworkPath = track.artwork_path;
+            if (track.artwork_path.startsWith('/') && track.originUrl) {
+              artworkPath = `${track.originUrl}${track.artwork_path}`;
+            } else if (track.artwork_path.startsWith('/')) {
+              // Se il percorso inizia con / ma non c'è originUrl, usa il server corrente
+              artworkPath = `${window.location.origin}${track.artwork_path}`;
+            }
+            
+            console.log("Caricamento artwork da:", artworkPath);
+            img.src = artworkPath;
+            img.className = "artwork";
+            img.alt = "Artwork";
+            img.onerror = function() {
+              console.error("Errore nel caricamento dell'artwork");
+              nowPlayingArtwork.innerHTML = "♪";
+              nowPlayingArtwork.className = "artwork-placeholder";
+            };
+            nowPlayingArtwork.className = "";
+            nowPlayingArtwork.appendChild(img);
+          } else {
+            nowPlayingArtwork.innerHTML = "♪";
+            nowPlayingArtwork.className = "artwork-placeholder";
+          }
+        }
+        
+        // Ottieni il percorso audio
+        let audioPath = track.audio_path;
+        
+        // Se il percorso non inizia con http/https, costruisci l'URL assoluto
+        if (audioPath && !audioPath.startsWith('http')) {
+          const baseUrl = track.originUrl || window.location.origin;
+          audioPath = `${baseUrl}${audioPath}`;
+        }
+        
+        console.log(`Caricamento audio da: ${audioPath}`);
+        
+        // Controllo di sicurezza: non caricare se il percorso è null o vuoto
+        if (!audioPath) {
+          console.error("Tentativo di caricare una traccia senza percorso audio valido:", track);
+          alert(`Errore: Impossibile trovare il file audio per la traccia "${track.title}".`);
+          return;
+        }
+        
+        // Inizializza wavesurfer se non esiste
+        if (!window.wavesurfer) {
+          window.wavesurfer = WaveSurfer.create({
             container: "#waveform",
             waveColor: "#4caf50",
             progressColor: "#2196f3",
@@ -940,376 +1994,503 @@
             barGap: 3,
             responsive: true
           });
-
-          // Eventi wavesurfer
-          currentWavesurfer.on("ready", function() {
+          
+          // Inizializza gli eventi di wavesurfer
+          window.wavesurfer.on('ready', function() {
             console.log("WaveSurfer pronto");
-            playBtn.disabled = false;
-            pauseBtn.disabled = false;
-            updateDuration();
-            playCurrentTrack();
+            const playBtn = document.getElementById('playBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (playBtn) playBtn.disabled = false;
+            if (pauseBtn) pauseBtn.disabled = false;
+            
+            // Avvia la riproduzione automaticamente
+            window.wavesurfer.play();
+            
+            // Aggiorna l'interfaccia
+            if (playBtn) playBtn.style.display = "none";
+            if (pauseBtn) pauseBtn.style.display = "inline-block";
           });
-
-          currentWavesurfer.on("audioprocess", function() {
-            updateCurrentTime();
-          });
-
-          currentWavesurfer.on("finish", function() {
+          
+          window.wavesurfer.on('finish', function() {
             console.log("Riproduzione completata");
-            playNextTrack();
+            const playBtn = document.getElementById('playBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (playBtn) playBtn.style.display = "inline-block";
+            if (pauseBtn) pauseBtn.style.display = "none";
           });
-
-          currentWavesurfer.on("error", function(err) {
+          
+          window.wavesurfer.on('error', function(err) {
             console.error("Errore WaveSurfer:", err);
             alert("Errore durante il caricamento dell'audio");
           });
-
-          // Imposta volume iniziale
-          currentWavesurfer.setVolume(volumeSlider.value);
         }
+        
+        // Carica e riproduce l'audio
+        window.wavesurfer.load(audioPath);
+      }
 
-        // Carica e riproduce una traccia
-        function loadAndPlayTrack(track) {
-          console.log("Caricamento traccia:", track);
+      // Funzione per gestire i tab del contenuto
+      function setupContentTabs() {
+        console.log("Inizializzazione tab di contenuto...");
+        const contentTabs = document.querySelectorAll('.content-tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        console.log("Tab trovati:", contentTabs.length);
+        console.log("Contenuti tab trovati:", tabContents.length);
+        
+        contentTabs.forEach(tab => {
+          const tabName = tab.getAttribute('data-tab');
+          console.log("Aggiungo listener al tab:", tabName);
           
-          if (currentTrackId === track.id && currentWavesurfer.isReady) {
-            playCurrentTrack();
-            return;
-          }
-          
-          currentTrackId = track.id;
-          
-          // Aggiorna UI player
-          nowPlaying.style.display = "flex";
-          nowPlayingTitle.textContent = track.title || "Senza titolo";
-          nowPlayingArtist.textContent = track.artist || "Artista sconosciuto";
-          
-          if (track.artwork_path) {
-            nowPlayingArtwork.innerHTML = "";
-            const img = document.createElement("img");
+          tab.addEventListener('click', () => {
+            const tabName = tab.getAttribute('data-tab');
+            console.log("Tab cliccato:", tabName);
             
-            // Usa l'originUrl se disponibile, altrimenti fallback
-            const baseUrl = track.originUrl || 'http://localhost:3001';
-            let artworkPath = track.artwork_path;
-            if (artworkPath && !artworkPath.startsWith('http') && !artworkPath.startsWith('data:')) {
-              artworkPath = `${baseUrl}${artworkPath}`;
-            }
-            
-            img.src = artworkPath;
-            img.className = "artwork";
-            img.alt = "Artwork";
-            img.onerror = function() {
-              nowPlayingArtwork.innerHTML = "♪";
-              nowPlayingArtwork.className = "artwork-placeholder";
-            };
-            nowPlayingArtwork.className = "";
-            nowPlayingArtwork.appendChild(img);
-          } else {
-            nowPlayingArtwork.innerHTML = "♪";
-            nowPlayingArtwork.className = "artwork-placeholder";
-          }
-          
-          // Reset UI controlli
-          playBtn.disabled = true;
-          pauseBtn.disabled = true;
-          currentTime.textContent = "0:00";
-          duration.textContent = "0:00";
-          
-          // Carica audio con gestione dei percorsi
-          let audioPath = track.audio_path;
-          
-          // Se il percorso non inizia con http/https, costruisci l'URL assoluto
-          // usando l'originUrl della traccia o il fallback a localhost:3001
-          if (audioPath && !audioPath.startsWith('http')) {
-            const baseUrl = track.originUrl || 'http://localhost:3001';
-            audioPath = `${baseUrl}${audioPath}`;
-          }
-          
-          console.log(`Caricamento audio da: ${audioPath}`);
-          
-          // Controllo di sicurezza: non caricare se il percorso è null o vuoto
-          if (!audioPath) {
-            console.error("Tentativo di caricare una traccia senza percorso audio valido:", track);
-            alert(`Errore: Impossibile trovare il file audio per la traccia "${track.title}".`);
-            // Resetta lo stato di riproduzione
-            if (currentWavesurfer) currentWavesurfer.empty();
-            nowPlaying.style.display = "none";
-            playBtn.disabled = true;
-            pauseBtn.disabled = true;
-            currentTrackId = null;
-            return;
-          }
-          
-          currentWavesurfer.load(audioPath);
-        }
-
-        // Riproduce la traccia corrente
-        function playCurrentTrack() {
-          if (currentWavesurfer && currentWavesurfer.isReady) {
-            currentWavesurfer.play();
-            playBtn.style.display = "none";
-            pauseBtn.style.display = "inline-block";
-          } else if (tracks.length > 0 && !currentTrackId) {
-            // Se nessuna traccia è caricata, carica la prima
-            loadAndPlayTrack(tracks[0]);
-          }
-        }
-
-        // Mette in pausa la traccia corrente
-        function pauseCurrentTrack() {
-          if (currentWavesurfer) {
-            currentWavesurfer.pause();
-            playBtn.style.display = "inline-block";
-            pauseBtn.style.display = "none";
-          }
-        }
-
-        // Riproduce la traccia successiva
-        function playNextTrack() {
-          if (tracks.length === 0 || !currentTrackId) return;
-          
-          const currentIndex = tracks.findIndex(t => t.id === currentTrackId);
-          if (currentIndex === -1) return;
-          
-          const nextIndex = (currentIndex + 1) % tracks.length;
-          loadAndPlayTrack(tracks[nextIndex]);
-        }
-
-        // Aggiorna il volume
-        function updateVolume() {
-          if (currentWavesurfer) {
-            currentWavesurfer.setVolume(volumeSlider.value);
-          }
-        }
-
-        // Aggiorna il tempo corrente
-        function updateCurrentTime() {
-          if (currentWavesurfer) {
-            const time = currentWavesurfer.getCurrentTime();
-            currentTime.textContent = formatTime(time);
-          }
-        }
-
-        // Aggiorna la durata
-        function updateDuration() {
-          if (currentWavesurfer) {
-            const totalTime = currentWavesurfer.getDuration();
-            duration.textContent = formatTime(totalTime);
-          }
-        }
-
-        // Formatta il tempo in mm:ss
-        function formatTime(seconds) {
-          seconds = Math.round(seconds);
-          const minutes = Math.floor(seconds / 60);
-          seconds = seconds % 60;
-          return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        // Aggiunge un relay
-        function addRelay() {
-          const relayUrl = relayInput.value.trim();
-          if (!relayUrl) return;
-          
-          if (!relayUrl.startsWith('http://') && !relayUrl.startsWith('https://')) {
-            alert('URL non valido. Deve iniziare con http:// o https://');
-            return;
-          }
-          
-          if (relays.some(r => r.url === relayUrl)) {
-            alert('Questo relay è già stato aggiunto');
-            return;
-          }
-          
-          const relay = {
-            url: relayUrl,
-            status: 'connecting'
-          };
-          
-          relays.push(relay);
-          saveRelays();
-          displayRelays();
-          
-          // Aggiungi peer a Gun
-          gun.opt({peers: [relayUrl]});
-          
-          // Verifica stato
-          checkRelayStatus(relay);
-          
-          // Sincronizza le tracce con il nuovo relay
-          setTimeout(() => {
-            console.log(`Sincronizzazione tracce con il nuovo relay: ${relayUrl}`);
-            syncTracksFromGun(); // Sincronizzazione diretta con Gun.js
-            loadTracks(true);    // Caricamento dal server
-          }, 2000); // Attendi 2 secondi per dare tempo alla connessione di stabilizzarsi
-          
-          relayInput.value = '';
-        }
-
-        // Verifica lo stato di connessione di un relay
-        function checkRelayStatus(relay) {
-          console.log(`Verifica stato relay: ${relay.url}`);
-          
-          // Estrai base URL e fai una richiesta a /healthcheck
-          let baseUrl = relay.url.replace('/gun', '');
-          
-          // Prima verifica che il server API sia attivo
-          fetch(`${baseUrl}/healthcheck`, { 
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            // Aggiunge timeout breve per evitare attese
-            signal: AbortSignal.timeout(3000) 
-          })
-          .then(response => {
-            if (response.ok) {
-              relay.status = 'online';
-              console.log(`Relay ${relay.url} è online`);
-            } else {
-              relay.status = 'offline';
-              console.warn(`Relay ${relay.url} ha risposto con errore: ${response.status}`);
-            }
-            displayRelays();
-          })
-          .catch(error => {
-            relay.status = 'offline';
-            console.error(`Relay ${relay.url} non raggiungibile:`, error);
-            displayRelays();
-          });
-        }
-
-        // Rimuove un relay
-        function removeRelay(relayUrl) {
-          relays = relays.filter(r => r.url !== relayUrl);
-          saveRelays();
-          displayRelays();
-          
-          // Rimuovi il peer da Gun
-          if (gun && gun._.opt && gun._.opt.peers) {
-            delete gun._.opt.peers[relayUrl];
-          }
-          
-          // Ricarica le tracce per aggiornare la vista
-          setTimeout(() => {
-            console.log(`Aggiornamento tracce dopo rimozione relay: ${relayUrl}`);
-            loadTracks(true);
-          }, 1000);
-        }
-
-        // Salva i relay nel localStorage
-        function saveRelays() {
-          localStorage.setItem('shogunMusicRelays', JSON.stringify(relays));
-        }
-
-        // Carica i relay dal localStorage
-        function loadSavedRelays() {
-          const savedRelays = localStorage.getItem('shogunMusicRelays');
-          if (savedRelays) {
-            relays = JSON.parse(savedRelays);
-            displayRelays();
-            
-            // Aggiungi peers a Gun
-            relays.forEach(relay => {
-              gun.opt({peers: [relay.url]});
-              checkRelayStatus(relay);
+            // Rimuovi active da tutti i tab
+            contentTabs.forEach(t => {
+              t.classList.remove('active');
             });
             
-            // Sincronizza le tracce da tutti i relay dopo l'inizializzazione
-            setTimeout(() => {
-              console.log("Sincronizzazione iniziale delle tracce da tutti i relay");
-              syncTracksFromGun();
-            }, 2000);
-          }
-        }
+            // Aggiungi active al tab cliccato
+            tab.classList.add('active');
+            
+            // Nascondi tutti i contenuti
+            tabContents.forEach(content => {
+              content.classList.remove('active');
+              console.log("Nascosto contenuto:", content.id);
+            });
+            
+            // Mostra il contenuto corrispondente
+            const targetContent = document.getElementById(`${tabName}-tab`);
+            if (targetContent) {
+              targetContent.classList.add('active');
+              console.log("Mostrato contenuto:", targetContent.id);
+              
+              // Se è il tab preferiti, mostra la sezione brani di default
+              if (tabName === 'favorites') {
+                displayFavorites('songs');
+              } else if (tabName === 'playlists' && userPlaylists && userPlaylists.length > 0) {
+                // Se è il tab playlist e ci sono playlist, mostra la prima
+                displayPlaylistTracks(userPlaylists[0].id);
+              }
+            } else {
+              console.error("Contenuto non trovato per il tab:", tabName);
+            }
+          });
+        });
+      }
 
-        // Visualizza la lista dei relay
-        function displayRelays() {
-          relayList.innerHTML = '';
+      // Inizializza i tab del contenuto
+      setupContentTabs();
+
+      // Funzione per visualizzare le playlist
+      function displayPlaylists() {
+        console.log("Visualizzazione playlist dell'utente");
+        const playlistsMenu = document.getElementById('playlistsMenu');
+        playlistsMenu.innerHTML = '';
+        
+        if (!userPlaylists || userPlaylists.length === 0) {
+          console.log("Nessuna playlist disponibile");
+          playlistsMenu.innerHTML = '<div class="playlist-item">Nessuna playlist disponibile</div>';
+          return;
+        }
+        
+        console.log(`Visualizzazione di ${userPlaylists.length} playlist`);
+        
+        userPlaylists.forEach(playlist => {
+          const playlistItem = document.createElement('div');
+          playlistItem.className = 'playlist-item';
           
-          relays.forEach(relay => {
-            const li = document.createElement('li');
-            li.className = 'relay-item';
-            
-            const relayText = document.createElement('span');
-            relayText.textContent = relay.url;
-            
-            const statusBadge = document.createElement('span');
-            statusBadge.className = `status-badge ${relay.status}`;
-            statusBadge.textContent = relay.status;
-            
-            const removeButton = document.createElement('button');
-            removeButton.textContent = 'Rimuovi';
-            removeButton.className = 'delete-btn';
-            removeButton.addEventListener('click', () => removeRelay(relay.url));
-            
-            li.appendChild(relayText);
-            li.appendChild(statusBadge);
-            li.appendChild(removeButton);
-            relayList.appendChild(li);
+          const trackCount = playlist.tracks ? playlist.tracks.length : 0;
+          
+          playlistItem.innerHTML = `
+            <div class="playlist-name">
+              ${playlist.name}
+              <span class="count-badge">${trackCount}</span>
+            </div>
+            <div class="playlist-actions">
+              <button class="playlist-small-button delete-playlist" title="Elimina playlist">×</button>
+            </div>
+          `;
+          
+          // Click sulla playlist
+          playlistItem.addEventListener('click', () => {
+            displayPlaylistTracks(playlist.id);
+          });
+          
+          // Click per eliminare la playlist
+          playlistItem.querySelector('.delete-playlist').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm(`Vuoi davvero eliminare la playlist "${playlist.name}"?`)) {
+              deletePlaylist(playlist.id);
+            }
+          });
+          
+          playlistsMenu.appendChild(playlistItem);
+        });
+      }
+      
+      // Funzione per visualizzare i brani di una playlist
+      function displayPlaylistTracks(playlistId) {
+        console.log("Visualizzazione tracce della playlist:", playlistId);
+        
+        // Variabile per tenere traccia della playlist corrente
+        currentPlaylistId = playlistId;
+        
+        // Aggiorna il tab playlists
+        document.querySelector('.content-tab[data-tab="playlists"]').click();
+        
+        const playlist = userPlaylists.find(p => p.id === playlistId);
+        if (!playlist) {
+          console.error("Playlist non trovata:", playlistId);
+          return;
+        }
+        
+        // Aggiorna interfaccia
+        document.getElementById('currentPlaylistName').textContent = playlist.name;
+        document.getElementById('playlistInfo').style.display = 'block';
+        document.getElementById('playlistEmpty').style.display = 'none';
+        
+        // Aggiorna conteggio tracce
+        const trackCount = playlist.tracks ? playlist.tracks.length : 0;
+        document.getElementById('playlistTrackCount').textContent = `${trackCount} brani`;
+        
+        // Calcola durata totale (se disponibile l'informazione)
+        let totalDuration = 0;
+        if (playlist.tracks) {
+          playlist.tracks.forEach(trackId => {
+            const track = getTrackById(trackId);
+            if (track && track.duration) {
+              totalDuration += track.duration;
+            }
           });
         }
-
-        // Funzione per applicare il filtro alle tracce
-        function applyFilter() {
-          const filterText = filterInput.value.toLowerCase().trim();
-          const filterOption = filterType.value;
+        
+        let durationText = '';
+        if (totalDuration > 0) {
+          const minutes = Math.floor(totalDuration / 60);
+          durationText = `${minutes} min`;
+        } else {
+          durationText = 'Durata sconosciuta';
+        }
+        document.getElementById('playlistDuration').textContent = durationText;
+        
+        // Mostra le tracce
+        const playlistSongsList = document.getElementById('playlistSongsList');
+        playlistSongsList.innerHTML = '';
+        
+        if (!playlist.tracks || playlist.tracks.length === 0) {
+          document.getElementById('playlistEmpty').style.display = 'block';
+          document.getElementById('playlistEmpty').textContent = 'Questa playlist è vuota';
+          return;
+        }
+        
+        // Recupera le tracce complete in base agli ID
+        const playlistTracks = [];
+        playlist.tracks.forEach(trackId => {
+          const track = getTrackById(trackId);
+          if (track) {
+            playlistTracks.push(track);
+          }
+        });
+        
+        // Se non ci sono tracce valide, mostra un messaggio
+        if (playlistTracks.length === 0) {
+          document.getElementById('playlistEmpty').style.display = 'block';
+          document.getElementById('playlistEmpty').textContent = 'Nessuna traccia disponibile in questa playlist';
+          return;
+        }
+        
+        // Visualizza le tracce
+        playlistTracks.forEach(track => {
+          const li = document.createElement('li');
+          li.className = 'song-item';
+          li.setAttribute('data-id', track.id);
           
-          if (!filterText) {
-            displayTracks(allTracks);
-            filterStatus.textContent = "";
-            return;
+          let artworkHTML = '';
+          if (track.artwork_path) {
+            let artworkUrl = track.artwork_path;
+            if (track.artwork_path.startsWith('/') && track.originUrl) {
+              artworkUrl = track.originUrl + track.artwork_path;
+            }
+            artworkHTML = `<img class="artwork" src="${artworkUrl}" alt="${track.title}" />`;
+          } else {
+            artworkHTML = `<div class="artwork-placeholder">♪</div>`;
           }
           
-          // Assicuriamoci di filtrare da allTracks che contiene tutte le tracce da tutti i relay
-          const filteredTracks = allTracks.filter(track => {
-            if (filterOption === "all") {
-              return (
-                (track.title && track.title.toLowerCase().includes(filterText)) || 
-                (track.artist && track.artist.toLowerCase().includes(filterText)) || 
-                (track.album && track.album.toLowerCase().includes(filterText))
-              );
-            } else if (filterOption === "title") {
-              return track.title && track.title.toLowerCase().includes(filterText);
-            } else if (filterOption === "artist") {
-              return track.artist && track.artist.toLowerCase().includes(filterText);
-            } else if (filterOption === "album") {
-              // Fix per la ricerca album - verifichiamo che l'album esista prima di cercare
-              return track.album && track.album.toLowerCase().includes(filterText);
+          li.innerHTML = `
+            ${artworkHTML}
+            <div class="song-info">
+              <div class="song-title">${track.title}</div>
+              <div class="song-artist">${track.artist}</div>
+            </div>
+            <div class="song-actions">
+              <button class="play-song">Play</button>
+              <button class="playlist-small-button remove-from-playlist" title="Rimuovi dalla playlist">×</button>
+            </div>
+          `;
+          
+          // Evento play
+          li.querySelector('.play-song').addEventListener('click', () => {
+            playSong(track);
+          });
+          
+          // Evento rimuovi dalla playlist
+          li.querySelector('.remove-from-playlist').addEventListener('click', () => {
+            removeTrackFromPlaylist(track.id, playlist.id);
+          });
+          
+          playlistSongsList.appendChild(li);
+        });
+        
+        // Aggiorna l'highlight nella lista playlist
+        const playlistItems = document.querySelectorAll('.playlist-item');
+        playlistItems.forEach(item => {
+          item.classList.remove('active');
+          if (item.querySelector('.playlist-name').textContent.includes(playlist.name)) {
+            item.classList.add('active');
+          }
+        });
+      }
+      
+      // Funzione per eliminare una playlist
+      function deletePlaylist(playlistId) {
+        console.log("Eliminazione playlist:", playlistId);
+        const playlistIndex = userPlaylists.findIndex(p => p.id === playlistId);
+        if (playlistIndex !== -1) {
+          userPlaylists.splice(playlistIndex, 1);
+          saveUserPlaylists();
+          displayPlaylists();
+          
+          // Se la playlist corrente è stata eliminata, mostra un messaggio
+          if (currentPlaylistId === playlistId) {
+            document.getElementById('currentPlaylistName').textContent = 'Seleziona una playlist';
+            document.getElementById('playlistInfo').style.display = 'none';
+            document.getElementById('playlistEmpty').style.display = 'block';
+            document.getElementById('playlistEmpty').textContent = 'Seleziona una playlist dalla barra laterale o creane una nuova';
+            document.getElementById('playlistSongsList').innerHTML = '';
+            currentPlaylistId = null;
+          }
+        }
+      }
+      
+      // Funzione per rimuovere una traccia da una playlist
+      function removeTrackFromPlaylist(trackId, playlistId) {
+        const playlist = userPlaylists.find(p => p.id === playlistId);
+        if (playlist && playlist.tracks) {
+          const trackIndex = playlist.tracks.indexOf(trackId);
+          if (trackIndex !== -1) {
+            playlist.tracks.splice(trackIndex, 1);
+            saveUserPlaylists();
+            
+            // Se la playlist corrente è quella aggiornata, aggiorna la visualizzazione
+            if (currentPlaylistId === playlistId) {
+              displayPlaylistTracks(playlistId);
             }
             return true;
-          });
-          
-          displayTracks(filteredTracks);
-          updateFilterStatus(filteredTracks.length);
+          }
+        }
+        return false;
+      }
+      
+      // Funzione per creare una nuova playlist
+      function createPlaylist(name) {
+        if (!name || name.trim() === '') return;
+        
+        const playlistId = 'pl_' + Date.now();
+        const newPlaylist = {
+          id: playlistId,
+          name: name.trim(),
+          tracks: [],
+          createdAt: Date.now()
+        };
+        
+        if (!userPlaylists) {
+          userPlaylists = [];
         }
         
-        // Funzione per aggiornare lo stato del filtro
-        function updateFilterStatus(count) {
-          if (filterInput.value.trim() === "") {
-            filterStatus.textContent = "";
-            return;
-          }
+        userPlaylists.push(newPlaylist);
+        saveUserPlaylists();
+        displayPlaylists();
+        
+        return playlistId;
+      }
+      
+      // Funzione per salvare le playlist dell'utente
+      function saveUserPlaylists() {
+        localStorage.setItem('userPlaylists', JSON.stringify(userPlaylists));
+      }
+
+      // Funzione per aggiungere un relay
+      function addRelay() {
+        console.log("Aggiunta relay...");
+        const relayInput = document.getElementById("relayInput");
+        const relayList = document.getElementById("relayList");
+        
+        if (!relayInput || !relayList) {
+          console.error("Elementi DOM per relay non trovati");
+          return;
+        }
+        
+        const relayUrl = relayInput.value.trim();
+        if (!relayUrl) {
+          alert("Inserisci un URL valido");
+          return;
+        }
+        
+        if (!relayUrl.startsWith('http://') && !relayUrl.startsWith('https://')) {
+          alert('URL non valido. Deve iniziare con http:// o https://');
+          return;
+        }
+        
+        // Crea un oggetto per rappresentare il relay
+        const relay = {
+          url: relayUrl,
+          status: 'connecting'
+        };
+        
+        // Aggiungi il relay alla lista
+        if (!window.relays) {
+          window.relays = [];
+        }
+        
+        // Controlla che non sia già presente
+        if (window.relays.some(r => r.url === relayUrl)) {
+          alert('Questo relay è già stato aggiunto');
+          return;
+        }
+        
+        // Aggiungi il relay
+        window.relays.push(relay);
+        
+        // Salva nel localStorage
+        localStorage.setItem('shogunMusicRelays', JSON.stringify(window.relays));
+        
+        // Aggiorna la visualizzazione
+        displayRelays();
+        
+        // Pulisci l'input
+        relayInput.value = '';
+        
+        console.log("Relay aggiunto:", relay);
+      }
+      
+      // Funzione per mostrare i relay
+      function displayRelays() {
+        console.log("Visualizzazione relay...");
+        const relayList = document.getElementById("relayList");
+        
+        if (!relayList) {
+          console.error("Elemento DOM relayList non trovato");
+          return;
+        }
+        
+        relayList.innerHTML = '';
+        
+        if (!window.relays || window.relays.length === 0) {
+          relayList.innerHTML = '<li class="relay-item">Nessun relay aggiunto</li>';
+          return;
+        }
+        
+        window.relays.forEach(relay => {
+          const li = document.createElement('li');
+          li.className = 'relay-item';
           
-          if (count === 0) {
-            filterStatus.textContent = "Nessun risultato trovato";
-          } else if (count !== undefined) {
-            filterStatus.textContent = `Trovate ${count} tracce`;
-          } else {
-            // Se count non è definito, controlla se c'è un filtro attivo
-            const filterText = filterInput.value.toLowerCase().trim();
-            if (filterText) {
-              applyFilter(); // Riapplica il filtro per aggiornare il conteggio
+          const relayText = document.createElement('span');
+          relayText.textContent = relay.url;
+          
+          const statusBadge = document.createElement('span');
+          statusBadge.className = `status-badge ${relay.status}`;
+          statusBadge.textContent = relay.status;
+          
+          const removeButton = document.createElement('button');
+          removeButton.textContent = 'Rimuovi';
+          removeButton.className = 'delete-btn';
+          removeButton.addEventListener('click', () => removeRelay(relay.url));
+          
+          li.appendChild(relayText);
+          li.appendChild(statusBadge);
+          li.appendChild(removeButton);
+          relayList.appendChild(li);
+        });
+      }
+      
+      // Funzione per rimuovere un relay
+      function removeRelay(relayUrl) {
+        if (!window.relays) return;
+        
+        window.relays = window.relays.filter(r => r.url !== relayUrl);
+        localStorage.setItem('shogunMusicRelays', JSON.stringify(window.relays));
+        displayRelays();
+      }
+      
+      // Controlla gli elementi di UI per la riproduzione
+      function setupPlayerControls() {
+        const playBtn = document.getElementById("playBtn");
+        const pauseBtn = document.getElementById("pauseBtn");
+        const volumeSlider = document.getElementById("volumeSlider");
+        
+        if (playBtn) {
+          playBtn.addEventListener("click", function() {
+            if (window.wavesurfer && window.wavesurfer.isReady) {
+              window.wavesurfer.play();
+              playBtn.style.display = "none";
+              if (pauseBtn) pauseBtn.style.display = "inline-block";
             }
-          }
+          });
         }
         
-        // Funzione per pulire il filtro
-        function clearFilter() {
-          filterInput.value = "";
-          filterType.value = "all";
-          filterStatus.textContent = "";
-          displayTracks(allTracks);
+        if (pauseBtn) {
+          pauseBtn.addEventListener("click", function() {
+            if (window.wavesurfer && window.wavesurfer.isReady) {
+              window.wavesurfer.pause();
+              pauseBtn.style.display = "none";
+              if (playBtn) playBtn.style.display = "inline-block";
+            }
+          });
         }
+        
+        if (volumeSlider) {
+          volumeSlider.addEventListener("input", function() {
+            if (window.wavesurfer) {
+              window.wavesurfer.setVolume(volumeSlider.value);
+            }
+          });
+        }
+      }
+      
+      // Carica i relay salvati all'avvio
+      function loadSavedRelays() {
+        const savedRelays = localStorage.getItem('shogunMusicRelays');
+        if (savedRelays) {
+          try {
+            window.relays = JSON.parse(savedRelays);
+            displayRelays();
+          } catch (e) {
+            console.error("Errore nel parsing dei relay:", e);
+            window.relays = [];
+          }
+        } else {
+          window.relays = [];
+        }
+      }
+      
+      // Aggiungi listener al pulsante per aggiungere relay
+      document.addEventListener("DOMContentLoaded", function() {
+        const addRelayBtn = document.getElementById("addRelayBtn");
+        if (addRelayBtn) {
+          addRelayBtn.addEventListener("click", addRelay);
+          console.log("Listener aggiunto al pulsante addRelayBtn");
+        } else {
+          console.error("Elemento addRelayBtn non trovato");
+        }
+        
+        // Carica i relay salvati
+        loadSavedRelays();
+        
+        // Inizializza i controlli del player
+        setupPlayerControls();
       });
     </script>
   </body>
-</html> 
+</html>

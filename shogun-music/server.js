@@ -20,7 +20,7 @@ function saveLocalDB() {
   }
 }
 
-// Funzione per caricare il database da file
+// Funzione per caricare il database da 
 function loadLocalDB() {
   try {
     if (fs.existsSync(LOCAL_DB_PATH)) {

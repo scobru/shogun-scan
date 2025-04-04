@@ -1,1 +1,13 @@
-{}
+{
+  "1743763590999641": {
+    "id": "1743763590999641",
+    "title": "asd",
+    "artist": "asd",
+    "album": "asd",
+    "audio_path": "/uploads/1743763590780-803067624.mp3",
+    "artwork_path": "/uploads/1743763590993-960095495.jpg",
+    "timestamp": 1743763591000,
+    "size": 8596419,
+    "originUrl": "http://localhost:3001"
+  }
+}
