@@ -5,7 +5,7 @@ const path = require('path');
 const morgan = require('morgan');
 const multer = require('multer');
 const fs = require('fs');
-require('bullet-catcher')
+
 
 // Percorso per il backup locale delle tracce
 const LOCAL_DB_PATH = path.join(__dirname, 'local_tracks_db.json');
@@ -126,7 +126,7 @@ async function initializeFromGun(gunInstance) {
 
 // This is an example validation function
 function hasValidToken (msg) {
-  return msg && msg && msg.headers && msg.headers.token && msg.headers.token === SECURITY_TOKEN
+  return msg && msg.headers && msg.headers.token && msg.headers.token === SECURITY_TOKEN
 }
 
 // Initialize Express app
@@ -180,20 +180,11 @@ process.on('SIGTERM', handleShutdown);
 
 // Configurazione Gun con limiti più alti
 const gunOptions = {
-  web: server,  // Riferimento al server HTTP (non app.server)
-  file: path.join(__dirname, 'gundb'), 
-  multicast: false,
-  chunk: 1 * 1024 * 1024, // 1MB invece di 5MB
-  max: 1 * 1024 * 1024,   // 1MB invece di 5MB
-  axe: false,              // Disabilitiamo AXE completamente
-  multicast: false,        // Disabilitiamo multicast
-  isValid: hasValidToken,  // Aggiungiamo la funzione di validazione richiesta da bullet-catcher
-  peers: [otherPeerUrl]    // <-- AGGIUNTO: Connetti all'altro server peer
+  web: server,
+  file: "./data", 
+  localStorage: false,
+  radisk: true,
 };
-
-function hasValidToken (msg) {
-  return msg && msg && msg.headers && msg.headers.token && msg.headers.token === SECURITY_TOKEN
-}
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -337,6 +328,8 @@ function safeGunPut(gun, key, data) {
 
 // Initialize Gun
 const gun = Gun(gunOptions);
+
+
 
 // Carica i dati esistenti all'avvio del server
 initializeFromGun(gun).then(result => {
@@ -533,7 +526,31 @@ server.listen(PORT, () => {
 }); 
 
 // Richiedi in uscita tutti i dati per favorire la sincronizzazione
-// app.gun.on('out', {get: {'#': {'*': ''}}})
+
+Gun.on('opt', function (ctx) {
+  if (ctx.once) {
+    return
+  }
+  // Check all incoming traffic
+  ctx.on('in', function (msg) {
+    const to = this.to
+    // restrict put
+    if (msg.put) {
+      if (hasValidToken(msg)) {
+        console.log('writing')
+        to.next(msg)
+      } else {
+        console.log('not writing')
+      }
+    } else {
+      to.next(msg)
+    }
+  })
+})
+
+gun.on('out', { get: { '#': { '*': '' } } })
+
+
 
 // Aggiungi middleware personalizzato per aumentare il limite di dimensione dei messaggi
 Gun.on('opt', function(context) {
@@ -577,13 +594,14 @@ gun.on('err', function(err) {
 });
 
 // Log delle connessioni
-gun.on('hi', peer => {
-  console.log('Peer connesso:', peer);
-});
+// gun.on('hi', peer => {
+//   console.log('Peer connesso:', peer);
+// });
 
-gun.on('bye', peer => {
-  console.log('Peer disconnesso:', peer);
-});
+// gun.on('bye', peer => {
+//   console.log('Peer disconnesso:', peer);
+// });
+
 
 // Impostazioni di debug
 global.Gun = Gun; // rende Gun disponibile in globale
