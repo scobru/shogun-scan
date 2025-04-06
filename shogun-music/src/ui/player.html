@@ -5,7 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Shogun Music Player</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <!-- Caricamento dinamico degli script -->
+
+    <!-- Caricamento scripts esterni -->
+    <script src="../js/shogun-core.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/playlist-manager.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/player.js"></script>
+    <script src="../js/playlist-display.js"></script>
+
+    <!-- Caricamento dinamico degli script (solo se necessario come fallback) -->
     <script type="text/javascript">
       // Global flags to prevent duplicate loading
       window.SHOGUN_SCRIPTS = {
@@ -5283,6 +5292,13 @@
           return window.PlaylistManager;
         }
         
+        // Prima di creare un fallback, cerchiamo di vedere se gli script esterni sono già caricati
+        if (typeof window.PlaylistManagerSingleton === 'function') {
+          console.log("Classe PlaylistManagerSingleton trovata, creazione istanza...");
+          window.PlaylistManager = new window.PlaylistManagerSingleton();
+          return window.PlaylistManager;
+        }
+        
         console.warn("PlaylistManager non disponibile, creazione di una versione fallback...");
         
         // Verifica che shogunMusicAPI sia disponibile
@@ -5311,7 +5327,8 @@
           // Carica playlist da localStorage come fallback
           _loadFromLocalStorage: function() {
             try {
-              const saved = localStorage.getItem('user_playlists');
+              // Usa local_playlists invece di user_playlists per compatibilità con gli altri script
+              const saved = localStorage.getItem('local_playlists');
               if (saved) {
                 this.playlists = JSON.parse(saved);
                 console.log(`Caricate ${this.playlists.length} playlist da localStorage (fallback)`);
@@ -5329,7 +5346,8 @@
           // Salva playlist in localStorage come fallback
           _saveToLocalStorage: function() {
             try {
-              localStorage.setItem('user_playlists', JSON.stringify(this.playlists));
+              // Usa local_playlists invece di user_playlists per compatibilità con gli altri script
+              localStorage.setItem('local_playlists', JSON.stringify(this.playlists));
               console.log(`Salvate ${this.playlists.length} playlist in localStorage (fallback)`);
               return true;
             } catch (e) {

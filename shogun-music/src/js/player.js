@@ -639,19 +639,42 @@ window.debugGunDBState = debugGunDBState;
   function initPlaylistManager(api) {
     window.PlaylistManager = {
       createPlaylist: function(name, tracks = []) {
-        return api.createPlaylist(name, tracks);
+        return api.createPlaylist(name, tracks)
+          .then(newPlaylist => {
+            console.log("Playlist creata:", newPlaylist);
+            
+            // Forza aggiornamento UI immediatamente
+            window.refreshPlaylistDisplay();
+            
+            return newPlaylist;
+          });
       },
       
       addTrackToPlaylist: function(playlistId, track) {
-        return api.addTrackToPlaylist(playlistId, track);
+        return api.addTrackToPlaylist(playlistId, track)
+          .then(result => {
+            // Aggiorna UI dopo aggiunta
+            window.refreshPlaylistDisplay();
+            return result;
+          });
       },
       
       removeTrackFromPlaylist: function(playlistId, trackId) {
-        return api.removeTrackFromPlaylist(playlistId, trackId);
+        return api.removeTrackFromPlaylist(playlistId, trackId)
+          .then(result => {
+            // Aggiorna UI dopo rimozione
+            window.refreshPlaylistDisplay();
+            return result;
+          });
       },
       
       deletePlaylist: function(playlistId) {
-        return api.deletePlaylist(playlistId);
+        return api.deletePlaylist(playlistId)
+          .then(result => {
+            // Aggiorna UI dopo eliminazione
+            window.refreshPlaylistDisplay();
+            return result;
+          });
       },
       
       loadPlaylists: function() {
@@ -690,159 +713,57 @@ window.debugGunDBState = debugGunDBState;
 
 // Verifica aggiuntiva all'avvio della pagina
 document.addEventListener("DOMContentLoaded", function() {
-  // Controlla che FavoritesManager sia disponibile dopo 1.5 secondi (tempo maggiore per assicurarsi che Gun sia caricato)
+  console.log("DOM caricato, inizializzazione player...");
+  
+  // Controllo se PlaylistManager è già stato inizializzato
+  if (window.PlaylistManager) {
+    console.log("PlaylistManager già disponibile all'avvio");
+    // Assicuriamo che le playlist siano caricate
+    if (typeof window.PlaylistManager.initialize === 'function') {
+      window.PlaylistManager.initialize().then(() => {
+        console.log("PlaylistManager inizializzato dall'esterno");
+      });
+    } else if (typeof window.PlaylistManager.loadPlaylists === 'function') {
+      window.PlaylistManager.loadPlaylists().then(playlists => {
+        console.log(`Caricate ${playlists.length} playlist all'avvio`);
+        // Aggiorna window.userPlaylists per compatibilità
+        window.userPlaylists = playlists;
+      });
+    }
+  } else {
+    console.warn("PlaylistManager non disponibile all'avvio, si tenterà di inizializzarlo dopo");
+    // Il PlaylistManager sarà inizializzato da playlist-manager.js o dal fallback in player.html
+  }
+  
+  // Verifica il localStorage e correggi eventuali problemi di formato
+  if (typeof window.fixPlaylistsStorage === 'function') {
+    console.log("Esecuzione manutenzione playlist storage...");
+    window.fixPlaylistsStorage();
+  } else {
+    console.warn("Funzione fixPlaylistsStorage non disponibile");
+    
+    // Implementazione minimale di fallback
+    try {
+      const localData = localStorage.getItem('local_playlists');
+      if (localData) {
+        const playlists = JSON.parse(localData);
+        if (Array.isArray(playlists)) {
+          console.log(`Trovate ${playlists.length} playlist in localStorage`);
+          window.userPlaylists = playlists;
+        }
+      }
+    } catch (e) {
+      console.error("Errore nel leggere playlist da localStorage:", e);
+    }
+  }
+  
+  // Mostra le playlist nell'UI dopo l'inizializzazione
   setTimeout(() => {
-    // Prima configura i banner di errore
-    const errorBanners = setupErrorBanners();
-    
-    // Controlla lo stato del FavoritesManager
-    if (typeof window.FavoritesManager === 'undefined') {
-      console.error("FavoritesManager non disponibile - errore critico");
-      
-      // Notifica visibile all'utente se possibile
-      if (document.getElementById('errorNotification')) {
-        document.getElementById('errorNotification').textContent = 
-          "Errore: FavoritesManager non disponibile. Potrebbe essere necessario ricaricare la pagina.";
-        document.getElementById('errorNotification').style.display = 'block';
-      }
-      
-      // Mostra eventuali banner di errore nella pagina
-      errorBanners.forEach(banner => {
-        banner.style.display = 'block';
-      });
-      
-      // NUOVO: Tenta una riparazione automatica del FavoritesManager
-      console.log("Tentativo di riparare FavoritesManager...");
-      if (window.shogun && window.shogun.gun) {
-        try {
-          // Inizializza API se non disponibile
-          if (!window.shogunMusicAPI) {
-            console.log("Creazione d'emergenza dell'API...");
-            window.shogunMusicAPI = new ShogunMusicAPI(window.shogun.gun);
-            window.shogunMusicAPI.initEventListeners();
-          }
-          
-          // Esegui forceInitializeAPI per creare FavoritesManager
-          forceInitializeAPI();
-          
-          console.log("Riparazione automatica di FavoritesManager completata");
-          
-          // Nascondi il banner di errore se ora è disponibile
-          if (window.FavoritesManager) {
-            errorBanners.forEach(banner => {
-              banner.style.display = 'none';
-            });
-            
-            if (document.getElementById('errorNotification')) {
-              document.getElementById('errorNotification').style.display = 'none';
-            }
-          }
-        } catch(e) {
-          console.error("Errore nella riparazione automatica:", e);
-        }
-      } else {
-        console.error("Impossibile riparare: Gun.js non disponibile");
-      }
-    } else {
-      console.log("FavoritesManager disponibile ed esportato correttamente");
-      
-      // Nascondi eventuali banner di errore
-      errorBanners.forEach(banner => {
-        banner.style.display = 'none'; // Nascondi il banner quando FavoritesManager è disponibile
-      });
-      
-      // Nascondi anche la notifica di errore se presente
-      if (document.getElementById('errorNotification')) {
-        document.getElementById('errorNotification').style.display = 'none';
-      }
-      
-      // Reset delle variabili di fallback
-      window.usingFallbackFavorites = false;
-      window.shownFallbackWarning = false;
-      
-      // Forza un caricamento dei preferiti da GunDB
-      if (window.FavoritesManager.loadUserFavoritesFromGun) {
-        window.FavoritesManager.loadUserFavoritesFromGun()
-          .then(() => console.log("Preferiti forzatamente ricaricati da GunDB"))
-          .catch(err => console.error("Errore nel ricaricamento preferiti:", err));
-      }
+    if (typeof window.displayPlaylists === 'function') {
+      console.log("Visualizzazione playlist nell'UI...");
+      window.displayPlaylists();
     }
-    
-    // Verifica se la funzione loadTracks esiste
-    if (typeof window.loadTracks === 'undefined') {
-      console.warn("Funzione loadTracks non disponibile");
-      
-      // Implementa una versione di base di loadTracks se mancante
-      window.loadTracks = function() {
-        console.log("Utilizzo funzione loadTracks di fallback");
-        
-        // Ottieni le tracce dal localStorage se disponibili
-        try {
-          const cachedTracks = localStorage.getItem('cached_tracks');
-          if (cachedTracks) {
-            const parsedTracks = JSON.parse(cachedTracks);
-            console.log("Caricate " + parsedTracks.length + " tracce da localStorage (fallback)");
-            window.tracks = parsedTracks;
-            window.allTracks = [...parsedTracks];
-            
-            if (typeof displayTracks === 'function') {
-              displayTracks(parsedTracks);
-            } else {
-              console.warn("Funzione displayTracks non disponibile");
-              
-              // Implementa displayTracks di fallback se mancante
-              if (parsedTracks.length > 0) {
-                const tracksList = document.getElementById('tracksList');
-                if (tracksList) {
-                  tracksList.innerHTML = '';
-                  parsedTracks.forEach(track => {
-                    const trackItem = document.createElement('div');
-                    trackItem.className = 'track-item';
-                    trackItem.innerHTML = `
-                      <div class="track-info">
-                        <div class="track-title">${track.title || 'Brano senza titolo'}</div>
-                        <div class="track-artist">${track.artist || 'Artista sconosciuto'}</div>
-                      </div>
-                    `;
-                    tracksList.appendChild(trackItem);
-                  });
-                }
-              }
-            }
-            
-            return parsedTracks;
-          }
-        } catch (e) {
-          console.error("Errore nel recupero tracce da localStorage:", e);
-        }
-        
-        // Se non ci sono tracce nel localStorage, usa tracce di esempio
-        const fallbackTracks = [
-          {
-            id: "fallback1",
-            title: "Brano di esempio 1",
-            artist: "Artista Esempio",
-            album: "Album Esempio"
-          },
-          {
-            id: "fallback2",
-            title: "Brano di esempio 2",
-            artist: "Artista Esempio",
-            album: "Album Esempio"
-          }
-        ];
-        
-        window.tracks = fallbackTracks;
-        window.allTracks = [...fallbackTracks];
-        
-        if (typeof displayTracks === 'function') {
-          displayTracks(fallbackTracks);
-        }
-        
-        return fallbackTracks;
-      };
-    }
-  }, 1500);
+  }, 1000);
 });
 
 // Aggiungi sistema di recupero automatico per FavoritesManager
@@ -1156,3 +1077,98 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 });
+
+// Aggiungi funzione di supporto per trovare una playlist per ID con gestione stringhe
+window.findPlaylistById = function(playlistId) {
+  if (!playlistId) {
+    console.error("findPlaylistById: ID non fornito");
+    return null;
+  }
+  
+  // Normalizza l'ID come stringa
+  const normalizedId = String(playlistId);
+  console.log(`findPlaylistById: Ricerca playlist con ID normalizzato: ${normalizedId}`);
+  
+  // Controlla prima le playlist in memoria
+  if (window.userPlaylists && Array.isArray(window.userPlaylists)) {
+    console.log(`findPlaylistById: Controllo in memoria (${window.userPlaylists.length} playlist)...`);
+    console.log("Playlist in memoria:", window.userPlaylists);
+    
+    const playlist = window.userPlaylists.find(p => {
+      const match = String(p.id) === normalizedId || p.id === playlistId;
+      if (match) {
+        console.log("findPlaylistById: Playlist trovata in memoria:", p);
+      }
+      return match;
+    });
+    
+    if (playlist) return playlist;
+  } else {
+    console.warn("findPlaylistById: Nessuna playlist in memoria");
+  }
+  
+  // Controlla in localStorage come fallback
+  try {
+    console.log("findPlaylistById: Controllo in localStorage...");
+    const localPlaylists = localStorage.getItem('local_playlists');
+    if (localPlaylists) {
+      const parsed = JSON.parse(localPlaylists);
+      console.log(`findPlaylistById: Trovate ${parsed.length} playlist in localStorage`);
+      
+      if (Array.isArray(parsed)) {
+        const playlist = parsed.find(p => {
+          const match = String(p.id) === normalizedId || p.id === playlistId;
+          if (match) {
+            console.log("findPlaylistById: Playlist trovata in localStorage:", p);
+          }
+          return match;
+        });
+        
+        if (playlist) {
+          // Aggiorna anche la memoria
+          if (!window.userPlaylists) {
+            window.userPlaylists = parsed;
+          } else if (!window.userPlaylists.some(p => String(p.id) === String(playlist.id))) {
+            window.userPlaylists.push(playlist);
+          }
+          return playlist;
+        }
+      }
+    } else {
+      console.warn("findPlaylistById: Nessuna playlist in localStorage");
+    }
+  } catch (e) {
+    console.error("findPlaylistById: Errore nella ricerca playlist in localStorage:", e);
+  }
+  
+  console.error(`findPlaylistById: Playlist ${playlistId} non trovata in nessuna sorgente`);
+  return null;
+};
+
+// Aggiungi una funzione per aggiornare il display delle playlist
+window.refreshPlaylistDisplay = function() {
+  console.log("Aggiornamento visualizzazione playlist");
+  
+  // Forza il caricamento delle playlist da localStorage
+  if (window.PlaylistManager && typeof window.PlaylistManager.loadPlaylists === 'function') {
+    window.PlaylistManager.loadPlaylists()
+      .then(playlists => {
+        console.log(`Playlist ricaricate: ${playlists.length}`);
+        
+        // Aggiorna memoria locale per accesso diretto
+        window.userPlaylists = playlists;
+        
+        // Aggiorna la visualizzazione se esiste la funzione
+        if (typeof window.displayPlaylists === 'function') {
+          window.displayPlaylists(playlists);
+        }
+        
+        // Forza aggiornamento tracce se necessario
+        const activePlaylistId = document.querySelector('.playlist-tab.active')?.dataset?.id;
+        if (activePlaylistId && typeof window.displayPlaylistTracks === 'function') {
+          window.displayPlaylistTracks(activePlaylistId);
+        }
+      })
+      .catch(err => console.error("Errore nell'aggiornamento playlist:", err));
+  }
+};

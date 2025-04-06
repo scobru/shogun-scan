@@ -736,74 +736,164 @@ class ShogunMusicAPI {
    */
   loadPlaylists() {
     return new Promise((resolve, reject) => {
-      if (!this.isAuthenticated()) {
-        console.warn("Impossibile caricare playlist: utente non autenticato");
-        resolve([]);
-        return;
-      }
+      console.log("Caricamento playlist (fallback)");
       
-      console.log("Caricamento playlist da GunDB...");
-      
-      // Imposta un timeout per evitare attese infinite
-      const timeout = setTimeout(() => {
-        console.warn("Timeout nel caricamento playlist da GunDB");
-        resolve([]);
-      }, 5000);
-      
-      // Usa this.user invece di this.gun.user()
-      this.user.get('playlists').once((data) => {
-        clearTimeout(timeout);
-        console.log("Dati playlist ricevuti:", data);
+      try {
+        // Verificare se PlaylistManager è già disponibile
+        if (window.PlaylistManager && window.PlaylistManager.playlists && 
+            Array.isArray(window.PlaylistManager.playlists) && 
+            window.PlaylistManager.playlists.length > 0) {
+          console.log("Usando playlist già caricate da PlaylistManager");
+          return resolve([...window.PlaylistManager.playlists]);
+        }
         
-        let playlists = [];
+        // Utilizzare localStorage come fallback principale quando Gun.js non è disponibile
+        const localPlaylists = localStorage.getItem('local_playlists');
+        let parsedPlaylists = [];
         
-        // Controlla se i dati sono in formato JSON stringificato
-        if (data && typeof data === 'string') {
+        if (localPlaylists) {
           try {
-            // Prova a parsificare il JSON
-            playlists = JSON.parse(data);
-            console.log(`Caricate ${playlists.length} playlist dal formato JSON`);
-          } catch (e) {
-            console.error("Errore nel parsing JSON delle playlist:", e);
-            // Fallback a un array vuoto
-            playlists = [];
-          }
-        } 
-        // Verifica il formato legacy (oggetto GunDB)
-        else if (data && typeof data === 'object') {
-          console.warn("Formato playlist legacy rilevato, migrazione in corso...");
-          
-          try {
-            // Converti da formato legacy
-            playlists = this._gunObjectToArray(data);
-            console.log(`Convertite ${playlists.length} playlist dal formato legacy`);
+            parsedPlaylists = JSON.parse(localPlaylists);
+            console.log(`Caricate ${parsedPlaylists.length} playlist da localStorage (fallback)`, parsedPlaylists);
             
-            // Salva immediatamente nel nuovo formato per migrazione
-            if (playlists.length > 0) {
-              this.savePlaylists(playlists, false)
-                .then(() => console.log("Migrazione playlist completata"))
-                .catch(err => console.error("Errore nella migrazione playlist:", err));
-            }
+            // Verifica che le playlist abbiano formati ID corretti
+            parsedPlaylists = parsedPlaylists.map(playlist => {
+              // Debug: mostra ogni playlist durante la normalizzazione
+              console.log("Normalizzazione playlist:", playlist);
+              
+              // Assicura che l'ID sia una stringa
+              if (playlist.id && typeof playlist.id !== 'string') {
+                console.log(`Conversione ID da ${typeof playlist.id} a stringa:`, playlist.id);
+                playlist.id = String(playlist.id);
+              }
+              // Se manca l'ID, ne genera uno nuovo
+              if (!playlist.id) {
+                playlist.id = `playlist_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                console.log("Generato nuovo ID per playlist:", playlist.id);
+              }
+              
+              // Assicura che tracks sia un array
+              if (!Array.isArray(playlist.tracks)) {
+                console.log(`Inizializzazione tracks come array vuoto per playlist ${playlist.id}`);
+                playlist.tracks = [];
+              }
+              
+              // Normalizza gli ID delle tracce
+              playlist.tracks = playlist.tracks.map(track => {
+                if (typeof track === 'string') {
+                  return { id: track };
+                }
+                if (track && typeof track === 'object') {
+                  if (track.id && typeof track.id !== 'string') {
+                    track.id = String(track.id);
+                  }
+                  return track;
+                }
+                return null;
+              }).filter(Boolean);
+              
+              return playlist;
+            });
+            
+            // Rimuovi duplicati basati su ID
+            const uniquePlaylists = [];
+            const seenIds = new Set();
+            
+            parsedPlaylists.forEach(playlist => {
+              if (!seenIds.has(playlist.id)) {
+                seenIds.add(playlist.id);
+                uniquePlaylists.push(playlist);
+              } else {
+                console.warn(`Playlist duplicata rimossa: ${playlist.id}`);
+              }
+            });
+            
+            parsedPlaylists = uniquePlaylists;
+            
+            // Aggiorna la variabile globale per renderla disponibile immediatamente
+            window.userPlaylists = parsedPlaylists;
+            
+            // Salva le playlist normalizzate
+            localStorage.setItem('local_playlists', JSON.stringify(parsedPlaylists));
+            console.log("Playlist normalizzate salvate in localStorage:", parsedPlaylists);
+            
           } catch (e) {
-            console.error("Errore nella conversione playlist dal formato legacy:", e);
-            playlists = [];
+            console.error("Errore nel parsing delle playlist da localStorage:", e);
+            parsedPlaylists = [];
           }
         } else {
-          console.log("Nessuna playlist trovata");
-          playlists = [];
+          console.log("Nessuna playlist trovata in localStorage");
         }
         
-        // Assicurati che sia un array
-        if (!Array.isArray(playlists)) {
-          console.warn("Formato playlist non valido, inizializzazione array vuoto");
-          playlists = [];
+        // Tentativo di caricamento da Gun solo se autenticati
+        if (this.isAuthenticated()) {
+          this.user.get('playlists').once((data) => {
+            if (data && typeof data === 'string') {
+              try {
+                const gunPlaylists = JSON.parse(data);
+                console.log("Playlist caricate da GunDB:", gunPlaylists);
+                
+                // Merge delle playlist da Gun con quelle da localStorage
+                if (Array.isArray(gunPlaylists) && gunPlaylists.length > 0) {
+                  console.log(`Caricate ${gunPlaylists.length} playlist da GunDB`);
+                  
+                  // Usa Map per evitare duplicati e mantenere le versioni più recenti
+                  const playlistMap = new Map();
+                  
+                  // Prima aggiungi le playlist da localStorage
+                  parsedPlaylists.forEach(p => {
+                    console.log(`Aggiunta playlist da localStorage alla Map: ${p.id}`);
+                    playlistMap.set(p.id, p);
+                  });
+                  
+                  // Poi aggiungi/sovrascrivi con quelle da GunDB
+                  gunPlaylists.forEach(p => {
+                    if (p.id) {
+                      console.log(`Aggiunta/aggiornamento playlist da GunDB: ${p.id}`);
+                      playlistMap.set(p.id, p);
+                    }
+                  });
+                  
+                  // Converti la Map in array
+                  parsedPlaylists = Array.from(playlistMap.values());
+                  
+                  // Salva in localStorage per sincronizzazione
+                  localStorage.setItem('local_playlists', JSON.stringify(parsedPlaylists));
+                  console.log("Playlist sincronizzate salvate in localStorage:", parsedPlaylists);
+                }
+              } catch (e) {
+                console.error("Errore nel parsing delle playlist da GunDB:", e);
+              }
+            }
+            
+            // Aggiorna la variabile globale e risolvi
+            window.userPlaylists = parsedPlaylists;
+            
+            // Sincronizza con PlaylistManager se disponibile
+            if (window.PlaylistManager && typeof window.PlaylistManager.savePlaylists === 'function') {
+              window.PlaylistManager.savePlaylists(parsedPlaylists)
+                .then(() => console.log("Playlist sincronizzate con PlaylistManager"))
+                .catch(err => console.warn("Errore nella sincronizzazione con PlaylistManager:", err));
+            }
+            
+            resolve(parsedPlaylists);
+          });
+        } else {
+          // Risolvi immediatamente con le playlist da localStorage
+          
+          // Sincronizza con PlaylistManager se disponibile
+          if (window.PlaylistManager && typeof window.PlaylistManager.savePlaylists === 'function') {
+            window.PlaylistManager.savePlaylists(parsedPlaylists)
+              .then(() => console.log("Playlist sincronizzate con PlaylistManager"))
+              .catch(err => console.warn("Errore nella sincronizzazione con PlaylistManager:", err));
+          }
+          
+          resolve(parsedPlaylists);
         }
-        
-        // Aggiorna lo stato globale (per retrocompatibilità)
-        window.userPlaylists = playlists;
-        
-        resolve(playlists);
-      });
+      } catch (error) {
+        console.error("Errore nel caricamento delle playlist:", error);
+        resolve([]);
+      }
     });
   }
   
@@ -815,50 +905,93 @@ class ShogunMusicAPI {
    */
   savePlaylists(playlists, emitEvent = true) {
     return new Promise((resolve, reject) => {
-      if (!this.isAuthenticated()) {
-        console.warn("Impossibile salvare playlist: utente non autenticato");
-        resolve(false);
-        return;
-      }
-      
       try {
-        // Verifica che playlists sia un array
-        if (!Array.isArray(playlists)) {
-          console.warn("Formato playlist non valido, conversione ad array vuoto");
+        console.log("savePlaylists chiamato con", playlists);
+        
+        // Assicurati che tutti gli ID siano stringhe e persistenti
+        if (Array.isArray(playlists)) {
+          playlists = playlists.map(playlist => {
+            // Crea una copia per non modificare l'originale
+            const normalizedPlaylist = {...playlist};
+            
+            // Normalizza ID playlist
+            if (normalizedPlaylist.id && typeof normalizedPlaylist.id !== 'string') {
+              normalizedPlaylist.id = String(normalizedPlaylist.id);
+            }
+            if (!normalizedPlaylist.id) {
+              normalizedPlaylist.id = `playlist_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            }
+            
+            // Normalizza tracks
+            if (Array.isArray(normalizedPlaylist.tracks)) {
+              normalizedPlaylist.tracks = normalizedPlaylist.tracks.map(track => {
+                if (typeof track === 'string') {
+                  return { id: track };
+                }
+                if (track && typeof track === 'object') {
+                  // Copia per evitare riferimenti
+                  const normalizedTrack = {...track};
+                  
+                  // Assicura che l'ID della traccia sia una stringa
+                  if (normalizedTrack.id && typeof normalizedTrack.id !== 'string') {
+                    normalizedTrack.id = String(normalizedTrack.id);
+                  }
+                  
+                  return normalizedTrack;
+                }
+                return null;
+              }).filter(Boolean); // Rimuovi null/undefined
+            } else {
+              normalizedPlaylist.tracks = [];
+            }
+            
+            // Assicura che i timestamp esistano
+            if (!normalizedPlaylist.createdAt) normalizedPlaylist.createdAt = Date.now();
+            if (!normalizedPlaylist.updatedAt) normalizedPlaylist.updatedAt = Date.now();
+            
+            return normalizedPlaylist;
+          });
+        } else {
           playlists = [];
         }
         
-        // Converti l'array in JSON per GunDB
-        const playlistsJSON = JSON.stringify(playlists);
+        // Salva sempre in localStorage come fallback primario
+        localStorage.setItem('local_playlists', JSON.stringify(playlists));
+        console.log(`Salvate ${playlists.length} playlist in localStorage (fallback)`);
         
-        // Usa this.user invece di this.gun.user()
-        this.user.get("playlists").put(playlistsJSON, (ack) => {
-          if (ack.err) {
-            console.error("Errore nel salvataggio playlist:", ack.err);
-            reject(ack.err);
-          } else {
-            console.log("Playlist salvate:", playlists?.length || 0);
-            
-            // Salva i metadati delle playlist
-            this.user.get("playlists_meta").put({
-              lastUpdated: Date.now(),
-              version: 2 // Versione 2 indica formato JSON
-            });
-            
-            // Emetti un evento se richiesto
-            if (emitEvent) {
-              this._emitEvent('playlists_updated', { count: playlists?.length || 0 });
+        // Aggiorna la variabile globale
+        window.userPlaylists = playlists;
+        
+        // Sincronizza con PlaylistManager se disponibile
+        if (window.PlaylistManager && 
+            window.PlaylistManager !== this && // Evita loop infiniti
+            typeof window.PlaylistManager.savePlaylists === 'function') {
+          window.PlaylistManager.savePlaylists(playlists)
+            .then(() => console.log("Playlist sincronizzate con PlaylistManager"))
+            .catch(err => console.warn("Errore nella sincronizzazione con PlaylistManager:", err));
+        }
+        
+        // Emetti evento se richiesto
+        if (emitEvent) {
+          this._emitEvent('playlists', { playlists });
+        }
+        
+        // Tenta di salvare in GunDB se autenticato
+        if (this.isAuthenticated()) {
+          const playlistsJSON = JSON.stringify(playlists);
+          this.user.get("playlists").put(playlistsJSON, (ack) => {
+            if (ack.err) {
+              console.warn("Errore nel salvataggio playlist in GunDB:", ack.err);
+            } else {
+              console.log("Playlist salvate in GunDB");
             }
-            
-            // Aggiorna lo stato globale (per retrocompatibilità)
-            window.userPlaylists = playlists;
-            
-            resolve(true);
-          }
-        });
-      } catch (e) {
-        console.error("Errore durante il salvataggio playlist:", e);
-        reject(e);
+          });
+        }
+        
+        resolve(true);
+      } catch (error) {
+        console.error("Errore nel salvataggio playlist:", error);
+        reject(error);
       }
     });
   }
@@ -866,34 +999,25 @@ class ShogunMusicAPI {
   /**
    * Crea una nuova playlist
    * @param {string} name - Nome della playlist
-   * @param {Array} tracks - Array di tracce (opzionale)
-   * @returns {Promise<Object>} - Nuova playlist creata
+   * @param {Array} tracks - Tracce iniziali
+   * @returns {Promise<Object>} - Playlist creata
    */
   createPlaylist(name, tracks = []) {
     return new Promise(async (resolve, reject) => {
+      console.log(`Creazione playlist (fallback): ${name}`);
+      
       try {
-        // Carica le playlist correnti
+        // Carica le playlist esistenti
         const playlists = await this.loadPlaylists();
         
-        // Verifica se esiste già una playlist con lo stesso nome
-        const existingPlaylist = playlists.find(p => p.name === name);
-        if (existingPlaylist) {
-          console.warn(`Playlist con nome "${name}" già esistente, uso quella`);
-          resolve(existingPlaylist);
-          return;
-        }
+        // Genera un ID univoco con timestamp e random per evitare collisioni
+        const playlistId = `playlist_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
         
-        // Crea la nuova playlist con ID univoco basato sul timestamp
+        // Crea la nuova playlist
         const newPlaylist = {
-          id: 'playlist_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+          id: playlistId,
           name: name,
-          tracks: tracks.map(track => {
-            // Assicura che ogni traccia abbia un ID come stringa
-            return {
-              ...track,
-              id: String(track.id)
-            };
-          }),
+          tracks: [...tracks], // Clona per evitare riferimenti
           createdAt: Date.now(),
           updatedAt: Date.now()
         };
@@ -902,13 +1026,17 @@ class ShogunMusicAPI {
         playlists.push(newPlaylist);
         
         // Salva le playlist aggiornate
-        await this.savePlaylists(playlists, true);
+        await this.savePlaylists(playlists);
         
-        console.log(`Playlist "${name}" creata con ${tracks.length} tracce`);
+        console.log(`Playlist creata tramite API:`, newPlaylist);
+        
+        // Aggiorna immediatamente la variabile globale
+        window.userPlaylists = playlists;
+        
         resolve(newPlaylist);
-      } catch (e) {
-        console.error("Errore nella creazione playlist:", e);
-        reject(e);
+      } catch (error) {
+        console.error("Errore nella creazione playlist:", error);
+        reject(error);
       }
     });
   }
@@ -922,61 +1050,41 @@ class ShogunMusicAPI {
   addTrackToPlaylist(playlistId, track) {
     return new Promise(async (resolve, reject) => {
       try {
-        // Carica le playlist correnti
+        // Carica le playlist
         const playlists = await this.loadPlaylists();
         
-        // Trova la playlist
-        const playlistIndex = playlists.findIndex(p => p.id === playlistId);
+        // Trova la playlist con l'ID specificato
+        const playlistIndex = playlists.findIndex(p => 
+          p.id === playlistId || String(p.id) === String(playlistId)
+        );
+        
         if (playlistIndex === -1) {
-          throw new Error(`Playlist con ID ${playlistId} non trovata`);
-        }
-        
-        // Normalizza l'ID della traccia come stringa
-        const normalizedTrackId = String(track.id);
-        
-        // Verifica se la traccia è già presente (cerca tutte le occorrenze)
-        const existingTrackIndexes = [];
-        playlists[playlistIndex].tracks.forEach((t, idx) => {
-          if (String(t.id) === normalizedTrackId) {
-            existingTrackIndexes.push(idx);
-          }
-        });
-        
-        // Se ci sono tracce duplicate, rimuovi tutte tranne la prima
-        if (existingTrackIndexes.length > 1) {
-          console.warn(`Trovate ${existingTrackIndexes.length} occorrenze duplicate della traccia ${normalizedTrackId} nella playlist, rimozione duplicati...`);
-          // Rimuovi le occorrenze in ordine inverso per non interferire con gli indici
-          existingTrackIndexes.sort((a, b) => b - a).slice(1).forEach(idx => {
-            playlists[playlistIndex].tracks.splice(idx, 1);
-          });
-        }
-        
-        // Se la traccia esiste già, non fare nulla
-        if (existingTrackIndexes.length > 0) {
-          console.log(`Traccia ${normalizedTrackId} già presente nella playlist`);
+          console.error(`Playlist ${playlistId} non trovata`);
           resolve(false);
           return;
         }
         
-        // Prepara la traccia da aggiungere con ID normalizzato
-        const trackToAdd = {
-          ...track,
-          id: normalizedTrackId,
-          addedAt: Date.now()
-        };
+        // Clona la traccia per evitare riferimenti
+        const trackToAdd = { ...track };
         
-        // Aggiungi la traccia
-        playlists[playlistIndex].tracks.push(trackToAdd);
-        playlists[playlistIndex].updatedAt = Date.now();
-        
-        // Salva le playlist aggiornate
-        await this.savePlaylists(playlists, true);
-        
-        console.log(`Traccia ${normalizedTrackId} aggiunta alla playlist ${playlistId}`);
-        resolve(true);
-      } catch (e) {
-        console.error("Errore nell'aggiunta traccia alla playlist:", e);
-        reject(e);
+        // Aggiungi la traccia se non è già presente
+        const trackIds = playlists[playlistIndex].tracks.map(t => t.id || t);
+        if (!trackIds.includes(trackToAdd.id) && !trackIds.includes(String(trackToAdd.id))) {
+          console.log(`Aggiunta traccia alla playlist ${playlistId} (fallback)`);
+          playlists[playlistIndex].tracks.push(trackToAdd);
+          playlists[playlistIndex].updatedAt = Date.now();
+          
+          // Salva le playlist aggiornate
+          await this.savePlaylists(playlists);
+          
+          resolve(true);
+        } else {
+          console.log(`Traccia ${trackToAdd.id} già presente nella playlist ${playlistId}`);
+          resolve(false);
+        }
+      } catch (error) {
+        console.error("Errore nell'aggiunta traccia alla playlist:", error);
+        reject(error);
       }
     });
   }
