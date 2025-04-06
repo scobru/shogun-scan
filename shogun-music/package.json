@@ -4,8 +4,8 @@
   "description": "A self-hosted Bandcamp-like application for managing music releases with GunDB",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node src/relay.js",
+    "dev": "nodemon src/relay.js",
     "client": "cd src && npx react-scripts start",
     "build": "cd src && npm run build"
   },
