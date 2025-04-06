@@ -1,6 +1,7 @@
 /**
  * Gestore centralizzato delle playlist
  * Gestisce tutte le operazioni relative alle playlist in un unico punto
+ * Versione semplificata che utilizza direttamente Gun.js
  */
 
 class PlaylistManagerSingleton {
@@ -27,42 +28,17 @@ class PlaylistManagerSingleton {
     console.log("Inizializzazione PlaylistManager...");
     
     try {
-      // Tenta di caricare le playlist da localStorage
-      const stored = localStorage.getItem('local_playlists');
-      let storedPlaylists = [];
-      
-      if (stored) {
-        try {
-          storedPlaylists = JSON.parse(stored);
-          console.log(`Trovate ${storedPlaylists.length} playlist in localStorage`);
-        } catch (e) {
-          console.error("Errore nel parsing delle playlist da localStorage:", e);
-        }
-      }
-      
-      // Carica le playlist usando l'API se disponibile
-      if (window.shogunMusicAPI) {
-        console.log("Caricamento playlist tramite API...");
-        const apiPlaylists = await window.shogunMusicAPI.loadPlaylists();
-        console.log(`API ha restituito ${apiPlaylists.length} playlist`);
-        
-        // Unisci le playlist da API e localStorage
-        const mergedPlaylists = this._mergePlaylists(apiPlaylists, storedPlaylists);
-        this.playlists = mergedPlaylists;
+      // Verifica se Shogun e Gun.js sono disponibili
+      if (window.shogun && window.shogun.gun) {
+        console.log("Gun.js disponibile, caricamento playlist da Gun...");
+        await this.loadPlaylistsFromGun();
       } else {
-        // Usa solo quelle da localStorage
-        this.playlists = storedPlaylists;
-        console.log("API non disponibile, usate solo playlist da localStorage");
+        console.warn("Gun.js non disponibile, usando localStorage");
+        this.loadPlaylistsFromLocalStorage();
       }
-      
-      // Normalizza tutti gli ID per consistenza
-      this.playlists = this._normalizePlaylists(this.playlists);
       
       console.log(`PlaylistManager inizializzato con ${this.playlists.length} playlist`);
       this.initialized = true;
-      
-      // Salva subito le playlist normalizzate
-      localStorage.setItem('local_playlists', JSON.stringify(this.playlists));
       
       // Aggiorna window.userPlaylists per retrocompatibilità
       window.userPlaylists = [...this.playlists];
@@ -79,49 +55,113 @@ class PlaylistManagerSingleton {
   }
   
   /**
-   * Unisce playlist da diverse fonti, mantenendo la più recente in caso di ID duplicati
+   * Carica playlist da Gun.js
    * @private
    */
-  _mergePlaylists(listA = [], listB = []) {
-    console.log("Unione playlist da diverse fonti...");
-    
-    // Usa una Map per evitare duplicati e mantenere le versioni più recenti
-    const playlistMap = new Map();
-    
-    // Aggiungi le playlist della prima lista
-    if (Array.isArray(listA)) {
-      listA.forEach(p => {
-        if (p && p.id) {
-          const id = String(p.id);
-          playlistMap.set(id, p);
+  async loadPlaylistsFromGun() {
+    return new Promise((resolve, reject) => {
+      try {
+        // Verifica che l'utente sia autenticato
+        if (!window.shogun.user || !window.shogun.user.is) {
+          console.warn("Utente non autenticato in Gun.js, caricamento da localStorage");
+          this.loadPlaylistsFromLocalStorage();
+          return resolve(this.playlists);
         }
-      });
-    }
-    
-    // Aggiungi/aggiorna con le playlist della seconda lista
-    if (Array.isArray(listB)) {
-      listB.forEach(p => {
-        if (p && p.id) {
-          const id = String(p.id);
-          // Se la playlist esiste già, scegli la più recente
-          const existing = playlistMap.get(id);
-          if (!existing || !existing.updatedAt || 
-              (p.updatedAt && p.updatedAt > existing.updatedAt)) {
-            playlistMap.set(id, p);
+        
+        // Carica le playlist da Gun.js
+        window.shogun.user.get('playlists').once((data) => {
+          console.log("Dati playlist da Gun.js:", data);
+          
+          if (data) {
+            try {
+              // Se è una stringa JSON, parsifica
+              if (typeof data === 'string') {
+                this.playlists = JSON.parse(data);
+              } 
+              // Se è già un array, usa direttamente
+              else if (Array.isArray(data)) {
+                this.playlists = data;
+              }
+              // Se è un oggetto Gun.js, estrai le playlist
+              else if (typeof data === 'object') {
+                const extractedPlaylists = [];
+                
+                // Estrai le playlist dall'oggetto Gun.js
+                Object.keys(data).forEach(key => {
+                  // Salta le proprietà speciali di Gun.js
+                  if (key === '_' || key === '#') return;
+                  
+                  const playlist = data[key];
+                  if (playlist && typeof playlist === 'object') {
+                    // Aggiungi l'ID se non presente
+                    if (!playlist.id) {
+                      playlist.id = key;
+                    }
+                    extractedPlaylists.push(playlist);
+                  }
+                });
+                
+                this.playlists = extractedPlaylists;
+              }
+              
+              console.log(`Caricate ${this.playlists.length} playlist da Gun.js`);
+            } catch (e) {
+              console.error("Errore nel parsing delle playlist da Gun.js:", e);
+              // Fallback a localStorage
+              this.loadPlaylistsFromLocalStorage();
+            }
+          } else {
+            console.log("Nessuna playlist trovata in Gun.js, caricamento da localStorage");
+            this.loadPlaylistsFromLocalStorage();
           }
-        }
-      });
+          
+          // Normalizza e salva in localStorage come backup
+          this.playlists = this.normalizePlaylists(this.playlists);
+          this.saveToLocalStorage();
+          
+          resolve(this.playlists);
+        });
+      } catch (error) {
+        console.error("Errore nel caricamento playlist da Gun.js:", error);
+        // Fallback a localStorage
+        this.loadPlaylistsFromLocalStorage();
+        resolve(this.playlists);
+      }
+    });
+  }
+  
+  /**
+   * Carica playlist da localStorage
+   * @private
+   */
+  loadPlaylistsFromLocalStorage() {
+    try {
+      const stored = localStorage.getItem('local_playlists');
+      
+      if (stored) {
+        this.playlists = JSON.parse(stored);
+        console.log(`Caricate ${this.playlists.length} playlist da localStorage`);
+      } else {
+        console.log("Nessuna playlist trovata in localStorage");
+        this.playlists = [];
+      }
+      
+      // Normalizza le playlist
+      this.playlists = this.normalizePlaylists(this.playlists);
+    } catch (e) {
+      console.error("Errore nel caricamento playlist da localStorage:", e);
+      this.playlists = [];
     }
     
-    // Converti la Map in array
-    return Array.from(playlistMap.values());
+    return this.playlists;
   }
   
   /**
    * Normalizza le playlist per garantire consistenza
-   * @private
+   * @param {Array} playlists - Liste da normalizzare
+   * @returns {Array} - Liste normalizzate
    */
-  _normalizePlaylists(playlists) {
+  normalizePlaylists(playlists) {
     if (!Array.isArray(playlists)) return [];
     
     return playlists.map(playlist => {
@@ -149,15 +189,11 @@ class PlaylistManagerSingleton {
           return { id: track };
         }
         if (track && typeof track === 'object') {
-          // Copia per evitare riferimenti
-          const normalizedTrack = {...track};
-          
           // Assicura che l'ID della traccia sia una stringa
-          if (normalizedTrack.id && typeof normalizedTrack.id !== 'string') {
-            normalizedTrack.id = String(normalizedTrack.id);
+          if (track.id && typeof track.id !== 'string') {
+            track.id = String(track.id);
           }
-          
-          return normalizedTrack;
+          return track;
         }
         return null;
       }).filter(Boolean); // Rimuovi null/undefined
@@ -168,6 +204,47 @@ class PlaylistManagerSingleton {
       
       return normalized;
     });
+  }
+  
+  /**
+   * Salva le playlist in Gun.js
+   * @private
+   */
+  async saveToGun() {
+    if (!window.shogun || !window.shogun.gun || !window.shogun.user || !window.shogun.user.is) {
+      console.warn("Gun.js non disponibile per salvare le playlist");
+      return false;
+    }
+    
+    try {
+      // Salva le playlist in Gun.js
+      window.shogun.user.get('playlists').put(JSON.stringify(this.playlists), ack => {
+        if (ack.err) {
+          console.error("Errore nel salvataggio playlist in Gun.js:", ack.err);
+          return false;
+        }
+        console.log("Playlist salvate in Gun.js con successo");
+        return true;
+      });
+    } catch (error) {
+      console.error("Errore nel salvataggio playlist in Gun.js:", error);
+      return false;
+    }
+  }
+  
+  /**
+   * Salva le playlist in localStorage
+   * @private
+   */
+  saveToLocalStorage() {
+    try {
+      localStorage.setItem('local_playlists', JSON.stringify(this.playlists));
+      console.log("Playlist salvate in localStorage");
+      return true;
+    } catch (e) {
+      console.error("Errore nel salvataggio playlist in localStorage:", e);
+      return false;
+    }
   }
   
   /**
@@ -190,16 +267,17 @@ class PlaylistManagerSingleton {
         updatedAt: Date.now()
       };
       
-      // Aggiungi al array locale
+      // Aggiungi all'array locale
       this.playlists.push(newPlaylist);
       
-      // Salva usando l'API se disponibile
-      if (window.shogunMusicAPI) {
-        await window.shogunMusicAPI.savePlaylists(this.playlists);
-      }
+      // Salva usando Gun e localStorage
+      await this.saveToGun();
+      this.saveToLocalStorage();
       
-      // Backup in localStorage
-      localStorage.setItem('local_playlists', JSON.stringify(this.playlists));
+      // Aggiorna window.userPlaylists per retrocompatibilità 
+      // e per assicurarci che sia immediatamente disponibile in tutto il sistema
+      window.userPlaylists = [...this.playlists];
+      console.log("Aggiornato window.userPlaylists dopo creazione:", window.userPlaylists.length);
       
       // Aggiorna UI
       this.updateUI();
@@ -245,10 +323,11 @@ class PlaylistManagerSingleton {
       playlist.updatedAt = Date.now();
       
       // Salva le modifiche
-      if (window.shogunMusicAPI) {
-        await window.shogunMusicAPI.savePlaylists(this.playlists);
-      }
-      localStorage.setItem('local_playlists', JSON.stringify(this.playlists));
+      await this.saveToGun();
+      this.saveToLocalStorage();
+      
+      // Aggiorna window.userPlaylists per retrocompatibilità
+      window.userPlaylists = [...this.playlists];
       
       // Aggiorna UI
       this.updateUI();
@@ -256,7 +335,7 @@ class PlaylistManagerSingleton {
       return true;
     } catch (error) {
       console.error("Errore nell'aggiunta traccia:", error);
-      throw error;
+      return false;
     }
   }
   
@@ -267,26 +346,34 @@ class PlaylistManagerSingleton {
    * @returns {Promise<boolean>} True se rimossa con successo
    */
   async removeTrackFromPlaylist(playlistId, trackId) {
+    console.log(`Rimozione traccia ${trackId} da playlist ${playlistId}`);
+    
     try {
       const playlist = this.playlists.find(p => p.id === playlistId);
       if (!playlist) {
         throw new Error(`Playlist ${playlistId} non trovata`);
       }
       
+      // Rimuovi la traccia
       const initialLength = playlist.tracks.length;
-      playlist.tracks = playlist.tracks.filter(t => t.id !== trackId);
+      playlist.tracks = playlist.tracks.filter(track => 
+        typeof track === 'object' ? track.id !== trackId : track !== trackId
+      );
       
+      // Se non è stata rimossa nessuna traccia
       if (playlist.tracks.length === initialLength) {
+        console.log(`Traccia ${trackId} non trovata nella playlist ${playlistId}`);
         return false;
       }
       
       playlist.updatedAt = Date.now();
       
       // Salva le modifiche
-      if (window.shogunMusicAPI) {
-        await window.shogunMusicAPI.savePlaylists(this.playlists);
-      }
-      localStorage.setItem('local_playlists', JSON.stringify(this.playlists));
+      await this.saveToGun();
+      this.saveToLocalStorage();
+      
+      // Aggiorna window.userPlaylists per retrocompatibilità
+      window.userPlaylists = [...this.playlists];
       
       // Aggiorna UI
       this.updateUI();
@@ -294,7 +381,7 @@ class PlaylistManagerSingleton {
       return true;
     } catch (error) {
       console.error("Errore nella rimozione traccia:", error);
-      throw error;
+      return false;
     }
   }
   
@@ -304,19 +391,24 @@ class PlaylistManagerSingleton {
    * @returns {Promise<boolean>} True se eliminata con successo
    */
   async deletePlaylist(playlistId) {
+    console.log(`Eliminazione playlist ${playlistId}`);
+    
     try {
-      const index = this.playlists.findIndex(p => p.id === playlistId);
-      if (index === -1) {
+      // Verifica se la playlist esiste
+      const playlistIndex = this.playlists.findIndex(p => p.id === playlistId);
+      if (playlistIndex === -1) {
         throw new Error(`Playlist ${playlistId} non trovata`);
       }
       
-      this.playlists.splice(index, 1);
+      // Rimuovi la playlist
+      this.playlists.splice(playlistIndex, 1);
       
       // Salva le modifiche
-      if (window.shogunMusicAPI) {
-        await window.shogunMusicAPI.savePlaylists(this.playlists);
-      }
-      localStorage.setItem('local_playlists', JSON.stringify(this.playlists));
+      await this.saveToGun();
+      this.saveToLocalStorage();
+      
+      // Aggiorna window.userPlaylists per retrocompatibilità
+      window.userPlaylists = [...this.playlists];
       
       // Aggiorna UI
       this.updateUI();
@@ -324,154 +416,159 @@ class PlaylistManagerSingleton {
       return true;
     } catch (error) {
       console.error("Errore nell'eliminazione playlist:", error);
-      throw error;
+      return false;
     }
   }
   
   /**
-   * Aggiorna tutti gli elementi UI relativi alle playlist
+   * Aggiorna l'interfaccia utente
    */
   updateUI() {
-    // Aggiorna il menu a tendina per l'aggiunta tracce
+    // Aggiorna i dropdown delle playlist
     this.updatePlaylistDropdowns();
     
-    // Aggiorna la lista playlist nel sidebar
+    // Aggiorna la barra laterale
     this.updatePlaylistSidebar();
     
-    // Aggiorna la vista principale delle playlist
+    // Aggiorna la visualizzazione corrente se necessario
     if (typeof window.displayPlaylists === 'function') {
-      window.displayPlaylists(this.playlists);
+      window.displayPlaylists();
     }
   }
   
   /**
-   * Aggiorna tutti i menu a tendina delle playlist
+   * Aggiorna i dropdown delle playlist
    */
   updatePlaylistDropdowns() {
-    // Trova tutti i select per le playlist
-    const dropdowns = document.querySelectorAll('.playlist-select');
+    // Trova tutti i dropdown delle playlist
+    const dropdowns = document.querySelectorAll('.playlist-dropdown');
     
     dropdowns.forEach(dropdown => {
-      // Salva la selezione corrente
-      const currentValue = dropdown.value;
+      // Conserva solo i primi elementi (non dinamici)
+      const staticItems = Array.from(dropdown.children).filter(item => 
+        !item.classList.contains('dynamic-playlist-item')
+      );
       
-      // Svuota il dropdown
-      dropdown.innerHTML = '';
+      // Rimuovi tutti gli elementi dinamici
+      dropdown.querySelectorAll('.dynamic-playlist-item').forEach(item => item.remove());
       
-      // Aggiungi l'opzione default
-      const defaultOption = document.createElement('option');
-      defaultOption.value = '';
-      defaultOption.textContent = 'Seleziona una playlist...';
-      dropdown.appendChild(defaultOption);
-      
-      // Aggiungi tutte le playlist
+      // Aggiungi le playlist 
       this.playlists.forEach(playlist => {
-        const option = document.createElement('option');
-        option.value = playlist.id;
+        const option = document.createElement('a');
+        option.href = '#';
+        option.classList.add('dropdown-item', 'dynamic-playlist-item');
+        option.dataset.playlistId = playlist.id;
         option.textContent = playlist.name;
+        
+        // Aggiungi handler per l'aggiunta alla playlist
+        option.addEventListener('click', function(e) {
+          e.preventDefault();
+          
+          // Trova la traccia associata
+          const trackElement = this.closest('.track-item, .song-row, .track-row');
+          if (!trackElement) return;
+          
+          const trackId = trackElement.dataset.id;
+          const trackTitle = trackElement.querySelector('.track-title, .song-title')?.textContent || 'Brano';
+          const trackArtist = trackElement.querySelector('.track-artist, .song-artist')?.textContent || 'Artista';
+          
+          if (trackId) {
+            // Usa PlaylistManager per aggiungere la traccia
+            if (window.PlaylistManager) {
+              window.PlaylistManager.addTrackToPlaylist(playlist.id, {
+                id: trackId,
+                title: trackTitle,
+                artist: trackArtist
+              });
+            }
+          }
+        });
+        
         dropdown.appendChild(option);
       });
-      
-      // Ripristina la selezione se possibile
-      if (currentValue && this.playlists.some(p => p.id === currentValue)) {
-        dropdown.value = currentValue;
-      }
     });
   }
   
   /**
-   * Aggiorna la sidebar delle playlist
+   * Aggiorna la barra laterale con le playlist
    */
   updatePlaylistSidebar() {
-    const sidebar = document.getElementById('playlistsSidebar');
-    if (!sidebar) return;
+    // Trova il container delle playlist nella sidebar
+    const playlistContainer = document.querySelector('#playlist-container');
+    if (!playlistContainer) return;
     
-    let html = '';
+    // Svuota il container
+    playlistContainer.innerHTML = '';
     
-    // Aggiungi il pulsante per creare una nuova playlist
-    html += `
-      <div class="playlist-header">
-        <h3>Le tue playlist</h3>
-        <button id="createPlaylistBtn" class="playlist-small-button">
-          <i class="fas fa-plus"></i>
-        </button>
-      </div>
-    `;
-    
+    // Aggiungi ogni playlist
     this.playlists.forEach(playlist => {
-      html += `
-        <div class="playlist-item" data-id="${playlist.id}">
-          <span class="playlist-name">${playlist.name}</span>
-          <span class="playlist-count">${playlist.tracks?.length || 0}</span>
-        </div>
+      const playlistItem = document.createElement('div');
+      playlistItem.className = 'playlist-item';
+      playlistItem.dataset.id = playlist.id;
+      
+      playlistItem.innerHTML = `
+        <i class="fas fa-music playlist-icon"></i>
+        <span class="playlist-name">${playlist.name}</span>
+        <span class="playlist-count">${playlist.tracks.length}</span>
       `;
-    });
-    
-    if (this.playlists.length === 0) {
-      html += '<div class="empty-message">Nessuna playlist</div>';
-    }
-    
-    sidebar.innerHTML = html;
-    
-    // Aggiungi event listeners per selezionare playlist
-    sidebar.querySelectorAll('.playlist-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const playlistId = item.dataset.id;
-        if (typeof window.selectPlaylist === 'function') {
-          window.selectPlaylist(playlistId);
-        } else if (typeof window.displayPlaylistTracks === 'function') {
-          window.displayPlaylistTracks(playlistId);
+      
+      // Aggiungi event listener per aprire la playlist
+      playlistItem.addEventListener('click', function() {
+        // Deseleziona altre tab
+        document.querySelectorAll('.sidebar-item.active').forEach(item => {
+          item.classList.remove('active');
+        });
+        
+        // Seleziona questa playlist
+        this.classList.add('active');
+        
+        // Nascondi altri contenuti
+        document.querySelectorAll('.content-tab').forEach(tab => {
+          tab.classList.remove('active');
+        });
+        
+        // Mostra contenuto playlist
+        document.querySelector('.content-tab[data-tab="playlist"]').classList.add('active');
+        
+        // Visualizza tracce della playlist
+        if (typeof window.displayPlaylistTracks === 'function') {
+          window.displayPlaylistTracks(playlist.id);
         }
       });
+      
+      playlistContainer.appendChild(playlistItem);
     });
-    
-    // Aggiungi event listener per creare nuova playlist
-    const createBtn = sidebar.querySelector('#createPlaylistBtn');
-    if (createBtn) {
-      createBtn.addEventListener('click', () => {
-        const playlistName = prompt("Nome della nuova playlist:");
-        if (playlistName && playlistName.trim()) {
-          this.createPlaylist(playlistName.trim())
-            .then(newPlaylist => {
-              console.log(`Playlist "${playlistName}" creata con successo:`, newPlaylist);
-              // Aggiorna la UI e seleziona la nuova playlist
-              this.updateUI();
-              setTimeout(() => {
-                if (newPlaylist && newPlaylist.id) {
-                  if (typeof window.selectPlaylist === 'function') {
-                    window.selectPlaylist(newPlaylist.id);
-                  } else if (typeof window.displayPlaylistTracks === 'function') {
-                    window.displayPlaylistTracks(newPlaylist.id);
-                  }
-                }
-              }, 100);
-            })
-            .catch(err => console.error(`Errore nella creazione della playlist:`, err));
-        }
-      });
-    }
   }
   
   /**
-   * Ottiene tutte le playlist
-   * @returns {Array} Array delle playlist
+   * Restituisce tutte le playlist
+   * @returns {Array} Array di playlist
    */
   getPlaylists() {
     return [...this.playlists];
   }
   
   /**
-   * Trova una playlist per ID
+   * Trova una playlist tramite ID
    * @param {string} playlistId ID della playlist
    * @returns {Object|null} Playlist trovata o null
    */
   findPlaylistById(playlistId) {
-    return this.playlists.find(p => p.id === playlistId) || null;
+    if (!playlistId) return null;
+    
+    // Normalizza l'ID come stringa
+    const normalizedId = String(playlistId);
+    
+    return this.playlists.find(p => String(p.id) === normalizedId);
   }
 }
 
-// Crea l'istanza singleton
+// Esporta il singleton
 window.PlaylistManager = new PlaylistManagerSingleton();
 
-// Esporta per moduli ES6
-export default window.PlaylistManager; 
+// Inizializza quando il documento è pronto
+document.addEventListener('DOMContentLoaded', () => {
+  window.PlaylistManager.initialize()
+    .then(() => console.log('PlaylistManager inizializzato da event listener'))
+    .catch(err => console.error('Errore nell\'inizializzazione di PlaylistManager:', err));
+}); 

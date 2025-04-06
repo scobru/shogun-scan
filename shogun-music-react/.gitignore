@@ -17,34 +17,7 @@
 .env.development.local
 .env.test.local
 .env.production.local
-.env
 
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# vscode
-.vscode/
-
-# webstorm
-.idea/
-
-# editor config
-.editorconfig
-
-# Logs
-logs
-*.log
-radata
-
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-!.vscode/extensions.json
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?

@@ -3397,6 +3397,84 @@
           return;
         }
 
+        // Prima di mostrare le opzioni, forza il caricamento delle playlist
+        // per assicurarti che siano disponibili nell'elenco
+        forceLoadPlaylists().then(playlists => {
+          console.log("Playlist caricate forzatamente:", playlists);
+          // Ora procedi a mostrare il dropdown con le playlist aggiornate
+          createAndShowOptionsDropdown(trackId, optionsButton);
+        }).catch(err => {
+          console.error("Errore nel caricamento forzato delle playlist:", err);
+          // In caso di errore, comunque mostra il dropdown con quello che abbiamo
+          createAndShowOptionsDropdown(trackId, optionsButton);
+        });
+      }
+
+      // Nuova funzione per forzare il caricamento delle playlist
+      function forceLoadPlaylists() {
+        return new Promise((resolve, reject) => {
+          console.log("Caricamento forzato delle playlist...");
+          
+          // Prova prima tramite PlaylistManager
+          if (window.PlaylistManager && typeof window.PlaylistManager.loadPlaylists === 'function') {
+            window.PlaylistManager.loadPlaylists()
+              .then(playlists => {
+                console.log(`Caricate ${playlists.length} playlist tramite PlaylistManager`);
+                
+                // Assicurati che window.userPlaylists sia aggiornato
+                window.userPlaylists = playlists;
+                
+                resolve(playlists);
+              })
+              .catch(err => {
+                console.error("Errore nel caricamento playlist da PlaylistManager:", err);
+                
+                // Prova a caricare da localStorage come fallback
+                try {
+                  const localData = localStorage.getItem('local_playlists');
+                  if (localData) {
+                    const parsedPlaylists = JSON.parse(localData);
+                    console.log(`Recuperate ${parsedPlaylists.length} playlist da localStorage`);
+                    window.userPlaylists = parsedPlaylists;
+                    resolve(parsedPlaylists);
+                  } else {
+                    console.warn("Nessuna playlist trovata in localStorage");
+                    window.userPlaylists = [];
+                    resolve([]);
+                  }
+                } catch (e) {
+                  console.error("Errore nel recupero playlist da localStorage:", e);
+                  window.userPlaylists = [];
+                  reject(e);
+                }
+              });
+          } else {
+            console.warn("PlaylistManager non disponibile per caricare playlist");
+            
+            // Prova direttamente da localStorage
+            try {
+              const localData = localStorage.getItem('local_playlists');
+              if (localData) {
+                const parsedPlaylists = JSON.parse(localData);
+                console.log(`Recuperate ${parsedPlaylists.length} playlist da localStorage (fallback diretto)`);
+                window.userPlaylists = parsedPlaylists;
+                resolve(parsedPlaylists);
+              } else {
+                console.warn("Nessuna playlist trovata in localStorage");
+                window.userPlaylists = [];
+                resolve([]);
+              }
+            } catch (e) {
+              console.error("Errore nel recupero playlist da localStorage:", e);
+              window.userPlaylists = [];
+              reject(e);
+            }
+          }
+        });
+      }
+
+      // Funzione per creare e mostrare il dropdown delle opzioni
+      function createAndShowOptionsDropdown(trackId, optionsButton) {
         // Crea il menu dropdown
         dropdown = document.createElement("div");
         dropdown.className = "track-options-dropdown";
@@ -3421,18 +3499,20 @@
         playlistsList.style.maxHeight = "200px";
         playlistsList.style.overflowY = "auto";
 
-        if (!userPlaylists || userPlaylists.length === 0) {
+        // Usa window.userPlaylists che dovrebbe essere aggiornato dalla funzione forceLoadPlaylists
+        if (!window.userPlaylists || window.userPlaylists.length === 0) {
           playlistsList.innerHTML = `
             <div style="padding: 10px; color: #999; font-style: italic;">
               Nessuna playlist disponibile
             </div>
           `;
+          console.warn("Nessuna playlist disponibile per il menu", window.userPlaylists);
         } else {
-          console.log("Playlist disponibili:", userPlaylists.length);
+          console.log("Playlist disponibili per il menu:", window.userPlaylists.length);
           
           // Prima di mostrare le playlist, controlliamo che siano valide
-          const validPlaylists = userPlaylists.filter(p => p && p.id && p.name);
-          console.log("Playlist valide:", validPlaylists.length);
+          const validPlaylists = window.userPlaylists.filter(p => p && p.id && p.name);
+          console.log("Playlist valide per il menu:", validPlaylists.length);
           
           validPlaylists.forEach((playlist) => {
             console.log("Creando elemento per playlist:", playlist.name);
@@ -4264,13 +4344,17 @@
           .then(newPlaylist => {
             console.log("Playlist creata tramite API:", newPlaylist);
             
-            // Piccola pausa per assicurarsi che GunDB abbia tempo di elaborare il salvataggio
+            // Forza il caricamento delle playlist per aggiornare il riferimento globale
             setTimeout(() => {
-              // Aggiorna l'interfaccia
-              displayPlaylists();
-              
-              // Visualizza la nuova playlist
-              displayPlaylistTracks(newPlaylist.id);
+              forceLoadPlaylists().then(playlists => {
+                console.log(`Playlists ricaricate dopo creazione. Totale: ${playlists.length}`);
+                
+                // Aggiorna l'interfaccia
+                displayPlaylists();
+                
+                // Visualizza la nuova playlist
+                displayPlaylistTracks(newPlaylist.id);
+              });
             }, 300);
             
             return newPlaylist;
@@ -5541,6 +5625,97 @@
         
         console.log("PlaylistManager fallback inizializzato");
         return window.PlaylistManager;
+      }
+
+      // Function to toggle the content tab
+      function setupContentTabs() {
+        // ... existing code ...
+      }
+
+      // Event listeners for the elements in the page
+      document.addEventListener("DOMContentLoaded", function () {
+        // ... existing code ...
+        
+        // Aggiunta evento al pulsante per creare una nuova playlist
+        const createPlaylistBtn = document.getElementById("createPlaylistBtn");
+        if (createPlaylistBtn) {
+          createPlaylistBtn.addEventListener("click", function() {
+            const playlistNameInput = document.getElementById("newPlaylistName");
+            const playlistName = playlistNameInput ? playlistNameInput.value.trim() : "";
+            
+            if (!playlistName) {
+              // Se l'input è vuoto, chiedi il nome tramite un prompt
+              const promptName = prompt("Inserisci il nome della nuova playlist:");
+              if (promptName && promptName.trim()) {
+                createPlaylistAndUpdate(promptName.trim());
+              }
+            } else {
+              // Usa il nome dall'input
+              createPlaylistAndUpdate(playlistName);
+              // Pulisci l'input dopo la creazione
+              playlistNameInput.value = "";
+            }
+          });
+        }
+        
+        // Aggiungi evento anche all'input per creare premendo Enter
+        const newPlaylistNameInput = document.getElementById("newPlaylistName");
+        if (newPlaylistNameInput) {
+          newPlaylistNameInput.addEventListener("keypress", function(e) {
+            if (e.key === "Enter") {
+              const playlistName = this.value.trim();
+              if (playlistName) {
+                createPlaylistAndUpdate(playlistName);
+                this.value = "";
+              }
+            }
+          });
+        }
+      });
+      
+      // Funzione per creare una playlist e aggiornare l'interfaccia
+      function createPlaylistAndUpdate(playlistName) {
+        console.log(`Creazione nuova playlist: "${playlistName}"`);
+        
+        // Verifica che la funzione createPlaylist sia disponibile
+        if (typeof createPlaylist === 'function') {
+          createPlaylist(playlistName)
+            .then(newPlaylist => {
+              if (newPlaylist) {
+                console.log("Playlist creata con successo:", newPlaylist);
+                
+                // Aggiorna l'interfaccia
+                if (typeof displayPlaylists === 'function') {
+                  displayPlaylists();
+                }
+              } else {
+                console.error("Errore nella creazione della playlist");
+                alert("Errore nella creazione della playlist");
+              }
+            })
+            .catch(err => {
+              console.error("Errore nella creazione della playlist:", err);
+              alert("Errore nella creazione della playlist: " + (err.message || "Errore sconosciuto"));
+            });
+        } else if (window.PlaylistManager && typeof window.PlaylistManager.createPlaylist === 'function') {
+          // Usa direttamente PlaylistManager se disponibile
+          window.PlaylistManager.createPlaylist(playlistName)
+            .then(newPlaylist => {
+              console.log("Playlist creata con PlaylistManager:", newPlaylist);
+              
+              // Aggiorna l'interfaccia
+              if (typeof displayPlaylists === 'function') {
+                displayPlaylists();
+              }
+            })
+            .catch(err => {
+              console.error("Errore nella creazione della playlist:", err);
+              alert("Errore nella creazione della playlist: " + (err.message || "Errore sconosciuto"));
+            });
+        } else {
+          console.error("Nessun sistema disponibile per creare playlist");
+          alert("Errore: Nessun sistema disponibile per creare playlist");
+        }
       }
     </script>
   </body>
