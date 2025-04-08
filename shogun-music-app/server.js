@@ -1,0 +1,746 @@
+const express = require('express');
+const cors = require('cors');
+const Gun = require('gun');
+const path = require('path');
+const morgan = require('morgan');
+const multer = require('multer');
+const fs = require('fs');
+
+// Percorso per il backup locale delle tracce
+const LOCAL_DB_PATH = path.join(__dirname, 'local_tracks_db.json');
+
+// Funzione per salvare il database in memoria su file
+function saveLocalDB() {
+  try {
+    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(inMemoryDB, null, 2), 'utf8');
+    console.log(`Database locale salvato su ${LOCAL_DB_PATH}`);
+  } catch (err) {
+    console.error('Errore nel salvataggio del database locale:', err);
+  }
+}
+
+// Funzione per caricare il database da file
+function loadLocalDB() {
+  try {
+    if (fs.existsSync(LOCAL_DB_PATH)) {
+      const data = fs.readFileSync(LOCAL_DB_PATH, 'utf8');
+      const parsedData = JSON.parse(data);
+      console.log(`Database locale caricato da ${LOCAL_DB_PATH}, ${Object.keys(parsedData).length} tracce trovate`);
+      return parsedData;
+    }
+  } catch (err) {
+    console.error('Errore nel caricamento del database locale:', err);
+  }
+  return {};
+}
+
+// Parsing dei parametri da linea di comando
+let cmdPort;
+let cmdToken;
+for (let i = 2; i < process.argv.length; i++) {
+  if ((process.argv[i] === '-p' || process.argv[i] === '--port') && i + 1 < process.argv.length) {
+    cmdPort = parseInt(process.argv[i + 1]);
+    i++; // Salta il prossimo argomento (il valore della porta)
+    console.log(`Porta specificata via linea di comando: ${cmdPort}`);
+  }
+  else if ((process.argv[i] === '-t' || process.argv[i] === '--token') && i + 1 < process.argv.length) {
+    cmdToken = process.argv[i + 1];
+    i++; // Salta il prossimo argomento (il valore del token)
+    console.log(`Token di sicurezza specificato via linea di comando`);
+  }
+}
+
+// Il token di sicurezza può essere fornito da varie fonti, in ordine di priorità
+const GUN_TOKEN = cmdToken || process.env.GUN_TOKEN || "thisIsTheTokenForReals";
+console.log(`Token di sicurezza configurato${cmdToken ? ' da linea di comando' : process.env.GUN_TOKEN ? ' da variabile ambiente' : ' (default)'}`);
+
+// ---- NUOVA LOGICA PER PEERING SERVER-TO-SERVER ----
+// Determina la porta corrente e quella dell'altro peer
+const currentPort = cmdPort || parseInt(process.env.PORT || '3001');
+const otherPort = currentPort === 3001 ? 3000 : 3001;
+const otherPeerUrl = `http://localhost:${otherPort}/gun`;
+console.log(`Server su porta ${currentPort}. Tento peering con ${otherPeerUrl}`);
+// ---------------------------------------------------
+
+// Funzione per inizializzare il database in memoria dai dati in Gun.js
+async function initializeFromGun(gunInstance) {
+  console.log("Inizializzazione dati da Gun.js in corso...");
+  
+  return new Promise((resolve) => {
+    let tracksLoaded = 0;
+    let timedOut = false;
+    
+    // Timeout per non bloccare l'avvio del server se Gun è lento
+    const timeout = setTimeout(() => {
+      console.log("Timeout durante il caricamento dati da Gun.js. Continuiamo con i dati caricati finora.");
+      timedOut = true;
+      resolve({ loaded: tracksLoaded, timedOut: true });
+    }, 5000); // 5 secondi di timeout
+    
+    // Leggiamo l'indice delle tracce da Gun.js
+    gunInstance.get('audio_files').get('tracks').map().once((trackRef) => {
+      if (trackRef && trackRef.id && !timedOut) {
+        try {
+          // Se esiste già in memoria, saltiamo
+          if (inMemoryDB[trackRef.id]) {
+            return;
+          }
+          
+          // Creiamo un'istanza completa della traccia
+          const trackData = {
+            id: trackRef.id,
+            title: trackRef.t || 'Senza titolo',
+            artist: trackRef.a || 'Sconosciuto',
+            album: trackRef.alb || '', // Supporto per album
+            timestamp: trackRef.ts || Date.now(),
+            audio_path: trackRef.ap || null,
+            artwork_path: trackRef.wp || null,
+            originUrl: trackRef.o || null
+          };
+          
+          // Salviamo in memoria
+          inMemoryDB[trackRef.id] = trackData;
+          tracksLoaded++;
+          
+          if (tracksLoaded % 10 === 0) {
+            console.log(`Caricate ${tracksLoaded} tracce da Gun.js...`);
+          }
+        } catch (e) {
+          console.error("Errore nel caricare la traccia da Gun.js:", e);
+        }
+      }
+    });
+    
+    // Dopo 3 secondi, se non ha già fatto timeout, consideriamo completo il caricamento
+    setTimeout(() => {
+      if (!timedOut) {
+        clearTimeout(timeout);
+        console.log(`Caricamento da Gun.js completato: ${tracksLoaded} tracce caricate in inMemoryDB`);
+        resolve({ loaded: tracksLoaded, timedOut: false });
+      }
+    }, 3000);
+  });
+}
+
+// Funzione di validazione token
+function hasValidToken (msg) {
+  return msg && msg.headers && msg.headers.token && msg.headers.token === GUN_TOKEN;
+}
+
+// Initialize Express app
+const app = express();
+const PORT = cmdPort || process.env.PORT || 3001;
+
+// Aggiunta di una semplice struttura dati locale
+// Questo sarà il nostro db locale che useremo al posto di Gun.js per i messaggi grandi
+const inMemoryDB = loadLocalDB(); // Carica subito dai file locali
+
+// Creiamo prima il server HTTP
+const server = require('http').createServer(app);
+
+// Configurazione per il salvataggio automatico periodico del DB
+const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5 minuti in millisecondi
+let autoSaveInterval = null;
+
+// Funzione per iniziare il salvataggio periodico
+function startAutoSave() {
+  // Pulisce eventuali interval precedenti
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+  }
+  
+  // Configura un nuovo interval
+  autoSaveInterval = setInterval(() => {
+    const trackCount = Object.keys(inMemoryDB).length;
+    if (trackCount > 0) {
+      console.log(`Salvataggio automatico: ${trackCount} tracce`);
+      saveLocalDB();
+    }
+  }, AUTO_SAVE_INTERVAL);
+  
+  console.log(`Salvataggio automatico configurato ogni ${AUTO_SAVE_INTERVAL/60000} minuti`);
+}
+
+// Gestisce il salvataggio all'arresto del server
+function handleShutdown() {
+  console.log('Server in fase di arresto, salvataggio dati...');
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+  }
+  saveLocalDB();
+  console.log('Dati salvati, arresto in corso...');
+  process.exit(0);
+}
+
+// Registra i gestori degli eventi per arresto graceful
+process.on('SIGINT', handleShutdown);
+process.on('SIGTERM', handleShutdown);
+
+// Configurazione Gun con limiti più alti
+const gunOptions = {
+  web: server,
+  file: "./src/data", 
+  localStorage: false,
+  radisk: true,
+};
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, uniqueSuffix + ext);
+  }
+});
+
+// Configurazione di multer con limiti di dimensione più alti per gli upload
+const upload = multer({ 
+  storage: storage,
+  limits: { 
+    fileSize: 20 * 1024 * 1024, // 20MB massimo per file
+    files: 2,                   // Massimo 2 file (audio + artwork)
+  }
+});
+
+// Middleware
+app.use(cors());
+app.use(express.json({limit: '5mb'}));
+app.use(express.urlencoded({limit: '5mb', extended: true}));
+app.use(morgan('dev'));
+app.use('/uploads', express.static(uploadsDir));
+
+// Middleware per controllare dimensione dei messaggi
+app.use(function(req, res, next) {
+  // Escludi l'endpoint /api/upload dalla verifica generale
+  if (req.path === '/api/upload') {
+    return next();
+  }
+  
+  const contentLength = req.headers['content-length'];
+  if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) { // 5MB invece di 50MB
+    console.warn(`Richiesta troppo grande (${Math.round(contentLength/1024/1024)}MB) rifiutata`);
+    return res.status(413).send('Payload troppo grande');
+  }
+  next();
+});
+
+// Initialize Gun
+const gun = new Gun(gunOptions);
+
+// Carica i dati esistenti all'avvio del server
+initializeFromGun(gun).then(result => {
+  console.log(`Inizializzazione completata: ${result.loaded} tracce caricate${result.timedOut ? ' (timeout)' : ''}`);
+  
+  // Se non sono state caricate tracce, stampiamo un messaggio informativo
+  if (result.loaded === 0) {
+    console.log("Nessuna traccia trovata in Gun.js. Il database potrebbe essere vuoto o non sincronizzato correttamente.");
+  }
+}).catch(err => {
+  console.error("Errore durante l'inizializzazione dati da Gun.js:", err);
+});
+
+// Endpoint specifico per Gun.js
+app.use('/gun', function(req, res, next) {
+  console.log('Richiesta Gun.js ricevuta a /gun', req.method);
+  // Se è una richiesta HEAD, rispondiamo direttamente 
+  if (req.method === 'HEAD') {
+    return res.status(200).end();
+  }
+  // Altrimenti lasciamo che Gun gestisca la richiesta
+  next();
+});
+
+// Per debug, esporta l'istanza di Gun su window
+global.GUN_INSTANCE = gun;
+
+// Make Gun available to our routes
+app.gun = gun;
+
+// Endpoint per verificare lo stato di Gun.js
+app.get('/gun/status', (req, res) => {
+  console.log('Richiesta Gun.js status ricevuta');
+  
+  const gunState = {
+    isActive: !!gun,
+    peers: gun ? Object.keys(gun._.opt.peers || {}) : [],
+    version: gun ? gun._.opt.version : 'unknown',
+    localStorage: gun ? !!gun._.opt.localStorage : false,
+    radisk: gun ? !!gun._.opt.radisk : false
+  };
+  
+  // Controlla anche le sottoscrizioni attive
+  let subscriptions = [];
+  if (gun && gun._.path) {
+    try {
+      Object.keys(gun._.path).forEach(key => {
+        subscriptions.push({
+          key: key,
+          path: gun._.path[key]
+        });
+      });
+    } catch (e) {
+      console.error("Errore nell'analisi delle sottoscrizioni:", e);
+    }
+  }
+  
+  // Invia risposta con lo stato
+  res.json({
+    status: 'ok',
+    message: 'Gun.js is running',
+    details: gunState,
+    subscriptions: subscriptions.length,
+    time: new Date().toISOString()
+  });
+});
+
+// Endpoint per verificare lo stato del server
+app.get('/healthcheck', (req, res) => {
+  const memoryUsage = process.memoryUsage();
+  const dbStatus = {
+    keys: Object.keys(inMemoryDB).length,
+    totalSizeMB: Object.values(inMemoryDB).reduce((acc, val) => {
+      return acc + (val ? JSON.stringify(val).length : 0);
+    }, 0) / (1024 * 1024)
+  };
+
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    memory: {
+      rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
+      heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB'
+    },
+    db: dbStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Aggiungiamo anche l'endpoint con prefisso /api per rispettare la configurazione del client
+app.get('/api/healthcheck', (req, res) => {
+  const memoryUsage = process.memoryUsage();
+  const dbStatus = {
+    keys: Object.keys(inMemoryDB).length,
+    totalSizeMB: Object.values(inMemoryDB).reduce((acc, val) => {
+      return acc + (val ? JSON.stringify(val).length : 0);
+    }, 0) / (1024 * 1024)
+  };
+
+  console.log('API Healthcheck request received');
+
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    memory: {
+      rss: Math.round(memoryUsage.rss / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB',
+      heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB'
+    },
+    db: dbStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint per validare la password di amministrazione
+app.post('/api/admin/validate', (req, res) => {
+  console.log('Richiesta validazione token admin ricevuta');
+  const { password } = req.body;
+  
+  // Validazione usando lo stesso token di sicurezza del server
+  if (password === GUN_TOKEN) {
+    console.log('Validazione token admin riuscita');
+    // Token valido
+    res.json({ 
+      success: true,
+      token: GUN_TOKEN,
+      message: 'Accesso consentito'
+    });
+  } else {
+    console.log('Validazione token admin fallita');
+    // Token non valido
+    res.status(401).json({
+      success: false,
+      message: 'Token non valido'
+    });
+  }
+});
+
+// Start server
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Server GUN attivo su http://localhost:${PORT}/gun`);
+  console.log(`API disponibile su http://localhost:${PORT}/api`);
+  
+  // Avvia il salvataggio automatico
+  startAutoSave();
+}); 
+
+// Richiedi in uscita tutti i dati per favorire la sincronizzazione
+gun.on('opt', function (ctx) {
+  if (ctx.once) {
+    return;
+  }
+  // Check all incoming traffic
+  ctx.on('in', function (msg) {
+    const to = this.to;
+    // restrict put
+    if (msg.put) {
+      if (hasValidToken(msg)) {
+        console.log('writing');
+        to.next(msg);
+      } else {
+        console.log('not writing');
+      }
+    } else {
+      to.next(msg);
+    }
+  });
+});
+
+gun.on('out', { get: { '#': { '*': '' } } });
+
+// Gestione errori specifici di Gun
+gun.on('err', function(err) {
+  console.error('Errore Gun.js:', err);
+  
+  // Gestione specifica per errori di messaggi troppo grandi
+  if (err.toString().includes('too big')) {
+    console.warn('Rilevato errore "Message too big" - Considera di ridurre ulteriormente i limiti');
+  }
+});
+
+// Impostazioni di debug
+global.Gun = Gun; // rende Gun disponibile in globale
+global.gun = gun; // rende gun disponibile in globale
+
+// Gestione errori a livello di server
+app.use((err, req, res, next) => {
+  console.error('Errore del server:', err);
+  res.status(500).send('Errore del server');
+});
+
+// API per ottenere la lista delle tracce
+app.get('/api/tracks', async (req, res) => {
+  try {
+    // Recupera tutte le tracce da inMemoryDB
+    const tracks = Object.values(inMemoryDB);
+    console.log(`Invio di ${tracks.length} tracce al client`);
+    res.json(tracks);
+  } catch (error) {
+    console.error('Errore nel recupero delle tracce:', error);
+    res.status(500).json({ error: 'Errore nel recupero delle tracce' });
+  }
+});
+
+// Endpoint per recuperare una singola traccia per ID
+app.get('/api/track/:id', (req, res) => {
+  try {
+    const trackId = req.params.id;
+    console.log(`Richiesta traccia con ID: ${trackId}`);
+    
+    // Cerca la traccia nel database in memoria
+    if (inMemoryDB[trackId]) {
+      console.log(`Traccia ${trackId} trovata, invio al client`);
+      res.json(inMemoryDB[trackId]);
+    } else {
+      console.log(`Traccia ${trackId} non trovata`);
+      
+      // Tenta di recuperare da Gun.js
+      if (app.gun) {
+        app.gun.get('audio_files').get(trackId).once((data) => {
+          if (data && data.id) {
+            console.log(`Traccia ${trackId} trovata in Gun.js:`, data);
+            
+            // Converte in formato completo
+            const fullTrack = {
+              id: data.id,
+              title: data.t || 'Senza titolo',
+              artist: data.a || 'Sconosciuto',
+              album: data.alb || '',
+              audio_path: data.ap || null,
+              artwork_path: data.wp || null,
+              timestamp: data.ts || Date.now(),
+              originUrl: data.o || null
+            };
+            
+            // Salva nel database in memoria per futuri accessi
+            inMemoryDB[trackId] = fullTrack;
+            
+            // Invia al client
+            res.json(fullTrack);
+          } else {
+            console.log(`Traccia ${trackId} non trovata in Gun.js`);
+            res.status(404).json({ error: `Traccia ${trackId} non trovata` });
+          }
+        });
+      } else {
+        res.status(404).json({ error: `Traccia ${trackId} non trovata` });
+      }
+    }
+  } catch (error) {
+    console.error(`Errore nel recupero della traccia ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Endpoint per eliminare una traccia audio
+app.delete('/api/tracks/:id', (req, res) => {
+  const trackId = req.params.id;
+  
+  try {
+    console.log(`Richiesta eliminazione traccia ${trackId}`);
+    
+    // Prova una ricerca diretta
+    let foundTrack = inMemoryDB[trackId];
+    let foundTrackId = trackId;
+    
+    // Se non trovata, prova una ricerca case-insensitive
+    if (!foundTrack) {
+      console.log(`Traccia ${trackId} non trovata direttamente, provo ricerca alternativa`);
+      
+      for (const id in inMemoryDB) {
+        if (id.toString() === trackId.toString() || 
+            id.toString().toLowerCase() === trackId.toString().toLowerCase()) {
+          foundTrack = inMemoryDB[id];
+          foundTrackId = id;
+          console.log(`Trovata corrispondenza alternativa: ${id}`);
+          break;
+        }
+      }
+    }
+    
+    // Se ancora non trovata, crea una traccia fantasma
+    if (!foundTrack) {
+      console.log(`Traccia ${trackId} non trovata in memoria locale neanche con ricerca alternativa`);
+      
+      inMemoryDB[trackId] = {
+        id: trackId,
+        title: "Traccia fantasma",
+        artist: "Sconosciuto",
+        audio_path: `/uploads/unknown_${trackId}.mp3`,
+        artwork_path: null,
+        timestamp: Date.now(),
+        isGhost: true
+      };
+      
+      console.log(`Creata traccia fantasma per ID ${trackId}`);
+      foundTrack = inMemoryDB[trackId];
+      foundTrackId = trackId;
+    }
+    
+    if (foundTrack) {
+      console.log(`Traccia ${trackId} trovata in memoria locale con ID: ${foundTrackId}`);
+      
+      // Salva i percorsi dei file prima di eliminare i dati
+      const audioPath = foundTrack.audio_path;
+      const artworkPath = foundTrack.artwork_path;
+      
+      // Elimina i file fisici dal sistema solo se non è una traccia fantasma
+      if (!foundTrack.isGhost) {
+        if (audioPath) {
+          const fullAudioPath = path.join(__dirname, audioPath);
+          console.log(`Tentativo eliminazione file audio: ${fullAudioPath}`);
+          if (fs.existsSync(fullAudioPath)) {
+            try {
+              fs.unlinkSync(fullAudioPath);
+              console.log(`File audio eliminato: ${fullAudioPath}`);
+            } catch (e) {
+              console.warn(`Errore nell'eliminazione del file audio: ${e.message}`);
+            }
+          } else {
+            console.warn(`File audio non trovato: ${fullAudioPath}`);
+          }
+        }
+        
+        if (artworkPath) {
+          const fullArtworkPath = path.join(__dirname, artworkPath);
+          console.log(`Tentativo eliminazione file artwork: ${fullArtworkPath}`);
+          if (fs.existsSync(fullArtworkPath)) {
+            try {
+              fs.unlinkSync(fullArtworkPath);
+              console.log(`File artwork eliminato: ${fullArtworkPath}`);
+            } catch (e) {
+              console.warn(`Errore nell'eliminazione del file artwork: ${e.message}`);
+            }
+          } else {
+            console.warn(`File artwork non trovato: ${fullArtworkPath}`);
+          }
+        }
+      }
+      
+      // Elimina dalla memoria locale
+      delete inMemoryDB[foundTrackId];
+      console.log(`Traccia ${trackId} eliminata dalla memoria locale`);
+      
+      // Salva immediatamente le modifiche al database locale
+      saveLocalDB();
+      
+      // Elimina anche da Gun.js
+      try {
+        gun.get('audio_files').get(trackId).put(null);
+        
+        gun.get('audio_files').get('tracks').map().once((track, id) => {
+          if (track && (track.id === trackId || track.id.toString() === trackId.toString())) {
+            gun.get('audio_files').get('tracks').get(id).put(null);
+          }
+        });
+        
+        console.log(`Traccia ${trackId} eliminata anche da Gun.js`);
+      } catch (gunError) {
+        console.warn(`Errore nell'eliminazione da Gun.js (non bloccante): ${gunError.message}`);
+      }
+      
+      // Invia un segnale di refresh per tutti i client
+      try {
+        gun.get('app_events').get('track_deleted').put({
+          id: trackId,
+          timestamp: Date.now()
+        });
+      } catch (e) {
+        console.warn(`Errore nell'invio dell'evento di eliminazione (non bloccante): ${e.message}`);
+      }
+      
+      return res.json({
+        success: true,
+        message: 'Traccia eliminata con successo'
+      });
+    } else {
+      console.error(`Errore imprevisto: traccia ${trackId} non trovata dopo la creazione della traccia fantasma`);
+      return res.status(500).json({
+        success: false,
+        message: 'Errore interno del server'
+      });
+    }
+  } catch (error) {
+    console.error(`Errore nell'eliminazione della traccia ${trackId}:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore nell\'eliminazione della traccia',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint per l'upload delle tracce
+app.post('/api/upload', upload.fields([
+  { name: 'audioFile', maxCount: 1 },
+  { name: 'artworkFile', maxCount: 1 }
+]), async (req, res) => {
+  try {
+    console.log('Richiesta upload traccia ricevuta');
+    
+    // Verifica file audio
+    if (!req.files || !req.files.audioFile) {
+      return res.status(400).json({
+        success: false,
+        message: 'File audio non trovato nella richiesta'
+      });
+    }
+    
+    const audioFile = req.files.audioFile[0];
+    const artworkFile = req.files.artworkFile ? req.files.artworkFile[0] : null;
+    const title = req.body.title || 'Senza titolo';
+    const artist = req.body.artist || 'Artista sconosciuto';
+    const album = req.body.album || ''; // Supporto per album
+    
+    // Verifica dimensione file
+    const maxFileSizeMB = 20;
+    if (audioFile.size > maxFileSizeMB * 1024 * 1024) {
+      console.warn(`Upload rifiutato: file audio troppo grande (${Math.round(audioFile.size/1024/1024)}MB)`);
+      return res.status(413).json({
+        success: false,
+        message: `File audio troppo grande. Dimensione massima: ${maxFileSizeMB}MB`
+      });
+    }
+    
+    // Genera un ID univoco per la traccia
+    const trackId = Date.now().toString() + Math.round(Math.random() * 1000).toString();
+    
+    // Percorsi relativi per i file
+    const audioPath = `/uploads/${audioFile.filename}`;
+    const artworkPath = artworkFile ? `/uploads/${artworkFile.filename}` : null;
+    
+    // URL di origine del server
+    const originUrl = `${req.protocol}://${req.get('host')}`;
+    
+    // Prepara i dati della traccia
+    const trackData = {
+      id: trackId,
+      title: title,
+      artist: artist,
+      album: album,
+      audio_path: audioPath,
+      artwork_path: artworkPath,
+      timestamp: Date.now(),
+      size: audioFile.size,
+      originUrl: originUrl
+    };
+    
+    // Salva in memoria locale
+    inMemoryDB[trackId] = trackData;
+    
+    console.log(`Traccia "${title}" salvata in memoria locale (ID: ${trackId}) con origine ${originUrl}`);
+    
+    // Salva su file locale
+    saveLocalDB();
+    
+    // Salva in Gun.js
+    try {
+      const minimalData = {
+        id: trackId,
+        t: title,
+        a: artist,
+        alb: album,
+        ts: Date.now(),
+        o: originUrl,
+        ap: audioPath,
+        wp: artworkPath
+      };
+      
+      app.gun.get('audio_files').get('tracks').get(trackId).put(minimalData, (ack) => {
+        if (ack.err) {
+          console.warn(`Errore nel salvataggio indice in Gun.js (put): ${ack.err}`);
+        } else {
+          console.log(`Indice traccia salvato/aggiornato in Gun.js (ID: ${trackId})`);
+          
+          app.gun.get('audio_files').get(trackId).put(minimalData, (detailAck) => {
+            if (detailAck.err) {
+              console.warn(`Errore nel salvataggio dettagli in Gun.js: ${detailAck.err}`);
+            } else {
+              console.log(`Dettagli traccia salvati in Gun.js (ID: ${trackId})`);
+            }
+          });
+        }
+      });
+
+    } catch (gunError) {
+      console.warn(`Errore durante tentativo di salvataggio indice in Gun.js: ${gunError}`);
+    }
+
+    // Rispondi con successo
+    res.json({
+      success: true,
+      message: 'Traccia caricata con successo',
+      track: trackData
+    });
+
+  } catch (error) {
+    console.error('Errore generale nell\'upload:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore durante l\'upload della traccia',
+      error: error.message
+    });
+  }
+});
+
+module.exports = { app, gun };
