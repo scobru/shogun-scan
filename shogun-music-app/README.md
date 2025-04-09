@@ -1,97 +1,102 @@
-# Shogun Music App
+# Shogun Music Protocol Documentation
 
-Piattaforma musicale decentralizzata con architettura ispirata ad Audius.
+## Overview
+Shogun Music Protocol is a decentralized protocol for music content distribution and metadata synchronization. Inspired by Audius, it enables peer-to-peer sharing of audio content while maintaining metadata consistency across a network of relay nodes.
 
-## Componenti dell'Architettura
+## Protocol Architecture
+The protocol is composed of three primary layers:
+- **Storage Layer** - Manages physical file storage and retrieval
+- **Metadata Layer** - Handles synchronization of song information across the network  
+- **Identity Layer** - Manages user authentication and permissions
 
-Il sistema è composto da diversi servizi che lavorano insieme:
+## Communication Protocols
 
-1. **Frontend (UI)** - Interfaccia web per interagire con la piattaforma
-2. **Storage Relay** - Gestisce lo storage di file MP3 e artwork
-3. **Metadata Relay** - Gestisce i metadati delle canzoni utilizzando GunDB
-4. **Identity Relay** - Gestisce autenticazione e identità degli utenti
+### Storage Protocol
+The Storage Protocol handles raw file data (MP3s and artwork) through HTTP-based communications.
 
-## Requisiti
+#### Key Endpoints:
+| Endpoint | Method | Auth Required | Description |
+|----------|--------|--------------|-------------|
+| /upload | POST | Yes | Upload audio or image files |
+| /verify-file | GET | No | Check if a file exists by URL |
+| /uploads/{filename} | GET | No | Access stored files (supports HTTP Range Requests) |
+| /relays | GET | Yes | List registered metadata relays |
+| /relays/add | POST | Yes | Register a new metadata relay |
 
-- Node.js v14+ e npm/yarn
-- GunDB (installato come dipendenza)
+#### File Upload Flow:
+1. Client authenticates with token in the Authorization header
+2. Client sends file as multipart/form-data
+3. Server stores file and generates a public URL
+4. Server notifies all registered metadata relays
+5. Server returns file URL and notification status
 
-## Installazione
+### Metadata Protocol
+The Metadata Protocol leverages GunDB for decentralized, peer-to-peer synchronization of song metadata.
 
-```bash
-# Clona il repository
-git clone [url-repository]
-cd shogun-music-app
+#### Key Endpoints:
+| Endpoint | Method | Auth Required | Description |
+|----------|--------|--------------|-------------|
+| /gun | WebSocket | No | Primary GunDB peer connection |
+| /peers | GET | Yes | List connected GunDB peers |
+| /peers/add | POST | Yes | Add a new GunDB peer |
+| /file-uploaded | POST | Yes | Receive file notifications from storage relays |
+| /api/search | GET | No | Search metadata with filters |
 
-# Installa le dipendenze
-npm install
-# oppure
-yarn install
-```
+#### Metadata Sync Flow:
+1. Client saves song metadata to the GunDB node
+2. Metadata is automatically propagated to peer relays
+3. Other clients receive updates in real-time through GunDB subscriptions
 
-## Avvio Rapido
+### Identity Protocol
+The Identity Protocol manages user authentication and data ownership using GunDB's SEA (Security, Encryption, Authorization).
 
-Il modo più semplice per avviare l'intera applicazione è utilizzare il comando:
+#### Authentication Flow:
+- User Registration: `Gun.user().create(username, password, callback)`
+- User Login: `Gun.user().auth(username, password, callback)`
+- User Logout: `Gun.user().leave()`
 
-```bash
-npm start
-```
+#### Data Ownership:
+- Public Data: Stored at `gun.get('music-protocol').get('songs')`
+- User-Specific Data: Stored at `user.get('profile')` or similar paths
 
-Questo comando avvierà contemporaneamente tutti i servizi:
-- Storage Relay (porta 3000)
-- Metadata Relay (porta 8765)
-- Identity Relay (porta 3002)
-- Frontend (porta 8080)
+## Content Streaming
+The protocol supports efficient audio streaming through standard HTTP Range Requests:
+1. Client requests metadata containing fileUrl
+2. Client initiates streaming by setting `<audio src="fileUrl">`
+3. Browser automatically uses HTTP Range Requests to fetch only needed portions of the file
+4. Storage relay serves ranges via Express static file serving
 
-## Avvio dei Singoli Componenti
+## Security Considerations
 
-È possibile avviare i componenti individualmente:
+### Authentication Mechanisms:
+- API Authentication: Simple token-based authentication for service-to-service communication
+- User Authentication: GunDB SEA for end-user authentication
 
-```bash
-# Avvia solo il frontend
-npm run start:app
+### Data Integrity:
+- Files are validated when uploaded
+- Metadata relay can verify file availability with storage relay
 
-# Avvia solo il storage relay
-npm run start:storage
+## Protocol Extension
+The protocol can be extended through:
+- Additional Relay Types: Specialized relays can be added for specific functions
+- Custom Metadata Schemas: The metadata structure can be extended for new use cases
+- Enhanced Permission Systems: More granular permissions can be implemented
 
-# Avvia solo il metadata relay
-npm run start:metadata
+## Network Topology
+The Shogun network operates as a mesh of interconnected relays:
+- Storage Relays: Host the actual files (MP3s, artwork)
+- Metadata Relays: Sync and distribute metadata
+- Identity Services: Manage user authentication
 
-# Avvia solo l'identity relay
-npm run start:identity
+Each relay type can have multiple instances for redundancy and improved performance.
 
-# Avvia tutti i servizi backend senza il frontend
-npm run start:all
-```
+## Resilience Features
+- Peer Discovery: Relays can dynamically discover and connect to each other
+- Content Verification: Metadata relays can verify content availability
+- Distributed State: No single point of failure for metadata
 
-## Navigazione
-
-Una volta avviati i servizi, puoi accedere all'applicazione frontend nel browser:
-
-- Frontend UI: [http://localhost:8080](http://localhost:8080)
-
-## Funzionalità Principali
-
-- **Upload di MP3 e Artwork**: Carica i tuoi file audio e immagini
-- **Gestione Metadati**: Aggiungi titolo, artista, album e genere
-- **Riproduzione**: Ascolta brani dalla libreria
-- **Ricerca Avanzata**: Cerca brani per titolo, artista, album o genere
-- **Verifica di Disponibilità**: Controlla automaticamente se i file sono disponibili
-
-## Architettura
-
-L'applicazione implementa un'architettura distribuita ispirata ad Audius:
-
-- **Storage-Relay → Metadata-Relay**: Notifica automatica quando nuovi file vengono caricati
-- **Metadata-Relay → Storage-Relay**: Verifica dell'esistenza dei file
-- **Identity-Relay**: Gestione autenticazione utenti e autorizzazioni
-
-## Sviluppo e Contributi
-
-Il progetto è in fase di sviluppo attivo. Per contribuire:
-
-1. Crea un fork del repository
-2. Crea un branch per le tue modifiche (`git checkout -b feature/nome-feature`)
-3. Fai commit delle tue modifiche (`git commit -m 'Aggiungi feature'`)
-4. Esegui push al branch (`git push origin feature/nome-feature`)
-5. Apri una Pull Request 
+## Implementation Reference
+The reference implementation consists of:
+- Storage Relay: Express.js + Multer
+- Metadata Relay: Express.js + GunDB
+- Client: HTML5 + JavaScript with GunDB client library
