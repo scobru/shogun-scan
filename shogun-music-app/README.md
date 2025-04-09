@@ -1,112 +1,97 @@
 # Shogun Music App
 
-A React-based music player application with features for playing tracks, creating playlists, and managing favorites.
+Piattaforma musicale decentralizzata con architettura ispirata ad Audius.
 
-## Features
+## Componenti dell'Architettura
 
-- Music player with play, pause, skip, and volume controls
-- Track library with search and filter capabilities
-- Favorites management
-- Playlist creation and management
-- Robust error handling and offline fallback capabilities
-- API server status monitoring and connection retry
-- Admin panel for track management and uploads
+Il sistema è composto da diversi servizi che lavorano insieme:
 
-## Getting Started
+1. **Frontend (UI)** - Interfaccia web per interagire con la piattaforma
+2. **Storage Relay** - Gestisce lo storage di file MP3 e artwork
+3. **Metadata Relay** - Gestisce i metadati delle canzoni utilizzando GunDB
+4. **Identity Relay** - Gestisce autenticazione e identità degli utenti
 
-### Prerequisites
+## Requisiti
 
-- Node.js (v14 or higher)
-- npm or yarn
+- Node.js v14+ e npm/yarn
+- GunDB (installato come dipendenza)
 
-### Installation
+## Installazione
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/shogun-music-app.git
-   cd shogun-music-app
-   ```
+```bash
+# Clona il repository
+git clone [url-repository]
+cd shogun-music-app
 
-2. Install dependencies:
-   ```
-   npm install
-   ```
-
-3. Start the development server:
-   ```
-   npm start
-   ```
-
-## API Server
-
-The app connects to an API server for retrieving music data. The server URL is configured in `public/index.html` with the `api-server` meta tag.
-
-### Running with the API Server
-
-1. Start the API server (follow the API server's documentation)
-2. Ensure the API server is running on the URL specified in the meta tag (default: http://localhost:3001)
-3. The app uses a proxy for development to avoid CORS issues
-
-### Testing API Connectivity
-
-The app includes a utility for testing API connectivity:
-
-1. Open the browser console
-2. Run the following command: `testAPIConnection()`
-3. Check the console output for connectivity status
-
-## Admin Panel
-
-The admin panel provides functionality for uploading and managing tracks. It requires token authentication.
-
-### Accessing the Admin Panel
-
-1. Click on the "Admin" tab in the navigation menu
-2. Enter your authentication token
-   - For development, use `shogun-dev-token`
-   - For production, use the actual token configured in the server (default: `thisIsTheTokenForReals2`)
-
-### Uploading Tracks
-
-The admin panel allows you to upload new tracks to the server:
-
-1. Fill in the required track information (title, artist, album)
-2. Upload artwork (optional) and audio file (required)
-3. The uploaded files will be named `audioFile` and `artworkFile` in the form submission
-4. Click "Upload Track" to add the track to the library
-
-### Token Authentication
-
-The admin panel uses token-based authentication to secure the upload functionality. The authentication happens via the `/api/admin/validate` endpoint, which expects a JSON payload with a `password` field. For security reasons, the token is stored in localStorage only after successful validation.
-
-## Offline Mode
-
-The app includes fallback data for when the API server is unavailable:
-
-- The system automatically detects server unavailability
-- A banner appears to inform users of connectivity issues
-- Fallback tracks are used to ensure the app remains functional
-- A retry button allows users to attempt reconnection
-
-## Development
-
-### Project Structure
-
-- `/src/components` - React components
-- `/src/contexts` - React contexts for state management
-- `/src/services` - API and service classes
-- `/src/utils` - Utility functions
-- `/src/types` - TypeScript interface definitions
-- `/src/data` - Fallback data for offline mode
-
-### Testing
-
-Run tests with the following command:
-
-```
-npm test
+# Installa le dipendenze
+npm install
+# oppure
+yarn install
 ```
 
-## License
+## Avvio Rapido
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Il modo più semplice per avviare l'intera applicazione è utilizzare il comando:
+
+```bash
+npm start
+```
+
+Questo comando avvierà contemporaneamente tutti i servizi:
+- Storage Relay (porta 3000)
+- Metadata Relay (porta 8765)
+- Identity Relay (porta 3002)
+- Frontend (porta 8080)
+
+## Avvio dei Singoli Componenti
+
+È possibile avviare i componenti individualmente:
+
+```bash
+# Avvia solo il frontend
+npm run start:app
+
+# Avvia solo il storage relay
+npm run start:storage
+
+# Avvia solo il metadata relay
+npm run start:metadata
+
+# Avvia solo l'identity relay
+npm run start:identity
+
+# Avvia tutti i servizi backend senza il frontend
+npm run start:all
+```
+
+## Navigazione
+
+Una volta avviati i servizi, puoi accedere all'applicazione frontend nel browser:
+
+- Frontend UI: [http://localhost:8080](http://localhost:8080)
+
+## Funzionalità Principali
+
+- **Upload di MP3 e Artwork**: Carica i tuoi file audio e immagini
+- **Gestione Metadati**: Aggiungi titolo, artista, album e genere
+- **Riproduzione**: Ascolta brani dalla libreria
+- **Ricerca Avanzata**: Cerca brani per titolo, artista, album o genere
+- **Verifica di Disponibilità**: Controlla automaticamente se i file sono disponibili
+
+## Architettura
+
+L'applicazione implementa un'architettura distribuita ispirata ad Audius:
+
+- **Storage-Relay → Metadata-Relay**: Notifica automatica quando nuovi file vengono caricati
+- **Metadata-Relay → Storage-Relay**: Verifica dell'esistenza dei file
+- **Identity-Relay**: Gestione autenticazione utenti e autorizzazioni
+
+## Sviluppo e Contributi
+
+Il progetto è in fase di sviluppo attivo. Per contribuire:
+
+1. Crea un fork del repository
+2. Crea un branch per le tue modifiche (`git checkout -b feature/nome-feature`)
+3. Fai commit delle tue modifiche (`git commit -m 'Aggiungi feature'`)
+4. Esegui push al branch (`git push origin feature/nome-feature`)
+5. Apri una Pull Request 

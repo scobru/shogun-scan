@@ -1,51 +1,28 @@
 {
   "name": "shogun-music-app",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^13.5.0",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.126",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.1",
-    "cors": "^2.8.5",
-    "http-proxy-middleware": "^2.0.6",
-    "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-scripts": "5.0.1",
-    "shogun-button-react": "../shogun-button-react",
-    "shogun-core": "../shogun-core",
-    "typescript": "^4.9.5",
-    "web-vitals": "^2.1.4"
-  },
+  "version": "1.0.0",
+  "description": "Decentralized music platform",
+  "main": "index.js",
   "scripts": {
-    "start": "react-scripts start",
-    "start-win": "set PORT=3000 && react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start:storage": "node storage-relay/storage-relay.js",
+    "start:metadata": "node metadata-relay/metadata-relay.js",
+    "start:metadata2": "node metadata-relay/metadata2-relay.js",
+    "start:identity": "node identity-relay/identity-relay.js",
+    "start:all": "concurrently \"npm run start:storage\" \"npm run start:metadata\" \"npm run start:identity\"",
+    "start:app": "node app-server.js",
+    "start:static": "cd app && npx serve -s .",
+    "start": "concurrently \"npm run start:all\" \"npm run start:app\""
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "dependencies": {
+    "axios": "^1.8.4",
+    "concurrently": "^8.2.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "gun": "^0.2020.1239",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "serve": "^14.2.1"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  }
+  "author": "Il Tuo Nome",
+  "license": "MIT"
 }
