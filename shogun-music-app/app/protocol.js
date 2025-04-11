@@ -1,28 +1,49 @@
 // protocol.js
 (function () {
     // Token di autenticazione
-    const METADATA_AUTH_TOKEN = "myMetadataToken123";
+    const METADATA_AUTH_TOKEN = "myMetadataToken123"; // Token per l'autenticazione dei metadati
+    const SECRET_TOKEN = "mySecretToken123"; // Token per storage
+    
+    // Inizializzazione di Shogun Core
+    let shogun = null;
+    try {
+      shogun = initShogunBrowser({
+        gundb: {
+          peers: ['http://localhost:8765/gun', 'http://localhost:8766/gun'],
+          websocket: false,
+          localStorage: false,
+          radisk: false,
+          authToken: METADATA_AUTH_TOKEN
+        },
+        webauthn: {
+          enabled: true,
+          rpName: 'Shogun Music App',
+          rpId: window.location.hostname
+        },
+        metamask: {
+          enabled: true
+        },
+        logging: {
+          enabled: true,
+          level: 'debug',
+          prefix: '[Shogun Music]'
+        }
+      });
+    } catch (error) {
+      console.error("Errore nell'inizializzazione di Shogun Core:", error);
+    }
     
     // Variabili e configurazione iniziale
     let peers = ['http://localhost:8765/gun', 'http://localhost:8766/gun']; // Relay di default
-    let gun = Gun({
-      peers: peers,
-      localStorage: false, // Abilitato per la persistenza locale
-      radisk: false,      // Abilitato per miglior storage
-      headers: {
-        'Authorization': METADATA_AUTH_TOKEN
-      }
-    });
-    
-    // Assicurati che SEA (Security, Encryption, Authorization) sia disponibile
-    if (!gun.user || !gun.SEA) {
-      console.error("GUN SEA non è disponibile. L'autenticazione potrebbe non funzionare.");
-    }
-    
-    let user = gun.user();
-    let musicProtocol = gun.get('music-protocol');
-    let songsRef = musicProtocol.get('songs');
+    let gun = null;
+    let user = null;
+    let musicProtocol = null;
+    let songsRef = null;
+    let tokensRef = null;
+    let nftsRef = null;
     let cachedSongs = {}; // Cache locale per le canzoni
+    let cachedNFTs = {}; // Cache locale per gli NFT
+    let userTokenBalance = 0; // Bilancio token dell'utente
     let isInitialLoad = true;
     let renderTimeout;
     let lastUpdateTime = 0;
@@ -30,11 +51,106 @@
     let loopDetectionTimer = null;
     let isSyncPaused = false;
     let isUserAuthenticated = false; // Traccia lo stato di autenticazione dell'utente
+    let reconnectAttempts = 0;
+    let maxReconnectAttempts = 5;
+    let reconnectTimer = null;
+    
+    // Costanti per token e NFT
+    const MAX_DAILY_CLAIM = 100; // Numero massimo di token che possono essere richiesti giornalmente
+    const SECONDS_IN_DAY = 86400; // Secondi in un giorno (per calcolo del prossimo claim)
   
+    // Inizializza Gun con gestione errori
+    function initGun() {
+      try {
+        if (shogun) {
+          gun = shogun.gun;
+        } else {
+          gun = Gun({
+            peers: peers,
+            localStorage: false,
+            radisk: false,
+            retry: 3000, // Aumenta il tempo di retry
+            headers: {
+              'Authorization': METADATA_AUTH_TOKEN
+            }
+          });
+        }
+        
+        // Imposta listeners per gli errori di connessione
+        gun.on('hi', peer => {
+          console.log(`Connesso al peer: ${peer}`);
+          reconnectAttempts = 0; // Reset counter on successful connection
+        });
+        
+        gun.on('bye', peer => {
+          console.log(`Disconnesso dal peer: ${peer}`);
+        });
+        
+        // Inizializza le reference
+        user = gun.user();
+        musicProtocol = gun.get('music-protocol');
+        songsRef = musicProtocol.get('songs');
+        tokensRef = musicProtocol.get('tokens');
+        nftsRef = musicProtocol.get('nfts');
+        
+        return true;
+      } catch (error) {
+        console.error("Errore nell'inizializzazione di Gun:", error);
+        return false;
+      }
+    }
+    
+    // Inizializzazione iniziale
+    initGun();
+    
+    // Funzione di riconnessione
+    function attemptReconnect() {
+      if (reconnectAttempts >= maxReconnectAttempts) {
+        console.error("Numero massimo di tentativi di riconnessione raggiunto.");
+        return;
+      }
+      
+      reconnectAttempts++;
+      console.log(`Tentativo di riconnessione ${reconnectAttempts}/${maxReconnectAttempts}...`);
+      
+      // Pulizia cache 
+      clearTimeout(reconnectTimer);
+      clearTimeout(renderTimeout);
+      
+      // Tenta di reinizializzare Gun
+      if (initGun()) {
+        console.log("Riconnessione a Gun completata");
+        
+        // Verifica lo stato di autenticazione
+        checkAuthState();
+        
+        // Reinizializza dati
+        if (isUserAuthenticated) {
+          initSongCache();
+          initSongSubscription();
+          initUserTokens();
+          initUserNFTs();
+        }
+      } else {
+        // Pianifica un altro tentativo
+        reconnectTimer = setTimeout(attemptReconnect, 5000);
+      }
+    }
+    
     // Verifica se l'utente è già autenticato al caricamento
     function checkAuthState() {
-      const pub = user.is && user.is.pub;
-      isUserAuthenticated = !!pub;
+      if (shogun) {
+        isUserAuthenticated = shogun.isLoggedIn();
+      } else {
+        const pub = user && user.is && user.is.pub;
+        isUserAuthenticated = !!pub;
+      }
+      
+      if (isUserAuthenticated) {
+        // Se l'utente è autenticato, inizializza i token
+        initUserTokens();
+      }
+      
       return isUserAuthenticated;
     }
     
@@ -43,26 +159,64 @@
     
     // Aggiorna l'istanza di Gun (ad esempio, dopo aver aggiunto nuovi relay)
     function updateGunInstance() {
-      gun = Gun({
-        peers: peers,
-        localStorage: true,  // Abilitato per la persistenza locale
-        radisk: true,       // Abilitato per miglior storage
-        retry: 2000,        // Riprova ogni 2 secondi
-        multicast: false,   // Disabilitato per ridurre traffico di rete
-        axe: false,         // Disabilitato per semplicità
-        chunk: 1000,
-        headers: {
-          'Authorization': METADATA_AUTH_TOKEN
-        }
-      });
+      // Pulisci i timer di riconnessione precedenti
+      clearTimeout(reconnectTimer);
+      reconnectAttempts = 0;
       
+      if (shogun) {
+        // Se stiamo usando Shogun, aggiorniamo la sua configurazione
+        try {
+          shogun = initShogunBrowser({
+            gundb: {
+              peers: peers,
+              websocket: false,
+              localStorage: false,
+              radisk: false,
+              retry: 3000,
+              multicast: false,
+              axe: false,
+              chunk: 1000,
+              authToken: METADATA_AUTH_TOKEN
+            },
+            webauthn: {
+              enabled: true,
+              rpName: 'Shogun Music App',
+              rpId: window.location.hostname
+            },
+            metamask: {
+              enabled: true
+            },
+            logging: {
+              enabled: true,
+              level: 'debug',
+              prefix: '[Shogun Music]'
+            }
+          });
+          gun = shogun.getGunInstance();
+        } catch (error) {
+          console.error("Errore nell'aggiornamento di Shogun:", error);
+          attemptReconnect();
+          return;
+        }
+      } else {
+        // Reinizializza Gun
+        if (!initGun()) {
+          attemptReconnect();
+          return;
+        }
+      }
+      
+      // Verifica che le reference siano disponibili
       if (!gun.user || !gun.SEA) {
         console.error("GUN SEA non è disponibile. L'autenticazione potrebbe non funzionare.");
+        return;
       }
       
       user = gun.user();
       musicProtocol = gun.get('music-protocol');
       songsRef = musicProtocol.get('songs');
+      tokensRef = musicProtocol.get('tokens');
+      nftsRef = musicProtocol.get('nfts');
       
       // Verifica lo stato di autenticazione dopo aggiornamento
       checkAuthState();
@@ -70,8 +224,103 @@
       if (isUserAuthenticated) {
         initSongCache();
         initSongSubscription();
+        initUserTokens();
+        initUserNFTs();
       }
       console.log("Gun instance aggiornata con relay:", peers);
+    }
+    
+    // Inizializza e carica i token dell'utente
+    function initUserTokens() {
+      if (!isUserAuthenticated || !user.is || !user.is.pub) {
+        console.log("Utente non autenticato. Impossibile inizializzare i token.");
+        return;
+      }
+      
+      const userPub = user.is.pub;
+      tokensRef.get(userPub).once((userData) => {
+        if (userData) {
+          userTokenBalance = userData.balance || 0;
+          console.log(`Token dell'utente caricati. Bilancio: ${userTokenBalance}`);
+          
+          // Aggiorna UI se è disponibile la funzione
+          if (typeof updateTokenUI === 'function') {
+            updateTokenUI(userTokenBalance);
+          }
+        } else {
+          // Inizializza il bilancio token dell'utente se non esiste
+          userTokenBalance = 0;
+          tokensRef.get(userPub).put({
+            balance: 0,
+            lastClaim: 0
+          });
+          console.log("Nuovo account token creato per l'utente");
+          
+          // Aggiorna UI se è disponibile la funzione
+          if (typeof updateTokenUI === 'function') {
+            updateTokenUI(0);
+          }
+        }
+      });
+      
+      // Sottoscrizione al bilancio token con debounce
+      let tokenUpdateTimeout = null;
+      let lastTokenBalance = userTokenBalance;
+      
+      tokensRef.get(userPub).on((userData) => {
+        if (userData && userData.balance !== undefined && userData.balance !== lastTokenBalance) {
+          // Salva il nuovo bilancio
+          userTokenBalance = userData.balance;
+          lastTokenBalance = userData.balance;
+          
+          // Annulla eventuali aggiornamenti in sospeso
+          clearTimeout(tokenUpdateTimeout);
+          
+          // Imposta un timeout per l'aggiornamento UI (debounce)
+          tokenUpdateTimeout = setTimeout(() => {
+            console.log(`Bilancio token aggiornato: ${userTokenBalance}`);
+            
+            // Aggiorna UI se è disponibile la funzione
+            if (typeof updateTokenUI === 'function') {
+              updateTokenUI(userTokenBalance);
+            }
+          }, 300); // Aspetta 300ms prima di aggiornare l'UI
+        }
+      });
+    }
+    
+    // Inizializzazione e caricamento degli NFT dell'utente
+    function initUserNFTs() {
+      if (!isUserAuthenticated || !user.is || !user.is.pub) {
+        console.log("Utente non autenticato. Impossibile inizializzare gli NFT.");
+        return;
+      }
+      
+      const userPub = user.is.pub;
+      
+      // Svuota la cache NFT locale
+      cachedNFTs = {};
+      
+      // Carica gli NFT dell'utente
+      nftsRef.get(userPub).map().once((nft, id) => {
+        if (nft && id) {
+          cachedNFTs[id] = nft;
+          console.log(`NFT caricato: ${nft.songId} #${nft.edition}`);
+        }
+      });
+      
+      // Sottoscrizione agli NFT dell'utente
+      nftsRef.get(userPub).map().on((nft, id) => {
+        if (nft && id) {
+          cachedNFTs[id] = nft;
+          console.log(`NFT aggiornato: ${nft.songId} #${nft.edition}`);
+          
+          // Aggiorna UI se è disponibile la funzione
+          if (typeof updateNFTUI === 'function') {
+            updateNFTUI();
+          }
+        }
+      });
     }
   
     // Aggiunge un nuovo relay all'array e aggiorna l'istanza Gun
@@ -92,8 +341,12 @@
   
     // Inizializza la cache locale delle canzoni
     function initSongCache() {
-      // Solo se l'utente è autenticato
-      if (!isUserAuthenticated) {
+      // Verifica autenticazione admin
+      const adminToken = localStorage.getItem('adminToken');
+      const isAdminAuthenticated = adminToken === METADATA_AUTH_TOKEN;
+      
+      // Solo se l'utente è autenticato o è admin
+      if (!isUserAuthenticated && !isAdminAuthenticated) {
         console.log("Utente non autenticato. Skipping song cache initialization.");
         return;
       }
@@ -110,8 +363,12 @@
     function initSongSubscription() {
       console.log("Inizializzazione sottoscrizione brani...");
       
-      // Solo se l'utente è autenticato
-      if (!isUserAuthenticated) {
+      // Verifica autenticazione admin
+      const adminToken = localStorage.getItem('adminToken');
+      const isAdminAuthenticated = adminToken === METADATA_AUTH_TOKEN;
+      
+      // Solo se l'utente è autenticato o è admin
+      if (!isUserAuthenticated && !isAdminAuthenticated) {
         console.log("Utente non autenticato. Skipping song subscription.");
         return;
       }
@@ -119,18 +376,27 @@
       // Renderizza subito la lista
       renderSongs();
   
+      // Pulizia e inizializzazione delle variabili di controllo degli aggiornamenti
+      updatesSinceLastCheck = 0;
+      lastUpdateTime = Date.now();
+      clearTimeout(renderTimeout);
+      
       if (loopDetectionTimer) {
         clearInterval(loopDetectionTimer);
       }
+      
+      // Timer di rilevamento loop con soglia più alta e pausa più lunga
       loopDetectionTimer = setInterval(() => {
-        if (updatesSinceLastCheck > 10) {
+        if (updatesSinceLastCheck > 20) {
           console.warn("Possibile loop di aggiornamenti:", updatesSinceLastCheck, "updates in breve tempo");
           clearTimeout(renderTimeout);
           isSyncPaused = true;
           setTimeout(() => {
             isSyncPaused = false;
+            updatesSinceLastCheck = 0;
+            lastUpdateTime = Date.now();
             console.log("Sincronizzazione ripresa dopo pausa");
-          }, 5000);
+          }, 10000); // Pausa più lunga (10 secondi)
         }
         updatesSinceLastCheck = 0;
       }, 5000);
@@ -138,13 +404,25 @@
       // Rimuove eventuali listener precedenti per evitare duplicati
       songsRef.map().off();
   
+      // Imposta un timer di debounce più lungo per gli aggiornamenti
+      let debounceTime = 1000; // 1 secondo di debounce
+      
       songsRef.map().on((song, id) => {
+        // Ignora aggiornamenti durante la pausa
         if (isSyncPaused) return;
+        
+        // Ignora oggetti non validi o vuoti
         if (!song || typeof song !== "object" || Object.keys(song).length === 0) return;
+        
+        // Ignora canzoni eliminate
+        if (song.deleted) return;
+        
         const now = Date.now();
-        if (now - lastUpdateTime < 100) {
+        // Aumenta la soglia minima tra aggiornamenti
+        if (now - lastUpdateTime < 200) {
           updatesSinceLastCheck++;
-          if (updatesSinceLastCheck > 5) {
+          // Aumenta la soglia prima di ignorare un aggiornamento
+          if (updatesSinceLastCheck > 10) {
             console.warn("Troppi aggiornamenti ravvicinati, ignoro questo:", id);
             return;
           }
@@ -154,77 +432,267 @@
   
         const cachedSong = cachedSongs[id];
         let hasChanged = false;
+        
+        // Determina se il brano è cambiato
         if (!cachedSong) {
           hasChanged = true;
         } else {
+          // Confronto più profondo dei campi chiave
           hasChanged =
             song.title !== cachedSong.title ||
             song.artist !== cachedSong.artist ||
             song.fileUrl !== cachedSong.fileUrl ||
-            song.artworkUrl !== cachedSong.artworkUrl;
+            song.artworkUrl !== cachedSong.artworkUrl ||
+            song.mintPrice !== cachedSong.mintPrice ||
+            song.totalEditions !== cachedSong.totalEditions ||
+            song.mintedEditions !== cachedSong.mintedEditions;
         }
+        
         if (hasChanged) {
+          // Aggiorna la cache con i nuovi dati
           cachedSongs[id] = song;
+          
+          // Debounce per il rendering
           clearTimeout(renderTimeout);
           renderTimeout = setTimeout(() => {
             console.log("Aggiornamento rilevato, rendering...");
             renderSongs();
-          }, 500);
+          }, debounceTime);
         }
       });
     }
   
     // Renderizza la lista dei brani nell'elemento con id "songList"
     function renderSongs() {
-      const songList = document.getElementById("songList");
+      // Determina l'ID dell'elemento lista in base alla pagina corrente
+      let songListId = "songList"; // Default per index.html (player)
+      
+      // Controlla se siamo nella pagina admin.html
+      const isAdminPage = window.location.href.indexOf("admin.html") > -1;
+      if (isAdminPage) {
+        songListId = "adminSongList"; // Per admin.html
+      }
+      
+      const songList = document.getElementById(songListId);
       if (!songList) {
-        console.error("Elemento 'songList' non trovato in pagina.");
+        console.error(`Elemento '${songListId}' non trovato in pagina.`);
         return;
       }
+      
+      // Verifica autenticazione standard o amministrativa
+      const adminToken = localStorage.getItem('adminToken');
+      const isAdminAuthenticated = adminToken === METADATA_AUTH_TOKEN;
       
       // Verifica stato autenticazione corrente
       checkAuthState();
       
-      // Solo se l'utente è autenticato
-      if (!isUserAuthenticated) {
+      // Solo se l'utente è autenticato o ha token admin valido
+      if (!isUserAuthenticated && !isAdminAuthenticated) {
         songList.innerHTML = '<div class="alert alert-info text-center">Effettua il login per visualizzare i brani</div>';
         return;
       }
       
-      let tempHTML = "";
-      Object.keys(cachedSongs).forEach((id) => {
-        const song = cachedSongs[id];
-        if (song && song.title && song.artist) {
+      // Carica i brani se non sono stati ancora caricati (usa la cache esistente qui)
+      if (Object.keys(cachedSongs).length === 0) {
+        console.log("Nessuna canzone in cache, caricamento iniziale...");
+        let songsLoaded = false;
+        songsRef.map().once((song, id) => {
+          if (song && id && song.title && !song.deleted) {
+            cachedSongs[id] = song;
+            songsLoaded = true;
+          }
+        });
+        
+        if (!songsLoaded) {
+          console.log("Caricamento iniziale terminato, nessun brano trovato.");
+          songList.innerHTML = '<div class="alert alert-info text-center">Nessun brano trovato</div>';
+          return;
+        } else {
+           console.log(`Caricamento iniziale terminato, ${Object.keys(cachedSongs).length} brani in cache.`);
+        }
+      }
+      
+      const songIds = Object.keys(cachedSongs);
+      const songCount = songIds.length;
+      
+      // Se non ci sono brani, mostra messaggio
+      if (songCount === 0) {
+        songList.innerHTML = '<div class="alert alert-info text-center">Nessun brano trovato</div>';
+        return;
+      }
+
+      // Array per contenere le promise (per le letture asincrone in admin)
+      const renderPromises = [];
+
+      // Cicla attraverso gli ID delle canzoni dalla cache
+      songIds.forEach(id => {
+        const cachedSong = cachedSongs[id];
+          
+        // Se la canzone nella cache non è valida o è marcata come eliminata, salta
+        if (!cachedSong || !cachedSong.title || !cachedSong.artist || cachedSong.deleted) {
+          return; // Salta questa iterazione
+        }
+
+        // Funzione interna per generare l'HTML di una singola canzone
+        const generateSongHTML = (songData, songId) => {
+          let currentHTML = '';
           let artworkHTML = "";
-          if (song.artworkUrl) {
-            artworkHTML = `<img src="${song.artworkUrl}" class="artwork-img" alt="Artwork: ${song.title}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSIjZGRkZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjOTk5OTk5Ij5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='" />`;
+          if (songData.artworkUrl) {
+            artworkHTML = `<img src="${songData.artworkUrl}" class="artwork-img" alt="Artwork: ${songData.title}" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjUwIiBmaWxsPSIjZGRkZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjOTk5OTk5Ij5ObyBJbWFnZTwvdGV4dD48L3N2Zz4='" />`;
           } else {
             artworkHTML = `<div class="artwork-img" style="background-color:#ddd; display:inline-block;"></div>`;
           }
           let durationHTML = "";
-          if (song.duration) {
-            const minutes = Math.floor(song.duration / 60);
-            const seconds = song.duration % 60;
+          if (songData.duration) {
+            const minutes = Math.floor(songData.duration / 60);
+            const seconds = songData.duration % 60;
             durationHTML = `<div class="text-muted small">${minutes}:${seconds.toString().padStart(2, "0")}</div>`;
           }
-          tempHTML += `
-            <li class="list-group-item d-flex align-items-center" data-song-id="${id}" onclick="Protocol.playSong('${id}')">
-              ${artworkHTML}
-              <div class="ms-2 flex-grow-1">
-                <strong>${song.title}</strong>
-                <div class="small text-muted">${song.artist}</div>
-              </div>
-              ${durationHTML}
-            </li>`;
+        
+          // Informazioni sulle edizioni NFT
+          let editionsHTML = "";
+          // **Determina hasEditions basandosi sui dati forniti (che possono essere live o cached)**
+          const hasEditions = songData.mintPrice !== undefined && songData.totalEditions !== undefined;
+          let mintedCount = songData.mintedEditions || 0;
+          let availableEditions = 0;
+          let canMint = false;
+
+          if (hasEditions) {
+            availableEditions = songData.totalEditions - mintedCount;
+            canMint = availableEditions > 0;
+
+            if (isAdminPage) {
+              // Mostra solo le info se hasEditions è true
+              editionsHTML = `
+                <div class="mt-1 small">
+                  <span class="badge bg-info me-1">Prezzo: ${songData.mintPrice} token</span>
+                  <span class="badge bg-secondary me-1">Edizioni: ${mintedCount}/${songData.totalEditions}</span>
+                </div>`;
+            } else {
+              // Per la pagina player, aggiungi pulsante per mintare
+              // AGGIUNTA LOGGING PER DEBUG ISSUE 2
+              console.log(`Player Render Check (Song ID: ${songId}): Price=${songData.mintPrice}, Total=${songData.totalEditions}, Minted=${mintedCount}, Available=${availableEditions}, CanMint=${canMint}`);
+              
+              editionsHTML = `
+                <div class="mt-1">
+                  <span class="badge bg-info me-1">Prezzo: ${songData.mintPrice} token</span>
+                  <span class="badge bg-secondary me-1">Edizioni: ${mintedCount}/${songData.totalEditions}</span>
+                  ${canMint ? 
+                    `<button class="btn btn-sm btn-outline-success mint-btn ms-2" onclick="event.stopPropagation(); Protocol.mintEdition('${songId}', function(err, msg){ if(err) alert('Errore Mint: ' + err); else alert(msg || \'Edizione mintata!\'); })">
+                      Minta edizione
+                    </button>` : 
+                    '<span class="badge bg-danger ms-2">Sold out</span>'}
+                </div>`;
+            }
+          }
+        
+          // Personalizza il template in base alla pagina (admin o player)
+          if (isAdminPage) {
+            // Template per admin page con pulsante di eliminazione e campi edizione
+            let editionSettingsHTML = "";
+            
+            // Mostra i campi input SOLO se le edizioni NON sono state impostate/frozen
+            if (!hasEditions) {
+               console.log(`Admin Render Check (Song ID: ${songId}): Rendering inputs, hasEditions=false`);
+               editionSettingsHTML = `
+                <div class="mt-2 edition-settings">
+                  <div class="input-group input-group-sm">
+                    <input type="number" class="form-control" placeholder="Prezzo (token)" id="mintPrice-${songId}" min="1" value="">
+                    <input type="number" class="form-control" placeholder="Edizioni totali" id="totalEditions-${songId}" min="1" value="">
+                    <button class="btn btn-outline-primary" onclick="setEditionDetails('${songId}')">
+                      Imposta
+                    </button>
+                  </div>
+                </div>`;
+            } else {
+               console.log(`Admin Render Check (Song ID: ${songId}): Rendering display, hasEditions=true`);
+               // Se le edizioni sono impostate, mostra solo le informazioni (già in editionsHTML)
+               editionSettingsHTML = ""; 
+            }
+            
+            currentHTML = `
+              <li class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="d-flex align-items-center">
+                    ${artworkHTML}
+                    <div class="ms-2">
+                       <strong>${songData.title}</strong>
+                       <div class="small text-muted">${songData.artist}</div>
+                       ${editionsHTML} 
+                    </div>
+                  </div>
+                  <div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteSong('${songId}')">
+                      Elimina
+                    </button>
+                  </div>
+                </div>
+                ${editionSettingsHTML} 
+              </li>`;
+          } else {
+            // Template per player page
+            currentHTML = `
+              <li class="list-group-item" data-song-id="${songId}">
+                <div class="d-flex align-items-center" onclick="Protocol.playSong('${songId}')" style="cursor:pointer;">
+                   ${artworkHTML}
+                   <div class="ms-2 flex-grow-1">
+                     <strong>${songData.title}</strong>
+                     <div class="small text-muted">${songData.artist}</div>
+                     ${durationHTML}
+                   </div>
+                </div>
+                 ${editionsHTML} 
+              </li>`;
+          }
+          return currentHTML;
+        }; // Fine generateSongHTML
+
+        // MODIFICA PER ISSUE 1: Se siamo in admin, forza lettura da GunDB per lo stato hasEditions
+        if (isAdminPage) {
+           // Aggiungi una promise che recupera i dati live e poi genera l'HTML
+           const promise = new Promise((resolve, reject) => {
+             songsRef.get(id).once(liveSongData => {
+               // Usa i dati live da GunDB se disponibili e validi, altrimenti usa la cache
+               // Questo assicura che `hasEditions` sia basato sui dati più recenti
+               const songToRender = (liveSongData && liveSongData.title && !liveSongData.deleted) ? liveSongData : cachedSong;
+               
+               // Aggiorna la cache se i dati live sono diversi (opzionale, ma buona pratica)
+               if (liveSongData && JSON.stringify(liveSongData) !== JSON.stringify(cachedSong)) {
+                  cachedSongs[id] = liveSongData; 
+               }
+
+               try {
+                 resolve(generateSongHTML(songToRender, id));
+               } catch (e) {
+                 console.error(`Errore generazione HTML per admin song ${id}:`, e);
+                 resolve(''); // Risolve con stringa vuota in caso di errore
+               }
+             }, {wait: 500}); // Aggiungi un piccolo timeout per dare tempo a Gun di rispondere
+           });
+           renderPromises.push(promise);
+        } else {
+           // Per la pagina player, usa la cache per performance. Aggiungi a promises come valore risolto.
+           renderPromises.push(Promise.resolve(generateSongHTML(cachedSong, id)));
         }
+
+      }); // Fine forEach
+
+      // Aspetta che tutte le promise (soprattutto le letture GunDB per admin) siano risolte
+      Promise.all(renderPromises).then(htmlChunks => {
+        // Filtra eventuali chunk vuoti (da errori o canzoni saltate)
+        const validHtmlChunks = htmlChunks.filter(chunk => chunk !== '');
+        if (validHtmlChunks.length > 0) {
+           songList.innerHTML = validHtmlChunks.join('');
+        } else {
+           // Se tutti i chunk sono vuoti (nessuna canzone valida trovata/renderizzata)
+           songList.innerHTML = '<div class="alert alert-info text-center">Nessun brano valido da visualizzare</div>';
+        }
+        console.log(`Rendering completato per ${songListId}. Brani renderizzati: ${validHtmlChunks.length}/${songCount}`);
+      }).catch(error => {
+        console.error("Errore durante il rendering dei brani:", error);
+        songList.innerHTML = '<div class="alert alert-danger">Errore nel caricamento dei brani.</div>';
       });
-      
-      if (tempHTML === "") {
-        tempHTML = '<div class="alert alert-info text-center">Nessun brano trovato</div>';
-      }
-      
-      songList.innerHTML = tempHTML;
-    }
+    } // Fine renderSongs
   
     // Riproduce la traccia cliccata (utilizzata inline dal markup)
     function playSong(songId) {
@@ -261,6 +729,321 @@
       audioPlayer.play().catch(err => {
         console.error("Errore riproduzione:", err.message);
       });
+    }
+    
+    // Funzione per reclamare token giornalieri
+    async function claimDailyTokens(callback) {
+      if (!isUserAuthenticated || !user.is || !user.is.pub) {
+        if (callback) callback("Utente non autenticato", null);
+        return;
+      }
+      
+      const userPub = user.is.pub;
+      
+      // Ottieni i dati correnti dell'utente
+      tokensRef.get(userPub).once(async (userData) => {
+        if (!userData) {
+          // Inizializza l'utente se non esiste
+          userData = { balance: 0, lastClaim: 0 };
+        }
+        
+        const now = Math.floor(Date.now() / 1000); // Timestamp corrente in secondi
+        const lastClaimTime = userData.lastClaim || 0;
+        const timeSinceLastClaim = now - lastClaimTime;
+        
+        // Verifica se è passato abbastanza tempo dall'ultimo claim (1 giorno)
+        if (timeSinceLastClaim < SECONDS_IN_DAY) {
+          const timeRemaining = SECONDS_IN_DAY - timeSinceLastClaim;
+          const hours = Math.floor(timeRemaining / 3600);
+          const minutes = Math.floor((timeRemaining % 3600) / 60);
+          
+          if (callback) callback(`Puoi reclamare altri token tra ${hours} ore e ${minutes} minuti`, null);
+          return;
+        }
+        
+        // Aggiorna il bilancio e il timestamp dell'ultimo claim
+        const newBalance = (userData.balance || 0) + MAX_DAILY_CLAIM;
+        
+        // Aggiorna i dati dell'utente
+        tokensRef.get(userPub).put({
+          balance: newBalance,
+          lastClaim: now
+        });
+        
+        userTokenBalance = newBalance;
+        
+        if (callback) callback(null, `Hai reclamato con successo ${MAX_DAILY_CLAIM} token!`);
+        
+        // Aggiorna UI se è disponibile la funzione
+        if (typeof updateTokenUI === 'function') {
+          updateTokenUI(newBalance);
+        }
+      });
+    }
+    
+    // Funzione per ottenere il bilancio token dell'utente
+    function getTokenBalance() {
+      return userTokenBalance;
+    }
+    
+    // Funzione per impostare i dettagli di minting per un brano (admin)
+    function setMintingDetails(songId, mintPrice, totalEditions, callback) {
+      // Verifica l'autenticazione admin tramite localStorage o autenticazione utente standard
+      const adminToken = localStorage.getItem('adminToken');
+      const isAdminAuthenticated = adminToken === METADATA_AUTH_TOKEN;
+      
+      if (!isUserAuthenticated && !isAdminAuthenticated) {
+        if (callback) callback("Utente non autenticato", null);
+        return;
+      }
+      
+      if (!songId || !cachedSongs[songId]) {
+        if (callback) callback("ID brano non valido", null);
+        return;
+      }
+      
+      if (isNaN(mintPrice) || mintPrice <= 0 || isNaN(totalEditions) || totalEditions <= 0) {
+        if (callback) callback("Prezzo e numero di edizioni devono essere numeri positivi", null);
+        return;
+      }
+      
+      // Ottieni la canzone corrente
+      const song = cachedSongs[songId];
+      
+      // Verifica se i dettagli di minting sono già stati impostati (frozen space)
+      if (song.mintPrice !== undefined && song.totalEditions !== undefined) {
+        if (callback) callback("I dettagli di minting sono già stati impostati e non possono essere modificati", null);
+        return;
+      }
+      
+      // Utilizzare once() per garantire l'immutabilità
+      songsRef.get(songId).once((existingSong) => {
+        if (!existingSong) {
+          if (callback) callback("Brano non trovato nel database", null);
+          return;
+        }
+        
+        if (existingSong.mintPrice !== undefined || existingSong.totalEditions !== undefined) {
+          if (callback) callback("I dettagli di minting sono già stati impostati in un altro client e non possono essere modificati", null);
+          return;
+        }
+        
+        // Crea l'oggetto con i dettagli aggiornati
+        const updatedSong = {
+          ...song,
+          mintPrice: parseInt(mintPrice),
+          totalEditions: parseInt(totalEditions),
+          mintedEditions: 0,
+          frozenAt: Date.now() // Timestamp di quando è stato congelato
+        };
+        
+        // Aggiungi la cache prima - strategia optimistic update
+        cachedSongs[songId] = updatedSong;
+        
+        // Imposta i dettagli di minting con retry
+        const maxRetries = 3;
+        let retryCount = 0;
+        
+        function tryPut() {
+          retryCount++;
+          console.log(`Tentativo di salvataggio minting details (${retryCount}/${maxRetries})`);
+          
+          // Imposta i dettagli di minting una sola volta (frozen)
+          songsRef.get(songId).put(updatedSong, (ack) => {
+            if (ack.err) {
+              console.error("Errore durante il salvataggio:", ack.err);
+              
+              if (retryCount < maxRetries) {
+                // Riprova dopo un breve ritardo
+                setTimeout(tryPut, 500);
+              } else {
+                if (callback) callback(ack.err, null);
+              }
+            } else {
+              // Aggiorna la cache locale immediatamente
+              console.log("Dettagli di minting salvati con successo:", songId, updatedSong);
+              
+              // Verifica che i dati siano stati salvati correttamente
+              setTimeout(() => {
+                songsRef.get(songId).once((savedSong) => {
+                  if (!savedSong || !savedSong.mintPrice || !savedSong.totalEditions) {
+                    console.warn("⚠️ I dettagli di minting potrebbero non essere stati salvati correttamente:", savedSong);
+                    
+                    // Riprova se siamo ancora entro il numero massimo di tentativi
+                    if (retryCount < maxRetries) {
+                      setTimeout(tryPut, 500);
+                    } else {
+                      if (callback) callback("Impossibile verificare il salvataggio dei dettagli dopo multipli tentativi", null);
+                    }
+                  } else {
+                    console.log("✅ Dettagli di minting verificati nel database:", savedSong);
+                    
+                    // Aggiorna la cache una seconda volta per sicurezza
+                    cachedSongs[songId] = savedSong;
+                    
+                    if (callback) callback(null, "Dettagli di minting impostati con successo e congelati");
+                  }
+                });
+              }, 1000);
+            }
+          });
+        }
+        
+        // Avvia il primo tentativo
+        tryPut();
+      });
+    }
+    
+    // Funzione per ottenere i dati di una canzone specifica
+    function getSong(songId) {
+      return cachedSongs[songId] || null;
+    }
+    
+    // Funzione per mintare un'edizione del brano
+    async function mintEdition(songId, callback) {
+      if (!isUserAuthenticated || !user.is || !user.is.pub) {
+        if (callback) callback("Utente non autenticato", null);
+        return;
+      }
+      
+      if (!songId || !cachedSongs[songId]) {
+        if (callback) callback("ID brano non valido", null);
+        return;
+      }
+      
+      const userPub = user.is.pub;
+      const song = cachedSongs[songId];
+      
+      // Verifica se il brano ha impostazioni di minting
+      if (!song.mintPrice || !song.totalEditions) {
+        if (callback) callback("Questo brano non è disponibile per il minting", null);
+        return;
+      }
+      
+      // Verifica se ci sono edizioni disponibili
+      const mintedEditions = song.mintedEditions || 0;
+      if (mintedEditions >= song.totalEditions) {
+        if (callback) callback("Tutte le edizioni sono già state mintate", null);
+        return;
+      }
+      
+      // Verifica se l'utente ha abbastanza token
+      if (userTokenBalance < song.mintPrice) {
+        if (callback) callback(`Token insufficienti. Hai ${userTokenBalance}, ma servono ${song.mintPrice} token`, null);
+        return;
+      }
+      
+      // Crea un ID unico per l'NFT
+      const nftId = `nft_${songId}_${Date.now()}`;
+      
+      // Crea l'oggetto NFT
+      const nft = {
+        songId: songId,
+        title: song.title,
+        artist: song.artist,
+        edition: mintedEditions + 1,
+        totalEditions: song.totalEditions,
+        mintDate: Date.now(),
+        artworkUrl: song.artworkUrl,
+        owner: userPub
+      };
+      
+      // Salva l'NFT nell'area frozen di Gun (simulate)
+      nftsRef.get(userPub).get(nftId).put(nft);
+      
+      // Aggiorna il bilancio token dell'utente
+      const newBalance = userTokenBalance - song.mintPrice;
+      tokensRef.get(userPub).put({
+        balance: newBalance,
+        lastClaim: tokensRef.get(userPub).lastClaim
+      });
+      
+      // Distribuisci i token del minting
+      // 70% all'autore del brano, 15% a ciascun relay
+      const creatorPub = song.createdBy;
+      if (creatorPub) {
+        // Verifica che il creatore non sia l'acquirente (evita auto-pagamenti)
+        if (creatorPub === userPub) {
+          console.log("Nessun token distribuito: l'acquirente è anche il creatore");
+        } else {
+          // Assegna i token all'autore (70%)
+          const creatorShare = Math.floor(song.mintPrice * 0.7);
+          
+          // Usa una transazione atomica per aggiornare il bilancio dell'autore
+          tokensRef.get(creatorPub).once((creatorData) => {
+            const currentBalance = creatorData && creatorData.balance ? creatorData.balance : 0;
+            
+            // Aggiorna il bilancio solo se l'utente esiste
+            if (creatorData) {
+              tokensRef.get(creatorPub).put({
+                balance: currentBalance + creatorShare,
+                lastClaim: creatorData.lastClaim || 0
+              });
+              console.log(`${creatorShare} token assegnati all'autore ${creatorPub}`);
+            }
+          });
+        }
+        
+        // Il resto (30%) viene assegnato ai nodi relay
+        // Aggiungiamo una traccia della distribuzione per trasparenza
+        const relayShare = Math.floor(song.mintPrice * 0.15); // 15% per tipo di relay (storage e metadata)
+        
+        // Aggiungiamo un record della transazione con ID univoco per evitare duplicati
+        const transactionId = `tx_${Date.now()}_${songId}_${userPub}`;
+        const transactionData = {
+          type: "mint",
+          songId: songId,
+          edition: mintedEditions + 1,
+          price: song.mintPrice,
+          buyer: userPub,
+          creator: creatorPub,
+          creatorShare: creatorPub === userPub ? 0 : Math.floor(song.mintPrice * 0.7),
+          relayShare: relayShare * 2, // Totale per i relay
+          timestamp: Date.now()
+        };
+        
+        // Verifica se la transazione esiste già prima di salvarla
+        musicProtocol.get('transactions').get(transactionId).once((existingTx) => {
+          if (!existingTx) {
+            // Salviamo la transazione in un nodo transazioni solo se non esiste già
+            musicProtocol.get('transactions').get(transactionId).put(transactionData);
+            console.log(`Transazione registrata: ${song.mintPrice} token distribuiti`);
+          }
+        });
+      }
+      
+      // Aggiorna il conteggio delle edizioni mintate
+      songsRef.get(songId).put({
+        ...song,
+        mintedEditions: mintedEditions + 1
+      });
+      
+      // Aggiorna la cache locale
+      userTokenBalance = newBalance;
+      cachedNFTs[nftId] = nft;
+      cachedSongs[songId] = {
+        ...song,
+        mintedEditions: mintedEditions + 1
+      };
+      
+      // Renderizza brani aggiornati
+      renderSongs();
+      
+      // Aggiorna UI se le funzioni sono disponibili
+      if (typeof updateTokenUI === 'function') {
+        updateTokenUI(newBalance);
+      }
+      
+      if (typeof updateNFTUI === 'function') {
+        updateNFTUI();
+      }
+      
+      if (callback) callback(null, `Hai mintato con successo l'edizione #${nft.edition} di ${song.title}`);
+    }
+    
+    // Funzione per ottenere gli NFT dell'utente
+    function getUserNFTs() {
+      return cachedNFTs;
     }
   
     // Esegue un fetch una tantum delle tracce (non real-time)
@@ -358,210 +1141,252 @@
       return true; // Assume sempre che il contenuto sia disponibile
     }
   
-    // Espone le funzioni e gli oggetti utili tramite l'oggetto globale Protocol
+    // Esporta API pubbliche
     window.Protocol = {
-      registerUser: function (username, password, callback) {
+      addRelay,
+      getActiveRelays: () => peers,
+      removeRelay: (index) => {
+        if (peers[index]) {
+          peers.splice(index, 1);
+          updateGunInstance();
+        }
+      },
+      registerUser: (username, password, callback) => {
         if (!username || !password) {
           if (callback) callback("Username e password sono richiesti", null);
           return;
         }
 
-        try {
-          console.log("Tentativo di registrazione per:", username);
-          user.leave(); // Ensure clean state
-
-          user.create(username, password, function(ack) {
-            // Check for errors reported by create (ack will contain error info if failed)
-            if (ack && (ack.err || ack.code)) {
-              const errorMsg = ack.err || ack.message || "Errore durante la creazione dell'utente";
-              console.error("Errore creazione utente:", errorMsg, ack);
-              if (callback) callback(errorMsg, null);
-              return;
-            }
-
-            // Registration successful, now attempt immediate login
-            console.log("Registrazione preliminare riuscita, tentativo di login...");
-            user.auth(username, password, function(authAck) {
-              // Check for login errors
-              if (authAck && (authAck.err || authAck.code)) {
-                const errorMsg = authAck.err || authAck.message || "Login dopo registrazione fallito";
-                console.error("Errore login post-registrazione:", errorMsg, authAck);
-                // Still call registration successful, but login failed
-                if (callback) callback(null, "Registrazione completata, ma login fallito. Riprova il login.");
+        user.create(username, password, (createUserAck) => {
+          if (createUserAck.err) {
+            if (callback) callback(createUserAck.err, null);
                 return;
               }
 
-              // Login successful
-              console.log("Login post-registrazione riuscito.");
-              isUserAuthenticated = true;
-              if (callback) callback(null, "Registrazione e login completati con successo!");
-
-              // Initialize session immediately
-              cachedSongs = {};
-              try {
-                initSongCache();
-                initSongSubscription();
-                // Ensure UI update function exists and call it
-                if (window.updateAuthUI && typeof window.updateAuthUI === 'function') {
-                  window.updateAuthUI();
+          user.auth(username, password, (authAck) => {
+            if (authAck.err) {
+              if (callback) callback(authAck.err, null);
+                  return;
                 }
-              } catch (e) {
-                console.error("Errore durante l'inizializzazione dopo registrazione/login:", e);
-              }
+
+                isUserAuthenticated = true;
+            
+            // Inizializza i dati dell'utente dopo la registrazione
+            initUserTokens();
+            initUserNFTs();
+                  initSongCache();
+                  initSongSubscription();
+            
+            if (callback) callback(null, "Registrazione completata con successo!");
+              });
             });
-          });
-        } catch (e) {
-          console.error("Eccezione durante la registrazione:", e);
-          if (callback) callback("Errore imprevisto durante la registrazione", null);
-        }
       },
-      
-      loginUser: function (username, password, callback) {
+      loginUser: (username, password, callback) => {
         if (!username || !password) {
           if (callback) callback("Username e password sono richiesti", null);
           return;
         }
 
-        // Reset flag first
-        isUserAuthenticated = false;
-
-        try {
-          console.log("Tentativo di login per:", username);
-          user.leave(); // Ensure clean state before auth attempt
-
-          user.auth(username, password, function(ack) {
-            // Check for errors reported by auth (ack will contain error info if failed)
-            if (ack && (ack.err || ack.code)) {
-              const errorMsg = ack.err || ack.message || "Username o password non validi";
-              console.error("Errore login:", errorMsg, ack);
-              isUserAuthenticated = false; // Ensure flag is false on error
-              if (callback) callback(errorMsg, null);
-              // Clean up UI if necessary
-              if (window.updateAuthUI && typeof window.updateAuthUI === 'function') {
-                window.updateAuthUI();
+        user.auth(username, password, (ack) => {
+          if (ack.err) {
+            if (callback) callback(ack.err, null);
+                return;
               }
-              return;
-            }
 
-            // Login appears successful according to callback, double-check user state
-            if (!user.is || !user.is.pub) {
-               console.error("Errore post-login: stato utente Gun non valido.");
-               isUserAuthenticated = false;
-               if (callback) callback("Autenticazione fallita: stato utente invalido", null);
-               // Clean up UI if necessary
-               if (window.updateAuthUI && typeof window.updateAuthUI === 'function') {
-                 window.updateAuthUI();
-               }
-               return;
-            }
-
-            // Login successful
-            console.log("Login avvenuto con successo:", user.is.alias);
-            isUserAuthenticated = true;
-            if (callback) callback(null, "Login effettuato con successo!");
-
-            // After successful login, initialize the cache and subscription immediately
-            cachedSongs = {}; // Reset cache before filling
-            try {
-              initSongCache();
-              initSongSubscription();
-              // Ensure UI update function exists and call it
-              if (window.updateAuthUI && typeof window.updateAuthUI === 'function') {
-                window.updateAuthUI();
-              }
-            } catch (e) {
-              console.error("Errore durante l'inizializzazione dopo login:", e);
-            }
-          });
-        } catch (e) {
-          console.error("Eccezione durante il login:", e);
-          isUserAuthenticated = false; // Ensure flag is false on exception
-          if (callback) callback("Errore imprevisto durante il login", null);
-          // Clean up UI if necessary
-          if (window.updateAuthUI && typeof window.updateAuthUI === 'function') {
-             window.updateAuthUI();
-          }
-        }
+              isUserAuthenticated = true;
+          
+          // Inizializza i dati dell'utente dopo il login
+          initUserTokens();
+          initUserNFTs();
+                initSongCache();
+                initSongSubscription();
+          
+          if (callback) callback(null, "Login completato con successo!");
+        });
       },
-      saveSong: function (song, callback) {
-        // Verifica che l'utente sia autenticato
-        if (!checkAuthState()) {
-          if (callback) callback("Devi effettuare il login per salvare un brano", null);
-          return;
-        }
-
-        try {
-          console.log("Tentativo di salvataggio brano:", song.title);
-
-          if (!song.id) {
-            // Use Gun's soul generation for potential better compatibility if needed later
-            // song.id = Gun.node.soul(song) || ("song-" + Date.now()); // Or keep simple ID
-             song.id = "song-" + Date.now() + Math.random().toString(16).slice(2); // Add randomness
-          }
-          song.timestamp = new Date().toISOString();
-
-          console.log(`Tentativo: songsRef.set() con ID: ${song.id}`);
-          console.log("Oggetto brano da salvare:", JSON.stringify(song));
-          console.log("songsRef è valido?", !!songsRef);
-
-
-          // Salva il brano nel nodo pubblico 'songs'
-          songsRef.get(song.id).put(song, function(ack) { // Use put on the specific key
-            console.log("Callback di songsRef.put() eseguita."); // Log callback execution
-
-            if (ack && ack.err) {
-              console.error("Errore restituito da Gun .put():", ack.err);
-              // Provide a more specific error message if possible
-              const errorMsg = typeof ack.err === 'object' ? (ack.err.message || JSON.stringify(ack.err)) : ack.err;
-              if (callback) callback(`Errore durante il salvataggio: ${errorMsg}`, null);
-            } else if (ack && !ack.ok) {
-               console.warn("Gun .put() ha restituito ack ma non 'ok':", ack);
-               // Consider this a potential issue, but might not be a full error
-               if (callback) callback("Salvataggio completato ma con avviso dal DB.", null); // Treat as success with warning
-               // Optionally, still update cache and UI
-               cachedSongs[song.id] = song; // Update cache optimistically or after verification
-               renderSongs(); // Update UI
-            }
-             else {
-              console.log("Brano salvato con successo (ack):", ack);
-              // Update local cache immediately on success
-              cachedSongs[song.id] = song;
-              renderSongs(); // Update UI immediately
-              if (callback) callback(null, "Brano salvato con successo!");
-            }
-          });
-
-          console.log("Chiamata a songsRef.put() completata (callback potrebbe essere asincrona).");
-
-        } catch (e) {
-          console.error("Eccezione durante il salvataggio:", e);
-          if (callback) callback("Errore imprevisto durante il salvataggio", null);
-        }
-      },
-      logout: function() {
+      isAuthenticated: () => isUserAuthenticated,
+      logout: () => {
         user.leave();
         isUserAuthenticated = false;
         cachedSongs = {};
-        renderSongs(); // Aggiorna la UI dopo il logout
-        console.log("Logout effettuato");
-        return true;
+        cachedNFTs = {};
+        userTokenBalance = 0;
       },
-      isAuthenticated: function() {
-        return checkAuthState(); // Verifica sempre lo stato attuale
-      },
-      subscribeSongs: initSongSubscription,
-      fetchTracks: fetchTracks,
-      renderSongs: renderSongs,
-      playSong: playSong,
-      addRelay: addRelay,
-      updateGunInstance: updateGunInstance,
-      // Accesso diretto agli oggetti interni se necessario
-      getGunInstance: () => gun,
       getUser: () => user,
-      getSongsRef: () => songsRef,
-      // Aggiungi nuovi metodi
+      saveSong: (songData, callback) => {
+        // Verifica l'autenticazione admin tramite localStorage o autenticazione utente standard
+        const adminToken = localStorage.getItem('adminToken');
+        const isAdminAuthenticated = adminToken === METADATA_AUTH_TOKEN;
+        
+        if (!isUserAuthenticated && !isAdminAuthenticated) {
+          if (callback) callback("Utente non autenticato", null);
+          return;
+        }
+        
+        if (!songData.title || !songData.artist) {
+          if (callback) callback("Titolo e artista sono obbligatori", null);
+          return;
+        }
+        
+        // Aggiungi timestamp di creazione e userRef (o adminRef per admin)
+        const fullSongData = {
+          ...songData,
+          createdAt: new Date().toISOString(),
+          createdBy: isAdminAuthenticated ? 'admin' : user.is.pub
+        };
+        
+        // Salva nella struttura GUN
+        const songNode = songsRef.set(fullSongData);
+        songNode.once((data, key) => {
+          console.log("Brano salvato con ID:", key);
+          if (callback) callback(null, "Brano salvato con successo!");
+        });
+      },
+      deleteSong: (songId, callback) => {
+        // Verifica l'autenticazione admin tramite localStorage o autenticazione utente standard
+        const adminToken = localStorage.getItem('adminToken');
+        const isAdminAuthenticated = adminToken === METADATA_AUTH_TOKEN;
+        
+        if (!isUserAuthenticated && !isAdminAuthenticated) {
+          if (callback) callback("Utente non autenticato", null);
+          return;
+        }
+        
+        if (!songId) {
+          if (callback) callback("ID brano non valido", null);
+          return;
+        }
+        
+        // In GUN non c'è una vera "cancellazione", quindi impostiamo
+        // un valore nullo o un flag "deleted"
+        songsRef.get(songId).put({ deleted: true }, (ack) => {
+          if (ack.err) {
+            if (callback) callback(ack.err, null);
+          } else {
+            if (callback) callback(null, "Brano eliminato con successo");
+            delete cachedSongs[songId];
+            renderSongs();
+          }
+        });
+      },
+      renderSongs,
+      playSong,
+      subscribeSongs: (callback) => {
+        songsRef.map().on((song, id) => {
+          if (song && id && !song.deleted) {
+            callback(song, id);
+          }
+        });
+      },
+      fetchTracks,
       searchTracks,
-      ensureContentAvailability,
+      // Nuove funzioni per token e NFT
+      claimDailyTokens,
+      getTokenBalance,
+      setMintingDetails,
+      getSong,
+      mintEdition,
+      getUserNFTs,
+      loginWithMetaMask: async (callback) => {
+        if (shogun && shogun.metamask) {
+          try {
+            // Prima ottieni l'indirizzo da MetaMask
+          if (!window.ethereum) {
+              throw new Error("MetaMask non è installato");
+          }
+
+          // Richiedi l'accesso agli account
+          const accounts = await window.ethereum.request({ 
+            method: 'eth_requestAccounts' 
+          });
+          
+          if (!accounts || accounts.length === 0) {
+            throw new Error('Nessun account MetaMask disponibile');
+          }
+
+          const address = accounts[0];
+          
+            // Ora usa la funzione corretta con l'indirizzo
+            const result = await shogun.loginWithMetaMask(address);
+
+          if (result.success) {
+            isUserAuthenticated = true;
+              initUserTokens();
+              initUserNFTs();
+            initSongCache();
+            initSongSubscription();
+              if (callback) callback(null, "Login con MetaMask completato con successo!");
+          } else {
+              if (callback) callback(result.error || "Login con MetaMask fallito", null);
+          }
+        } catch (error) {
+            if (callback) callback(error.message, null);
+          }
+        } else {
+          if (callback) callback("Supporto MetaMask non disponibile", null);
+        }
+      },
+      loginWithWebAuthn: async (username, callback) => {
+        if (shogun && shogun.webauthn) {
+          try {
+            // Corretto: Usa loginWithWebAuthn invece di login
+          const result = await shogun.loginWithWebAuthn(username);
+          if (result.success) {
+            isUserAuthenticated = true;
+              initUserTokens();
+              initUserNFTs();
+            initSongCache();
+            initSongSubscription();
+              if (callback) callback(null, "Login con WebAuthn completato con successo!");
+          } else {
+              if (callback) callback(result.error || "Login con WebAuthn fallito", null);
+          }
+        } catch (error) {
+            if (callback) callback(error.message, null);
+          }
+        } else {
+          if (callback) callback("Supporto WebAuthn non disponibile", null);
+        }
+      },
+      signUpWithWebAuthn: async (username, callback) => {
+        if (shogun && shogun.webauthn) {
+          try {
+          const result = await shogun.signUpWithWebAuthn(username);
+          if (result.success) {
+            isUserAuthenticated = true;
+              initUserTokens();
+              initUserNFTs();
+            initSongCache();
+            initSongSubscription();
+              if (callback) callback(null, "Registrazione con WebAuthn completata con successo!");
+          } else {
+              if (callback) callback(result.error || "Registrazione con WebAuthn fallita", null);
+          }
+        } catch (error) {
+            if (callback) callback(error.message, null);
+          }
+                  } else {
+          if (callback) callback("Supporto WebAuthn non disponibile", null);
+        }
+      },
+      loginWithToken: (token, callback) => {
+        // Login semplificato per admin
+        if (token === METADATA_AUTH_TOKEN) {
+          isUserAuthenticated = true;
+          
+          // Inizializza le cache e sottoscrizioni
+          initSongCache();
+          initSongSubscription();
+          
+          // Log di debug
+          console.log("Login admin completato. Verifica cache brani:", Object.keys(cachedSongs).length);
+          
+          if (callback) callback(null, "Login admin completato con successo!");
+        } else {
+          if (callback) callback("Token non valido", null);
+        }
+      }
     };
+    
   })();
   

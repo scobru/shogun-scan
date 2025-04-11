@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Shogun Music - Admin Panel</title>
+  <!-- Bootstrap CSS -->
+  <link 
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+    rel="stylesheet"
+  >
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .card-header h2 {
+      margin: 0;
+    }
+    .artwork-img {
+      width: 50px; 
+      height: 50px; 
+      object-fit: cover; 
+      margin-right: 8px;
+      border-radius: 4px;
+    }
+    .admin-header {
+      background-color: #343a40;
+      color: white;
+      padding: 1rem 0;
+      margin-bottom: 2rem;
+    }
+    .admin-panel {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .token-alert {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      text-align: center;
+      padding: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="tokenAlert" class="token-alert bg-danger d-none">
+    Token di autenticazione non valido o mancante!
+  </div>
+
+  <header class="admin-header">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <h1>Shogun Music - Admin Panel</h1>
+        <div>
+          <a href="index.html" class="btn btn-outline-light me-2">Player</a>
+          <button id="logoutBtn" class="btn btn-warning">Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container admin-panel">
+    <!-- Sezione Relay Dinamico -->
+    <section class="card mb-4">
+      <div class="card-header">
+        <h2 class="h5">Gestione Relay Gun</h2>
+      </div>
+      <div class="card-body">
+        <form class="row g-3">
+          <div class="col-md-9">
+            <label for="relayUrl" class="form-label">Inserisci URL di un Relay Gun</label>
+            <input 
+              type="text" 
+              id="relayUrl" 
+              class="form-control" 
+              placeholder="Es: http://localhost:8765/gun" 
+            >
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button 
+              type="button" 
+              id="addRelayBtn" 
+              class="btn btn-secondary w-100"
+            >
+              Aggiungi Relay
+            </button>
+          </div>
+        </form>
+        <div class="mt-3">
+          <h6>Relay Attivi</h6>
+          <ul id="activeRelays" class="list-group">
+            <!-- I relay attivi verranno visualizzati qui -->
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sezione Upload MP3 -->
+    <section class="card mb-4">
+      <div class="card-header">
+        <h2 class="h5">Upload MP3</h2>
+      </div>
+      <div class="card-body">
+        <form id="uploadMp3Form" onsubmit="event.preventDefault(); return false;">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+              <label for="mp3FileInput" class="form-label">Seleziona traccia audio (MP3)</label>
+              <input 
+                type="file" 
+                id="mp3FileInput" 
+                class="form-control" 
+                accept="audio/mpeg" 
+                required
+              >
+            </div>
+            <div class="col-md-4">
+              <button 
+                type="button" 
+                id="uploadMp3Btn" 
+                class="btn btn-success w-100"
+              >
+                Carica MP3
+              </button>
+            </div>
+          </div>
+          <p id="uploadMp3Status" class="mt-2 text-danger"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- Sezione Upload Artwork -->
+    <section class="card mb-4">
+      <div class="card-header">
+        <h2 class="h5">Upload Artwork</h2>
+      </div>
+      <div class="card-body">
+        <form id="uploadArtworkForm" onsubmit="event.preventDefault(); return false;">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+              <label for="artworkFileInput" class="form-label">Seleziona immagine (jpg/png)</label>
+              <input 
+                type="file" 
+                id="artworkFileInput" 
+                class="form-control" 
+                accept="image/*" 
+                required
+              >
+            </div>
+            <div class="col-md-4">
+              <button 
+                type="button" 
+                id="uploadArtworkBtn" 
+                class="btn btn-success w-100"
+              >
+                Carica Artwork
+              </button>
+            </div>
+          </div>
+          <p id="uploadArtworkStatus" class="mt-2 text-danger"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- Sezione Compilazione Metadati e Salvataggio Brano -->
+    <section class="card mb-4">
+      <div class="card-header">
+        <h2 class="h5">Aggiungi Brano (Metadati)</h2>
+      </div>
+      <div class="card-body">
+        <form id="songForm" class="row g-3" onsubmit="event.preventDefault(); return false;">
+          <div class="col-md-6">
+            <label for="songTitle" class="form-label">Titolo</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="songTitle" 
+              placeholder="Titolo del brano" 
+              required
+            >
+          </div>
+          <div class="col-md-6">
+            <label for="songArtist" class="form-label">Artista</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="songArtist" 
+              placeholder="Artista" 
+              required
+            >
+          </div>
+          <div class="col-md-6">
+            <label for="songAlbum" class="form-label">Album</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="songAlbum" 
+              placeholder="Album"
+            >
+          </div>
+          <div class="col-md-6">
+            <label for="songGenre" class="form-label">Genere</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="songGenre" 
+              placeholder="Genere"
+            >
+          </div>
+          <!-- Campi nascosti per memorizzare gli URL e la durata -->
+          <input type="hidden" id="songFileUrl">
+          <input type="hidden" id="artworkFileUrl">
+          <input type="hidden" id="songDuration">
+          <div class="col-md-12">
+            <button type="button" id="saveSongBtn" class="btn btn-primary">Salva Brano</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Sezione Gestione Catalogo -->
+    <section class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="h5">Gestione Catalogo</h2>
+        <button id="refreshCatalogBtn" class="btn btn-sm btn-outline-primary">Aggiorna</button>
+      </div>
+      <div class="card-body">
+        <ul id="adminSongList" class="list-group mb-3">
+          <!-- I brani verranno visualizzati qui -->
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <!-- Bootstrap Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Gun + SEA -->
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+  <!-- Shogun Core -->
+  <script src="shogun-core.js"></script>
+  <!-- protocol.js: Logica centralizzata per GunDB e relay -->
+  <script src="protocol.js"></script>
+  <script>
+    // Token di autorizzazione per il storage relay
+    const STORAGE_AUTH_TOKEN = "mySecretToken123";
+    
+    // Token di autorizzazione per il metadata relay
+    const METADATA_AUTH_TOKEN = "myMetadataToken123";
+
+    // Funzione per verificare se l'admin è autorizzato
+    function checkAdminAuthorization() {
+      // Controlla se il token è memorizzato in localStorage
+      const adminToken = localStorage.getItem('adminToken');
+      
+      if (!adminToken || adminToken !== METADATA_AUTH_TOKEN) {
+        // Mostra l'alert di token non valido
+        document.getElementById('tokenAlert').classList.remove('d-none');
+        
+        // Richiedi il token
+        const token = prompt("Inserisci il token di amministrazione:");
+        
+        if (token === METADATA_AUTH_TOKEN) {
+          // Salva il token e rimuovi l'alert
+          localStorage.setItem('adminToken', token);
+          document.getElementById('tokenAlert').classList.add('d-none');
+          return true;
+        } else {
+          // Token non valido, reindirizza alla pagina principale
+          alert("Token non valido. Accesso negato.");
+          window.location.href = "index.html";
+          return false;
+        }
+      }
+      
+      return true;
+    }
+
+    // Controlla l'autorizzazione all'avvio
+    if (!checkAdminAuthorization()) {
+      // Se non autorizzato, il reindirizzamento avverrà nella funzione checkAdminAuthorization
+    }
+
+    // Logout admin
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      // Rimuove il token admin
+      localStorage.removeItem('adminToken');
+      
+      // Logout da Protocol
+      Protocol.logout();
+      
+      // Reindirizza alla pagina principale
+      window.location.href = "index.html";
+    });
+
+    // Funzione di utilità per mostrare errori o successi
+    function showMessage(elementId, message, isError = false) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      
+      element.textContent = message;
+      element.className = isError ? 'mt-2 text-danger' : 'mt-2 text-success';
+      
+      // Reset dopo 5 secondi
+      setTimeout(() => {
+        element.textContent = '';
+      }, 5000);
+    }
+
+    // Aggiorna elenco dei relay attivi
+    function updateActiveRelays() {
+      const activeRelays = Protocol.getActiveRelays();
+      const relayList = document.getElementById('activeRelays');
+      
+      if (!relayList || !activeRelays || activeRelays.length === 0) {
+        relayList.innerHTML = '<li class="list-group-item">Nessun relay configurato</li>';
+        return;
+      }
+      
+      let html = '';
+      activeRelays.forEach((relay, index) => {
+        html += `
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            ${relay}
+            <button class="btn btn-sm btn-danger" onclick="removeRelay(${index})">
+              Rimuovi
+            </button>
+          </li>
+        `;
+      });
+      
+      relayList.innerHTML = html;
+    }
+
+    // Funzione per rimuovere un relay
+    function removeRelay(index) {
+      Protocol.removeRelay(index);
+      updateActiveRelays();
+    }
+
+    // Funzione per impostare i dettagli delle edizioni (prezzo e totale)
+    function setEditionDetails(songId) {
+      const mintPriceInput = document.getElementById(`mintPrice-${songId}`);
+      const totalEditionsInput = document.getElementById(`totalEditions-${songId}`);
+      
+      if (!mintPriceInput || !totalEditionsInput) {
+        alert("Errore: Input non trovati");
+        return;
+      }
+      
+      const mintPrice = parseInt(mintPriceInput.value);
+      const totalEditions = parseInt(totalEditionsInput.value);
+      
+      // Validazione
+      if (isNaN(mintPrice) || mintPrice <= 0) {
+        alert("Il prezzo deve essere un numero positivo");
+        return;
+      }
+      
+      if (isNaN(totalEditions) || totalEditions <= 0) {
+        alert("Il numero di edizioni deve essere un numero positivo");
+        return;
+      }
+      
+      // Disabilita il pulsante durante il salvataggio
+      const setButton = document.querySelector(`button[onclick="setEditionDetails('${songId}')"]`);
+      if (setButton) {
+        setButton.disabled = true;
+        setButton.textContent = "Salvataggio...";
+      }
+      
+      // Mostra indicatore di caricamento
+      const statusDiv = document.createElement('div');
+      statusDiv.id = `edition-status-${songId}`;
+      statusDiv.className = 'text-info mt-2';
+      statusDiv.textContent = 'Salvataggio in corso...';
+      
+      // Inserisci lo status div dopo il bottone
+      if (setButton && setButton.parentNode) {
+        setButton.parentNode.appendChild(statusDiv);
+      }
+      
+      // Aggiorna lo stato della UI
+      function updateStatus(message, type = 'info') {
+        if (statusDiv) {
+          statusDiv.className = `text-${type} mt-2`;
+          statusDiv.textContent = message;
+        }
+      }
+      
+      // Imposta i dettagli tramite Protocol
+      Protocol.setMintingDetails(songId, mintPrice, totalEditions, (err, msg) => {
+        // Riabilita il pulsante
+        if (setButton) {
+          setButton.disabled = false;
+          setButton.textContent = "Imposta";
+        }
+        
+        if (err) {
+          alert("Errore: " + err);
+          updateStatus('Errore: ' + err, 'danger');
+          return;
+        }
+        
+        // Mostra messaggio di successo
+        alert(msg);
+        updateStatus(msg, 'success');
+        
+        // Avvia una verifica periodica per un massimo di 5 tentativi
+        let checkAttempts = 0;
+        const maxCheckAttempts = 5;
+        const verifyInterval = 1000; // 1 secondo tra i tentativi
+        
+        function verifyMintingDetails() {
+          checkAttempts++;
+          updateStatus(`Verifica dei dati salvati (tentativo ${checkAttempts}/${maxCheckAttempts})...`, 'info');
+          
+          // Induce un reload subito per aggiornare la UI
+          Protocol.renderSongs();
+          
+          setTimeout(() => {
+            // Log dei dati per debug
+            console.log("Verifica dati salvati per songId:", songId);
+            
+            if (Protocol.getSong) {
+              const savedSong = Protocol.getSong(songId);
+              console.log("Dati salvati:", savedSong);
+              
+              if (!savedSong || !savedSong.mintPrice || !savedSong.totalEditions) {
+                console.warn("I dettagli di minting non sono stati verificati al tentativo", checkAttempts);
+                
+                if (checkAttempts < maxCheckAttempts) {
+                  // Tenta di nuovo dopo un intervallo
+                  setTimeout(verifyMintingDetails, verifyInterval);
+                } else {
+                  // Abbiamo esaurito i tentativi
+                  console.error("I dettagli di minting non sono stati salvati correttamente dopo", maxCheckAttempts, "tentativi");
+                  updateStatus('Avviso: i dettagli potrebbero non essere stati salvati correttamente. Ricarica la pagina e verifica.', 'warning');
+                }
+              } else {
+                // Verificato correttamente
+                console.log("Dettagli di minting verificati:", savedSong.mintPrice, savedSong.totalEditions);
+                updateStatus(`Dettagli salvati con successo! Prezzo: ${savedSong.mintPrice} token, Edizioni: ${savedSong.totalEditions}`, 'success');
+                
+                // Forza un altro rendering dopo la verifica
+                Protocol.renderSongs();
+              }
+            } else {
+              console.error("Funzione getSong non disponibile in Protocol");
+              updateStatus('Errore nella verifica: funzione getSong non disponibile', 'danger');
+            }
+          }, 500);
+        }
+        
+        // Avvia la prima verifica dopo 1 secondo
+        setTimeout(verifyMintingDetails, 1000);
+      });
+    }
+
+    // Gestione relay
+    document.getElementById('addRelayBtn').addEventListener('click', () => {
+      const relayUrl = document.getElementById('relayUrl').value;
+      if (relayUrl) {
+        Protocol.addRelay(relayUrl);
+        document.getElementById('relayUrl').value = "";
+        updateActiveRelays();
+      }
+    });
+
+    /*********************************************
+     * GESTIONE FILE: UPLOAD MP3 E ARTWORK
+     *********************************************/
+    let mp3Duration = 0;
+    let mp3File = null;
+    let artworkFile = null;
+    
+    // Upload MP3: Estrae durata e carica il file
+    const mp3FileInput = document.getElementById('mp3FileInput');
+    mp3FileInput.addEventListener('change', () => {
+      mp3File = mp3FileInput.files[0];
+      if (!mp3File) return;
+      try {
+        const audioUrl = URL.createObjectURL(mp3File);
+        const audio = new Audio();
+        audio.addEventListener('loadedmetadata', () => {
+          mp3Duration = Math.floor(audio.duration);
+          document.getElementById('uploadMp3Status').textContent = 
+            `File MP3: ${mp3File.name} (${mp3Duration} sec)`;
+          document.getElementById('songDuration').value = mp3Duration;
+        });
+        audio.src = audioUrl;
+      } catch (err) {
+        console.error("Errore:", err);
+      }
+    });
+    
+    document.getElementById('uploadMp3Btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      if (!mp3File) {
+        showMessage('uploadMp3Status', "Seleziona prima un file MP3.", true);
+        return;
+      }
+      
+      showMessage('uploadMp3Status', "Caricamento MP3 in corso...");
+      const formData = new FormData();
+      formData.append('file', mp3File);
+      
+      fetch('http://localhost:3000/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': STORAGE_AUTH_TOKEN
+        },
+        body: formData
+      })
+      .then(r => {
+        if (!r.ok) {
+          if (r.status === 401 || r.status === 403) {
+            throw new Error("Errore di autenticazione con il server di storage");
+          }
+          throw new Error("Errore del server: " + r.status);
+        }
+        return r.json();
+      })
+      .then(data => {
+        showMessage('uploadMp3Status', "MP3 caricato con successo!", false);
+        document.getElementById('songFileUrl').value = data.fileUrl;
+        document.getElementById('songDuration').value = mp3Duration;
+      })
+      .catch(err => {
+        console.error(err);
+        showMessage('uploadMp3Status', "Errore caricamento MP3: " + err.message, true);
+      });
+    });
+    
+    // Upload Artwork
+    const artworkFileInput = document.getElementById('artworkFileInput');
+    artworkFileInput.addEventListener('change', () => {
+      artworkFile = artworkFileInput.files[0];
+    });
+    
+    document.getElementById('uploadArtworkBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      if (!artworkFile) {
+        showMessage('uploadArtworkStatus', "Seleziona prima un file immagine.", true);
+        return;
+      }
+      
+      showMessage('uploadArtworkStatus', "Caricamento Artwork in corso...");
+      const formData = new FormData();
+      formData.append('file', artworkFile);
+      
+      fetch('http://localhost:3000/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': STORAGE_AUTH_TOKEN
+        },
+        body: formData
+      })
+      .then(r => {
+        if (!r.ok) {
+          if (r.status === 401 || r.status === 403) {
+            throw new Error("Errore di autenticazione con il server di storage");
+          }
+          throw new Error("Errore del server: " + r.status);
+        }
+        return r.json();
+      })
+      .then(data => {
+        showMessage('uploadArtworkStatus', "Artwork caricato con successo!", false);
+        document.getElementById('artworkFileUrl').value = data.fileUrl;
+      })
+      .catch(err => {
+        console.error(err);
+        showMessage('uploadArtworkStatus', "Errore caricamento Artwork: " + err.message, true);
+      });
+    });
+    
+    /*********************************************
+     * SALVA BRANO SU GUNDB
+     *********************************************/
+    document.getElementById('saveSongBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      const title = document.getElementById('songTitle').value;
+      const artist = document.getElementById('songArtist').value;
+      const album = document.getElementById('songAlbum').value;
+      const genre = document.getElementById('songGenre').value;
+      const fileUrl = document.getElementById('songFileUrl').value;
+      const artworkUrl = document.getElementById('artworkFileUrl').value;
+      let duration = parseInt(document.getElementById('songDuration').value, 10) || 0;
+      
+      if (!title || !artist) {
+        alert("Assicurati di inserire titolo e artista!");
+        return;
+      }
+      
+      if (!fileUrl) {
+        alert("Devi prima caricare un file MP3!");
+        return;
+      }
+      
+      // Disabilita il pulsante durante il salvataggio
+      const saveBtn = document.getElementById('saveSongBtn');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = 'Salvataggio in corso...';
+      
+      const song = { title, artist, album, genre, fileUrl, artworkUrl, duration };
+      
+      Protocol.saveSong(song, (err, msg) => {
+        // Riabilita il pulsante
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = 'Salva Brano';
+        
+        if (err) {
+          alert("Errore nel salvataggio: " + err);
+        } else {
+          alert(msg || "Brano salvato con successo!");
+          
+          // Resetta il form
+          document.getElementById('songForm').reset();
+          document.getElementById('songFileUrl').value = '';
+          document.getElementById('artworkFileUrl').value = '';
+          document.getElementById('songDuration').value = '';
+          mp3File = null;
+          artworkFile = null;
+          mp3Duration = 0;
+          document.getElementById('uploadMp3Status').textContent = '';
+          document.getElementById('uploadArtworkStatus').textContent = '';
+          
+          // Aggiorna la lista dei brani
+          Protocol.renderSongs();
+        }
+      });
+    });
+
+    // Bottone per aggiornare la lista brani
+    document.getElementById('refreshCatalogBtn').addEventListener('click', () => {
+      Protocol.renderSongs();
+    });
+
+    // Funzione per eliminare un brano
+    function deleteSong(id) {
+      if (!id) return;
+      
+      if (confirm("Sei sicuro di voler eliminare questo brano?")) {
+        Protocol.deleteSong(id, (err, msg) => {
+          if (err) {
+            alert("Errore durante l'eliminazione: " + err);
+          } else {
+            alert(msg || "Brano eliminato con successo!");
+            Protocol.renderSongs();
+          }
+        });
+      }
+    }
+
+    // Inizializzazione
+    document.addEventListener('DOMContentLoaded', () => {
+      // Login automatico con token admin
+      const adminToken = localStorage.getItem('adminToken');
+      
+      if (adminToken === METADATA_AUTH_TOKEN) {
+        // Login con il token
+        Protocol.loginWithToken(adminToken, (err, result) => {
+          if (err) {
+            alert("Errore di autenticazione: " + err);
+            localStorage.removeItem('adminToken');
+            window.location.href = "index.html";
+          } else {
+            // Carica la lista dei brani
+            Protocol.renderSongs();
+            
+            // Aggiorna la lista dei relay
+            updateActiveRelays();
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html> 

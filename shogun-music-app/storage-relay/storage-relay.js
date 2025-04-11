@@ -186,6 +186,57 @@ app.get('/verify-file', (req, res) => {
   }
 });
 
+// Nuovo endpoint per eliminare file fisici dallo storage
+app.delete('/delete/:filePath(*)', checkToken, (req, res) => {
+  try {
+    // Il parametro filePath può contenere sottodirectory, quindi decodifichiamolo
+    const filePath = decodeURIComponent(req.params.filePath);
+    
+    // Verifica che il percorso sia sicuro (non consente ../ per prevenire directory traversal)
+    if (filePath.includes('../') || filePath.includes('..\\')) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Percorso file non valido: tentativo di directory traversal"
+      });
+    }
+
+    // Costruisci il percorso completo del file
+    const fullPath = path.join(uploadDir, filePath);
+    
+    console.log(`Richiesta eliminazione file: ${fullPath}`);
+    
+    // Verifica se il file esiste
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "File non trovato"
+      });
+    }
+    
+    // Elimina il file
+    fs.unlinkSync(fullPath);
+    
+    // Rimuovi anche i metadati associati
+    if (fileMetadata[filePath]) {
+      delete fileMetadata[filePath];
+    }
+    
+    console.log(`File eliminato con successo: ${fullPath}`);
+    
+    res.json({ 
+      success: true, 
+      message: "File eliminato con successo",
+      file: filePath
+    });
+  } catch (error) {
+    console.error(`Errore durante l'eliminazione del file:`, error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || "Errore interno del server durante l'eliminazione"
+    });
+  }
+});
+
 // Endpoint per l'upload dei file, protetto dal middleware checkToken
 app.post('/upload', checkToken, upload.single('file'), async (req, res) => {
   if (!req.file) {

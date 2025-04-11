@@ -30,7 +30,40 @@
 </head>
 <body>
 <div class="container my-4">
-  <h1 class="text-center mb-4">Music Protocol Demo</h1>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Music Protocol Demo</h1>
+    <a href="admin.html" class="btn btn-outline-dark">Admin Panel</a>
+  </div>
+
+  <!-- Sezione Token e NFT -->
+  <section class="card mb-4">
+    <div class="card-header">
+      <h2 class="h5">Token e NFT</h2>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="token-balance-container p-3 border rounded bg-light">
+            <h6>Bilancio Token</h6>
+            <div class="d-flex align-items-center mb-2">
+              <div class="fs-3 me-2" id="tokenBalance">0</div>
+              <small class="text-muted">tokens</small>
+            </div>
+            <button id="claimTokenBtn" class="btn btn-success">Riscatta Token Giornalieri</button>
+            <div id="claimStatus" class="mt-2 small"></div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="nft-collection-container p-3 border rounded">
+            <h6>Le tue edizioni NFT</h6>
+            <div id="nftCollection">
+              <div class="text-muted text-center">Non possiedi ancora edizioni NFT</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Sezione Relay Dinamico -->
   <section class="card mb-4">
@@ -70,143 +103,6 @@
     </div>
   </section>
 
-  <!-- Sezione Upload MP3 -->
-  <section class="card mb-4">
-    <div class="card-header">
-      <h2 class="h5">Upload MP3</h2>
-    </div>
-    <div class="card-body">
-      <form id="uploadMp3Form" class="upload-controls" onsubmit="event.preventDefault(); return false;">
-        <div class="row g-3 align-items-end">
-          <div class="col-md-8">
-            <label for="mp3FileInput" class="form-label">Seleziona traccia audio (MP3)</label>
-            <input 
-              type="file" 
-              id="mp3FileInput" 
-              class="form-control" 
-              accept="audio/mpeg" 
-              required
-            >
-          </div>
-          <div class="col-md-4">
-            <button 
-              type="button" 
-              id="uploadMp3Btn" 
-              class="btn btn-success w-100"
-            >
-              Carica MP3
-            </button>
-          </div>
-        </div>
-        <p id="uploadMp3Status" class="mt-2 text-danger"></p>
-      </form>
-      <div class="auth-required-message" style="display:none">
-        <div class="alert alert-warning">
-          Effettua il login per caricare file MP3
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Sezione Upload Artwork -->
-  <section class="card mb-4">
-    <div class="card-header">
-      <h2 class="h5">Upload Artwork</h2>
-    </div>
-    <div class="card-body">
-      <form id="uploadArtworkForm" class="upload-controls" onsubmit="event.preventDefault(); return false;">
-        <div class="row g-3 align-items-end">
-          <div class="col-md-8">
-            <label for="artworkFileInput" class="form-label">Seleziona immagine (jpg/png)</label>
-            <input 
-              type="file" 
-              id="artworkFileInput" 
-              class="form-control" 
-              accept="image/*" 
-              required
-            >
-          </div>
-          <div class="col-md-4">
-            <button 
-              type="button" 
-              id="uploadArtworkBtn" 
-              class="btn btn-success w-100"
-            >
-              Carica Artwork
-            </button>
-          </div>
-        </div>
-        <p id="uploadArtworkStatus" class="mt-2 text-danger"></p>
-      </form>
-      <div class="auth-required-message" style="display:none">
-        <div class="alert alert-warning">
-          Effettua il login per caricare immagini
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Sezione Compilazione Metadati e Salvataggio Brano -->
-  <section class="card mb-4">
-    <div class="card-header">
-      <h2 class="h5">Aggiungi Brano (Metadati)</h2>
-    </div>
-    <div class="card-body">
-      <form id="songForm" class="row g-3 upload-controls" onsubmit="event.preventDefault(); return false;">
-        <div class="col-md-6">
-          <label for="songTitle" class="form-label">Titolo</label>
-          <input 
-            type="text" 
-            class="form-control" 
-            id="songTitle" 
-            placeholder="Titolo del brano" 
-            required
-          >
-        </div>
-        <div class="col-md-6">
-          <label for="songArtist" class="form-label">Artista</label>
-          <input 
-            type="text" 
-            class="form-control" 
-            id="songArtist" 
-            placeholder="Artista" 
-            required
-          >
-        </div>
-        <div class="col-md-6">
-          <label for="songAlbum" class="form-label">Album</label>
-          <input 
-            type="text" 
-            class="form-control" 
-            id="songAlbum" 
-            placeholder="Album"
-          >
-        </div>
-        <div class="col-md-6">
-          <label for="songGenre" class="form-label">Genere</label>
-          <input 
-            type="text" 
-            class="form-control" 
-            id="songGenre" 
-            placeholder="Genere"
-          >
-        </div>
-        <!-- Campi nascosti per memorizzare gli URL e la durata -->
-        <input type="hidden" id="songFileUrl">
-        <input type="hidden" id="artworkFileUrl">
-        <input type="hidden" id="songDuration">
-        <div class="col-md-12">
-          <button type="button" id="saveSongBtn" class="btn btn-primary">Salva Brano</button>
-        </div>
-      </form>
-      <div class="auth-required-message" style="display:none">
-        <div class="alert alert-warning">
-          Effettua il login per aggiungere brani
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- Sezione Registrazione/Login -->
   <section class="card mb-4">
     <div class="card-header">
@@ -221,68 +117,138 @@
       </div>
       
       <div id="authFormsContainer">
-        <form id="registerForm" class="row g-3 mb-3">
-          <div class="col-md-5">
-            <input 
-              type="text" 
-              id="regUsername" 
-              class="form-control" 
-              placeholder="Username" 
-              autocomplete="username"
-              required
-            >
+        <!-- Tabs per i metodi di autenticazione -->
+        <ul class="nav nav-tabs mb-3" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="password-tab" data-bs-toggle="tab" data-bs-target="#password-auth" type="button" role="tab">
+              Username/Password
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="metamask-tab" data-bs-toggle="tab" data-bs-target="#metamask-auth" type="button" role="tab">
+              MetaMask
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="webauthn-tab" data-bs-toggle="tab" data-bs-target="#webauthn-auth" type="button" role="tab">
+              WebAuthn
+            </button>
+          </li>
+        </ul>
+
+        <!-- Tab content -->
+        <div class="tab-content">
+          <!-- Username/Password -->
+          <div class="tab-pane fade show active" id="password-auth" role="tabpanel">
+            <form id="registerForm" class="row g-3 mb-3">
+              <div class="col-md-5">
+                <input 
+                  type="text" 
+                  id="regUsername" 
+                  class="form-control" 
+                  placeholder="Username" 
+                  autocomplete="username"
+                  required
+                >
+              </div>
+              <div class="col-md-5">
+                <input 
+                  type="password" 
+                  id="regPassword" 
+                  class="form-control" 
+                  placeholder="Password" 
+                  autocomplete="new-password"
+                  required 
+                >
+              </div>
+              <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Registrati</button>
+              </div>
+            </form>
+            <p id="regStatus" class="text-danger"></p>
+            <form id="loginForm" class="row g-3">
+              <div class="col-md-5">
+                <input 
+                  type="text" 
+                  id="loginUsername" 
+                  class="form-control" 
+                  placeholder="Username"
+                  autocomplete="username" 
+                  required
+                >
+              </div>
+              <div class="col-md-5">
+                <input 
+                  type="password" 
+                  id="loginPassword" 
+                  class="form-control" 
+                  placeholder="Password"
+                  autocomplete="current-password" 
+                  required 
+                >
+              </div>
+              <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Login</button>
+              </div>
+            </form>
+            <p id="loginStatus" class="text-danger"></p>
           </div>
-          <div class="col-md-5">
-            <input 
-              type="password" 
-              id="regPassword" 
-              class="form-control" 
-              placeholder="Password" 
-              autocomplete="new-password"
-              required 
-            >
+
+          <!-- MetaMask -->
+          <div class="tab-pane fade" id="metamask-auth" role="tabpanel">
+            <div class="text-center">
+              <p id="metamaskStatus" class="mb-3"></p>
+              <div id="metamaskAddress" class="small text-muted mb-3"></div>
+              <button id="metamaskConnectBtn" class="btn btn-primary mb-2">Connetti MetaMask</button>
+              <div class="btn-group d-block">
+                <button id="metamaskLoginBtn" class="btn btn-success me-2" disabled>Login con MetaMask</button>
+                <button id="metamaskSignupBtn" class="btn btn-info" disabled>Registrati con MetaMask</button>
+              </div>
+            </div>
           </div>
-          <div class="col-md-2">
-            <button type="submit" class="btn btn-primary w-100">Registrati</button>
+
+          <!-- WebAuthn -->
+          <div class="tab-pane fade" id="webauthn-auth" role="tabpanel">
+            <div class="text-center">
+              <p id="webauthnStatus" class="mb-3"></p>
+              <div class="row g-3 justify-content-center">
+                <div class="col-md-6">
+                  <input 
+                    type="text" 
+                    id="webauthnUsername" 
+                    class="form-control" 
+                    placeholder="Username per WebAuthn"
+                    required
+                  >
+                </div>
+              </div>
+              <div class="mt-3">
+                <button id="webauthnLoginBtn" class="btn btn-success me-2">Login con WebAuthn</button>
+                <button id="webauthnSignupBtn" class="btn btn-info">Registrati con WebAuthn</button>
+              </div>
+            </div>
           </div>
-        </form>
-        <p id="regStatus" class="text-danger"></p>
-        <form id="loginForm" class="row g-3">
-          <div class="col-md-5">
-            <input 
-              type="text" 
-              id="loginUsername" 
-              class="form-control" 
-              placeholder="Username"
-              autocomplete="username" 
-              required
-            >
-          </div>
-          <div class="col-md-5">
-            <input 
-              type="password" 
-              id="loginPassword" 
-              class="form-control" 
-              placeholder="Password"
-              autocomplete="current-password" 
-              required 
-            >
-          </div>
-          <div class="col-md-2">
-            <button type="submit" class="btn btn-primary w-100">Login</button>
-          </div>
-        </form>
-        <p id="loginStatus" class="text-danger"></p>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- Sezione Lista Brani e Player Audio -->
   <section class="card mb-4">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
       <h2 class="h5">Lista Brani</h2>
+      <div>
+        <button id="refreshSongsBtn" class="btn btn-sm btn-outline-primary">Aggiorna</button>
+      </div>
     </div>
     <div class="card-body">
+      <div class="alert alert-info mb-3">
+        <p class="mb-0">
+          <i class="bi bi-info-circle-fill me-2"></i>
+          Questa è la pagina del <strong>Player</strong>. Per caricare nuovi brani, artwork o gestire il catalogo, visita il 
+          <a href="admin.html" class="alert-link">Pannello Admin</a>.
+        </p>
+      </div>
       <ul id="songList" class="list-group mb-3"></ul>
       <audio id="audioPlayer" class="w-100" controls></audio>
     </div>
@@ -326,6 +292,8 @@
 <!-- Gun + SEA -->
 <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+<!-- Shogun Core -->
+<script src="shogun-core.js"></script>
 <!-- protocol.js: Logica centralizzata per GunDB e relay -->
 <script src="protocol.js"></script>
 <script>
@@ -354,12 +322,16 @@
     const authStatusContainer = document.getElementById('authStatusContainer');
     const loginStatus = document.getElementById('loginStatus');
     const regStatus = document.getElementById('regStatus');
+    const metamaskStatus = document.getElementById('metamaskStatus');
+    const webauthnStatus = document.getElementById('webauthnStatus');
     
     // Reset di eventuali messaggi di errore o stato
     loginStatus.textContent = "";
     loginStatus.className = "text-danger";
     regStatus.textContent = "";
     regStatus.className = "text-danger";
+    metamaskStatus.textContent = "";
+    webauthnStatus.textContent = "";
     
     if (isAuthenticated) {
       authFormsContainer.style.display = 'none';
@@ -382,6 +354,11 @@
       // Resetta i form
       document.getElementById('loginForm').reset();
       document.getElementById('registerForm').reset();
+      document.getElementById('webauthnUsername').value = '';
+      
+      // Disabilita i pulsanti MetaMask se non connesso
+      document.getElementById('metamaskLoginBtn').disabled = true;
+      document.getElementById('metamaskSignupBtn').disabled = true;
     }
     
     // Aggiorna visibilità dei controlli per upload e salvataggio
@@ -447,7 +424,24 @@
   
   // Bottone per fetchare tracce (richiama il rendering)
   document.getElementById('fetchTracksBtn').addEventListener('click', () => {
-    if (Protocol.isAuthenticated()) {
+    // Controlla se c'è autenticazione utente o admin
+    const adminToken = localStorage.getItem('adminToken');
+    const isAdminAuth = adminToken === METADATA_AUTH_TOKEN;
+    
+    if (Protocol.isAuthenticated() || isAdminAuth) {
+      Protocol.renderSongs();
+    } else {
+      alert("Devi prima effettuare il login per visualizzare i brani.");
+    }
+  });
+  
+  // Bottone per aggiornare la lista brani
+  document.getElementById('refreshSongsBtn').addEventListener('click', () => {
+    // Controlla se c'è autenticazione utente o admin
+    const adminToken = localStorage.getItem('adminToken');
+    const isAdminAuth = adminToken === METADATA_AUTH_TOKEN;
+    
+    if (Protocol.isAuthenticated() || isAdminAuth) {
       Protocol.renderSongs();
     } else {
       alert("Devi prima effettuare il login per visualizzare i brani.");
@@ -559,218 +553,6 @@
     });
   });
   
-  /*********************************************
-   * GESTIONE FILE: UPLOAD MP3 E ARTWORK
-   *********************************************/
-  let mp3Duration = 0;
-  let mp3File = null;
-  let artworkFile = null;
-  
-  // Upload MP3: Estrae durata e carica il file
-  const mp3FileInput = document.getElementById('mp3FileInput');
-  mp3FileInput.addEventListener('change', () => {
-    mp3File = mp3FileInput.files[0];
-    if (!mp3File) return;
-    try {
-      const audioUrl = URL.createObjectURL(mp3File);
-      const audio = new Audio();
-      audio.addEventListener('loadedmetadata', () => {
-        mp3Duration = Math.floor(audio.duration);
-        document.getElementById('uploadMp3Status').textContent = 
-          `File MP3: ${mp3File.name} (${mp3Duration} sec)`;
-        document.getElementById('songDuration').value = mp3Duration;
-      });
-      audio.src = audioUrl;
-    } catch (err) {
-      console.error("Errore:", err);
-    }
-  });
-  
-  document.getElementById('uploadMp3Btn').addEventListener('click', (e) => {
-    e.preventDefault();
-    
-    if (!Protocol.isAuthenticated()) {
-      document.getElementById('uploadMp3Status').textContent = "Devi effettuare il login per caricare file.";
-      return;
-    }
-    
-    if (!mp3File) {
-      document.getElementById('uploadMp3Status').textContent = "Seleziona prima un file MP3.";
-      return;
-    }
-    document.getElementById('uploadMp3Status').textContent = "Caricamento MP3 in corso...";
-    const formData = new FormData();
-    formData.append('file', mp3File);
-    
-    fetch('http://localhost:3000/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': STORAGE_AUTH_TOKEN
-      },
-      body: formData
-    })
-    .then(r => {
-      if (!r.ok) {
-        if (r.status === 401 || r.status === 403) {
-          throw new Error("Errore di autenticazione con il server di storage");
-        }
-        throw new Error("Errore del server: " + r.status);
-      }
-      return r.json();
-    })
-    .then(data => {
-      document.getElementById('uploadMp3Status').textContent = "MP3 caricato!";
-      document.getElementById('songFileUrl').value = data.fileUrl;
-      document.getElementById('songDuration').value = mp3Duration;
-    })
-    .catch(err => {
-      console.error(err);
-      document.getElementById('uploadMp3Status').textContent = "Errore caricamento MP3: " + err.message;
-    });
-  });
-  
-  // Upload Artwork
-  const artworkFileInput = document.getElementById('artworkFileInput');
-  artworkFileInput.addEventListener('change', () => {
-    artworkFile = artworkFileInput.files[0];
-  });
-  
-  document.getElementById('uploadArtworkBtn').addEventListener('click', (e) => {
-    e.preventDefault();
-    
-    if (!Protocol.isAuthenticated()) {
-      document.getElementById('uploadArtworkStatus').textContent = "Devi effettuare il login per caricare file.";
-      return;
-    }
-    
-    if (!artworkFile) {
-      document.getElementById('uploadArtworkStatus').textContent = "Seleziona prima un file immagine.";
-      return;
-    }
-    document.getElementById('uploadArtworkStatus').textContent = "Caricamento Artwork in corso...";
-    const formData = new FormData();
-    formData.append('file', artworkFile);
-    
-    fetch('http://localhost:3000/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': STORAGE_AUTH_TOKEN
-      },
-      body: formData
-    })
-    .then(r => {
-      if (!r.ok) {
-        if (r.status === 401 || r.status === 403) {
-          throw new Error("Errore di autenticazione con il server di storage");
-        }
-        throw new Error("Errore del server: " + r.status);
-      }
-      return r.json();
-    })
-    .then(data => {
-      document.getElementById('uploadArtworkStatus').textContent = "Artwork caricato!";
-      document.getElementById('artworkFileUrl').value = data.fileUrl;
-    })
-    .catch(err => {
-      console.error(err);
-      document.getElementById('uploadArtworkStatus').textContent = "Errore caricamento Artwork: " + err.message;
-    });
-  });
-  
-  /*********************************************
-   * SALVA BRANO SU GUNDB
-   *********************************************/
-  document.getElementById('saveSongBtn').addEventListener('click', (e) => {
-    e.preventDefault();
-    
-    if (!Protocol.isAuthenticated()) {
-      alert("Devi effettuare il login per salvare un brano.");
-      return;
-    }
-    
-    const title = document.getElementById('songTitle').value;
-    const artist = document.getElementById('songArtist').value;
-    const album = document.getElementById('songAlbum').value;
-    const genre = document.getElementById('songGenre').value;
-    const fileUrl = document.getElementById('songFileUrl').value;
-    const artworkUrl = document.getElementById('artworkFileUrl').value;
-    let duration = parseInt(document.getElementById('songDuration').value, 10) || 0;
-    
-    if (!title || !artist) {
-      // Aggiungi div per il messaggio nella form invece di usare alert
-      const messageDiv = document.createElement('div');
-      messageDiv.className = 'alert alert-danger mt-2';
-      messageDiv.textContent = "Assicurati di inserire titolo e artista!";
-      document.getElementById('songForm').appendChild(messageDiv);
-      
-      setTimeout(() => {
-        document.getElementById('songForm').removeChild(messageDiv);
-      }, 5000);
-      return;
-    }
-    
-    if (!fileUrl) {
-      // Aggiungi div per il messaggio nella form invece di usare alert
-      const messageDiv = document.createElement('div');
-      messageDiv.className = 'alert alert-danger mt-2';
-      messageDiv.textContent = "Devi prima caricare un file MP3!";
-      document.getElementById('songForm').appendChild(messageDiv);
-      
-      setTimeout(() => {
-        document.getElementById('songForm').removeChild(messageDiv);
-      }, 5000);
-      return;
-    }
-    
-    // Disabilita il pulsante durante il salvataggio
-    const saveBtn = document.getElementById('saveSongBtn');
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = 'Salvataggio in corso...';
-    
-    // Crea div per lo stato del salvataggio
-    const statusDiv = document.createElement('div');
-    statusDiv.className = 'alert alert-info mt-2';
-    statusDiv.textContent = "Salvataggio in corso...";
-    document.getElementById('songForm').appendChild(statusDiv);
-    
-    const song = { title, artist, album, genre, fileUrl, artworkUrl, duration };
-    
-    Protocol.saveSong(song, (err, msg) => {
-      // Riabilita il pulsante
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = 'Salva Brano';
-      
-      if (err) {
-        statusDiv.className = 'alert alert-danger mt-2';
-        statusDiv.textContent = "Errore nel salvataggio: " + err;
-        
-        setTimeout(() => {
-          document.getElementById('songForm').removeChild(statusDiv);
-        }, 5000);
-      } else {
-        statusDiv.className = 'alert alert-success mt-2';
-        statusDiv.textContent = msg || "Brano salvato con successo!";
-        
-        setTimeout(() => {
-          // Rimuovi il messaggio e resetta il form
-          document.getElementById('songForm').removeChild(statusDiv);
-          document.getElementById('songForm').reset();
-          document.getElementById('songFileUrl').value = '';
-          document.getElementById('artworkFileUrl').value = '';
-          document.getElementById('songDuration').value = '';
-          mp3File = null;
-          artworkFile = null;
-          mp3Duration = 0;
-          document.getElementById('uploadMp3Status').textContent = '';
-          document.getElementById('uploadArtworkStatus').textContent = '';
-          
-          // Aggiorna la lista dei brani dopo aver salvato
-          Protocol.renderSongs();
-        }, 2000);
-      }
-    });
-  });
-  
   // Abbonamento agli aggiornamenti dei brani
   Protocol.subscribeSongs((song, id) => {
     Protocol.renderSongs();
@@ -779,7 +561,15 @@
   // Al caricamento della pagina, aggiorna l'interfaccia
   document.addEventListener('DOMContentLoaded', () => {
     updateAuthUI();
-    Protocol.renderSongs();
+    
+    // Controlla se c'è autenticazione utente o admin
+    const adminToken = localStorage.getItem('adminToken');
+    const isAdminAuth = adminToken === METADATA_AUTH_TOKEN;
+    
+    // Renderizza comunque i brani se siamo autenticati come admin
+    if (Protocol.isAuthenticated() || isAdminAuth) {
+      Protocol.renderSongs();
+    }
     
     // Inizializza la ricerca avanzata
     initSearchInterface();
@@ -888,6 +678,194 @@
     
     songList.innerHTML = tempHTML;
   }
+
+  // Funzione per verificare il supporto a WebAuthn
+  function checkWebAuthnSupport() {
+    const isSupported = typeof window.PublicKeyCredential !== 'undefined';
+    const webauthnStatus = document.getElementById('webauthnStatus');
+    
+    if (isSupported) {
+      webauthnStatus.textContent = 'WebAuthn è supportato dal tuo browser';
+      webauthnStatus.className = 'text-success mb-3';
+    } else {
+      webauthnStatus.textContent = 'WebAuthn non è supportato dal tuo browser';
+      webauthnStatus.className = 'text-danger mb-3';
+      document.getElementById('webauthnLoginBtn').disabled = true;
+      document.getElementById('webauthnSignupBtn').disabled = true;
+    }
+    
+    return isSupported;
+  }
+
+  // Funzione per verificare il supporto a MetaMask
+  function checkMetaMaskSupport() {
+    const isSupported = typeof window.ethereum !== 'undefined';
+    const metamaskStatus = document.getElementById('metamaskStatus');
+    
+    if (isSupported) {
+      metamaskStatus.textContent = 'MetaMask è installato';
+      metamaskStatus.className = 'text-success';
+    } else {
+      metamaskStatus.textContent = 'MetaMask non è installato';
+      metamaskStatus.className = 'text-danger';
+      document.getElementById('metamaskConnectBtn').disabled = true;
+    }
+    
+    return isSupported;
+  }
+
+  // Event listeners per MetaMask
+  document.getElementById('metamaskConnectBtn').addEventListener('click', async () => {
+    const metamaskStatus = document.getElementById('metamaskStatus');
+    const metamaskAddress = document.getElementById('metamaskAddress');
+    
+    try {
+      metamaskStatus.textContent = 'Connessione a MetaMask in corso...';
+      metamaskStatus.className = 'text-info';
+      
+      const result = await Protocol.loginWithMetaMask((err, msg) => {
+        if (err) {
+          metamaskStatus.textContent = err;
+          metamaskStatus.className = 'text-danger';
+          return;
+        }
+        updateAuthUI();
+      });
+    } catch (error) {
+      metamaskStatus.textContent = 'Errore durante la connessione a MetaMask: ' + error.message;
+      metamaskStatus.className = 'text-danger';
+    }
+  });
+
+  // Event listeners per WebAuthn
+  document.getElementById('webauthnLoginBtn').addEventListener('click', async () => {
+    const username = document.getElementById('webauthnUsername').value.trim();
+    const webauthnStatus = document.getElementById('webauthnStatus');
+    
+    if (!username) {
+      webauthnStatus.textContent = 'Inserisci uno username per procedere';
+      webauthnStatus.className = 'text-danger';
+      return;
+    }
+    
+    try {
+      webauthnStatus.textContent = 'Login in corso...';
+      webauthnStatus.className = 'text-info';
+      
+      await Protocol.loginWithWebAuthn(username, (err, msg) => {
+        if (err) {
+          webauthnStatus.textContent = err;
+          webauthnStatus.className = 'text-danger';
+          return;
+        }
+        updateAuthUI();
+      });
+    } catch (error) {
+      webauthnStatus.textContent = 'Errore durante il login con WebAuthn: ' + error.message;
+      webauthnStatus.className = 'text-danger';
+    }
+  });
+
+  document.getElementById('webauthnSignupBtn').addEventListener('click', async () => {
+    const username = document.getElementById('webauthnUsername').value.trim();
+    const webauthnStatus = document.getElementById('webauthnStatus');
+    
+    if (!username) {
+      webauthnStatus.textContent = 'Inserisci uno username per procedere';
+      webauthnStatus.className = 'text-danger';
+      return;
+    }
+    
+    try {
+      webauthnStatus.textContent = 'Registrazione in corso...';
+      webauthnStatus.className = 'text-info';
+      
+      await Protocol.signUpWithWebAuthn(username, (err, msg) => {
+        if (err) {
+          webauthnStatus.textContent = err;
+          webauthnStatus.className = 'text-danger';
+          return;
+        }
+        updateAuthUI();
+      });
+    } catch (error) {
+      webauthnStatus.textContent = 'Errore durante la registrazione con WebAuthn: ' + error.message;
+      webauthnStatus.className = 'text-danger';
+    }
+  });
+
+  // Funzione per reclamare token giornalieri
+  document.getElementById('claimTokenBtn').addEventListener('click', () => {
+    if (!Protocol.isAuthenticated()) {
+      alert("Devi prima effettuare il login per reclamare token.");
+      return;
+    }
+    
+    // Disabilita il pulsante durante la richiesta
+    const claimBtn = document.getElementById('claimTokenBtn');
+    claimBtn.disabled = true;
+    claimBtn.innerHTML = 'Riscatto in corso...';
+    
+    // Riscatta token
+    Protocol.claimDailyTokens((err, msg) => {
+      // Riabilita il pulsante
+      claimBtn.disabled = false;
+      claimBtn.innerHTML = 'Riscatta Token Giornalieri';
+      
+      const claimStatus = document.getElementById('claimStatus');
+      
+      if (err) {
+        claimStatus.textContent = err;
+        claimStatus.className = 'mt-2 small text-danger';
+      } else {
+        claimStatus.textContent = msg;
+        claimStatus.className = 'mt-2 small text-success';
+      }
+    });
+  });
+  
+  // Funzione per aggiornare l'interfaccia del bilancio token
+  function updateTokenUI(balance) {
+    document.getElementById('tokenBalance').textContent = balance || 0;
+  }
+  
+  // Funzione per aggiornare l'interfaccia delle NFT
+  function updateNFTUI() {
+    const nfts = Protocol.getUserNFTs();
+    const nftCollection = document.getElementById('nftCollection');
+    
+    if (!nfts || Object.keys(nfts).length === 0) {
+      nftCollection.innerHTML = '<div class="text-muted text-center">Non possiedi ancora edizioni NFT</div>';
+      return;
+    }
+    
+    let nftHTML = '<div class="row">';
+    
+    Object.values(nfts).forEach((nft) => {
+      // Crea un elemento per ogni NFT
+      nftHTML += `
+        <div class="col-md-6 mb-2">
+          <div class="card">
+            <div class="card-body p-2">
+              ${nft.artworkUrl ? 
+                `<img src="${nft.artworkUrl}" class="img-fluid mb-2 rounded" style="max-height: 80px; width: auto;" alt="${nft.title}">` : 
+                '<div class="bg-secondary text-white text-center py-3 mb-2">No Artwork</div>'}
+              <h6 class="card-title mb-0">${nft.title}</h6>
+              <div class="small text-muted">${nft.artist}</div>
+              <div class="badge bg-primary mt-1">Edizione #${nft.edition}/${nft.totalEditions}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    nftHTML += '</div>';
+    nftCollection.innerHTML = nftHTML;
+  }
+  
+  // Aggiungi le funzioni di aggiornamento al window per Protocol.js
+  window.updateTokenUI = updateTokenUI;
+  window.updateNFTUI = updateNFTUI;
 </script>
 </body>
 </html>
