@@ -29,16 +29,16 @@ npm install shogun-ipfs
 ```
 
 ```typescript
-import { shogun-ipfs } from "shogun-ipfs";
+import { ShogunIpfs } from "shogun-ipfs";
 
 // Initialize shogun-ipfs
-const shogun-ipfs = new shogun-ipfs({
+const shogunipfs = new ShogunIpfs({
   storage: {
-    service: 'PINATA' as const,
+    service: "PINATA" as const,
     config: {
-      pinataJwt: process.env.PINATA_JWT || '',
-      pinataGateway: process.env.PINATA_GATEWAY || ''
-    }
+      pinataJwt: process.env.PINATA_JWT || "",
+      pinataGateway: process.env.PINATA_GATEWAY || "",
+    },
   },
   features: {
     encryption: {
@@ -54,27 +54,27 @@ const shogun-ipfs = new shogun-ipfs({
 });
 
 // Create a backup
-const backup = await shogun-ipfs.backup("./data");
+const backup = await shogunipfs.backup("./data");
 console.log("Backup created:", backup.hash);
 
 // Compare changes
-const comparison = await shogun-ipfs.compare(backup.hash, "./data");
+const comparison = await shogunipfs.compare(backup.hash, "./data");
 if (!comparison.isEqual) {
   console.log("Changes detected!");
   console.log(`Time since backup: ${comparison.formattedDiff}`);
 }
 
 // Get detailed changes
-const details = await shogun-ipfs.compareDetailed(backup.hash, "./data");
+const details = await shogunipfs.compareDetailed(backup.hash, "./data");
 console.log(`Files added: ${details.totalChanges.added}`);
 console.log(`Files modified: ${details.totalChanges.modified}`);
 console.log(`Files deleted: ${details.totalChanges.deleted}`);
 
 // Restore from backup
-await shogun-ipfs.restore(backup.hash, "./restored");
+await shogunipfs.restore(backup.hash, "./restored");
 
 // Delete a backup
-const deleted = await shogun-ipfs.delete(backup.hash);
+const deleted = await shogunipfs.delete(backup.hash);
 if (deleted) {
   console.log("Backup deleted successfully");
 } else {
@@ -87,27 +87,27 @@ if (deleted) {
 ```typescript
 const baseConfig = {
   storage: {
-    service: 'PINATA' as const,
+    service: "PINATA" as const,
     config: {
-      pinataJwt: process.env.PINATA_JWT || '',
-      pinataGateway: process.env.PINATA_GATEWAY || ''
-    }
+      pinataJwt: process.env.PINATA_JWT || "",
+      pinataGateway: process.env.PINATA_GATEWAY || "",
+    },
   },
   paths: {
-    backup: './backup',    // Source directory
-    restore: './restore',  // Restore directory
-    storage: './storage', // Local storage
-    logs: path.join(process.cwd(), 'logs')
+    backup: "./backup", // Source directory
+    restore: "./restore", // Restore directory
+    storage: "./storage", // Local storage
+    logs: path.join(process.cwd(), "logs"),
   },
   features: {
     encryption: {
       enabled: true,
-      algorithm: 'aes-256-gcm'
-    }
-  }
+      algorithm: "aes-256-gcm",
+    },
+  },
 };
 
-const shogun-ipfs = new shogun-ipfs(baseConfig);
+const shogunipfs = new ShogunIpfs(baseConfig);
 ```
 
 ## Version Comparison
@@ -116,13 +116,13 @@ shogun-ipfs provides powerful comparison features to track changes between your 
 
 ```typescript
 // Basic comparison
-const comparison = (await shogun) - ipfs.compare(backup.hash, "./data");
+const comparison = await shogunipfs.compare(backup.hash, "./data");
 console.log("Files changed:", !comparison.isEqual);
 console.log("Local version is newer:", comparison.isNewer);
 console.log("Time difference:", comparison.formattedDiff);
 
 // Detailed comparison
-const details = (await shogun) - ipfs.compareDetailed(backup.hash, "./data");
+const details = await shogunipfs.compareDetailed(backup.hash, "./data");
 console.log("Added files:", details.totalChanges.added);
 console.log("Modified files:", details.totalChanges.modified);
 console.log("Deleted files:", details.totalChanges.deleted);
@@ -230,61 +230,56 @@ const config = {
 
 ```typescript
 // Backup with encryption
-const backup =
-  (await shogun) -
-  ipfs.backup("./data", {
-    encryption: {
-      enabled: true,
-      key: "your-encryption-key",
-    },
-  });
+const backup = await shogunipfs.backup("./data", {
+  encryption: {
+    enabled: true,
+    key: "your-encryption-key",
+  },
+});
 
 // Restore encrypted backup
-(await shogun) -
-  ipfs.restore(backup.hash, "./restore", {
-    encryption: {
-      enabled: true,
-      key: "your-encryption-key",
-    },
-  });
+await shogunipfs.restore(backup.hash, "./restore", {
+  encryption: {
+    enabled: true,
+    key: "your-encryption-key",
+  },
+});
 ```
 
 ### Direct Storage Operations
 
 ```typescript
 // Upload JSON data directly
-const jsonResult =
-  (await shogun) -
-  ipfs.uploadJson({
-    name: "test",
-    data: { key: "value" },
-  });
+const jsonResult = await shogunipfs.uploadJson({
+  name: "test",
+  data: { key: "value" },
+});
 console.log("JSON uploaded:", jsonResult.id);
 
 // Upload a single file
-const fileResult = (await shogun) - ipfs.uploadFile("./path/to/file.txt");
+const fileResult = await shogunipfs.uploadFile("./path/to/file.txt");
 console.log("File uploaded:", fileResult.id);
 
 // Get data by hash
-const data = (await shogun) - ipfs.getData("QmHash...");
+const data = await shogunipfs.getData("QmHash...");
 console.log("Retrieved data:", data);
 
 // Get metadata
-const metadata = (await shogun) - ipfs.getMetadata("QmHash...");
+const metadata = await shogunipfs.getMetadata("QmHash...");
 console.log("Content metadata:", metadata);
 
 // Check if content is pinned
-const isPinned = (await shogun) - ipfs.isPinned("QmHash...");
+const isPinned = await shogunipfs.isPinned("QmHash...");
 console.log("Is content pinned?", isPinned);
 
 // Unpin content
-const unpinned = (await shogun) - ipfs.unpin("QmHash...");
+const unpinned = await shogunipfs.unpin("QmHash...");
 if (unpinned) {
   console.log("Content unpinned successfully");
 }
 
 // Get storage service instance
-const storage = shogun - ipfs.getStorage();
+const storage = shogunipfs.getStorage();
 ```
 
 ### Storage Service Methods
@@ -302,24 +297,22 @@ shogun-ipfs fornisce accesso diretto ai metodi del servizio di storage sottostan
 ### Backup Options
 
 ```typescript
-const backup =
-  (await shogun) -
-  ipfs.backup("./data", {
-    // Exclude patterns
-    excludePatterns: ["*.log", ".DS_Store"],
+const backup = shogunipfs.backup("./data", {
+  // Exclude patterns
+  excludePatterns: ["*.log", ".DS_Store"],
 
-    // File size limits
-    maxFileSize: 100 * 1024 * 1024, // 100MB
+  // File size limits
+  maxFileSize: 100 * 1024 * 1024, // 100MB
 
-    // Recursive backup
-    recursive: true,
+  // Recursive backup
+  recursive: true,
 
-    // Custom metadata
-    metadata: {
-      description: "Daily backup",
-      tags: ["prod", "db"],
-    },
-  });
+  // Custom metadata
+  metadata: {
+    description: "Daily backup",
+    tags: ["prod", "db"],
+  },
+});
 ```
 
 ### General Operations
