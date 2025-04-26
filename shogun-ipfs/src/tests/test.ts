@@ -1,4 +1,4 @@
-import { Mogu } from "../core";
+import { ShogunIpfs } from "../core";
 import type { FileDiff } from "../versioning";
 import type { BackupOptions } from "../types/backup";
 import dotenv from "dotenv";
@@ -12,7 +12,7 @@ const RESTORE_DIR = path.join(process.cwd(), "test-restored");
 const STORAGE_DIR = path.join(process.cwd(), "test-storage");
 const TEST_ENCRYPTION_KEY = "test-encryption-key-123";
 
-// Configurazione base di Mogu per i test
+// Configurazione base di ShogunIpfs per i test
 const baseConfig = {
   storage: {
     service: "PINATA" as const,
@@ -87,7 +87,7 @@ async function run() {
 }
 
 async function testFileBackup(useEncryption: boolean) {
-  const mogu = new Mogu({
+  const mogu = new ShogunIpfs({
     ...baseConfig,
     features: {
       ...baseConfig.features,
@@ -174,7 +174,7 @@ async function testFileBackup(useEncryption: boolean) {
 }
 
 async function testCacheSystem() {
-  const mogu = new Mogu({
+  const mogu = new ShogunIpfs({
     ...baseConfig,
     performance: {
       ...baseConfig.performance,
@@ -343,7 +343,7 @@ async function testCacheSystem() {
 }
 
 async function testCompare() {
-  const mogu = new Mogu(baseConfig);
+  const mogu = new ShogunIpfs(baseConfig);
 
   try {
     // Test 1: Compare identical directories
@@ -591,7 +591,7 @@ async function testCompare() {
 }
 
 async function testVersioning() {
-  const mogu = new Mogu(baseConfig);
+  const mogu = new ShogunIpfs(baseConfig);
 
   // Create separate directories for each version
   const version1Dir = path.join(TEST_DIR, "version1");
@@ -716,7 +716,7 @@ async function testVersioning() {
 }
 
 async function testDelete() {
-  const mogu = new Mogu(baseConfig);
+  const mogu = new ShogunIpfs(baseConfig);
 
   // Create test directory and file
   const testDir = path.join(TEST_DIR, "delete-test");

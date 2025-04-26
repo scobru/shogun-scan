@@ -18,32 +18,7 @@ export class FileBackupAdapter implements IBackupAdapter {
     }
 
     this.originalStorage = storage;
-    this.storage = {
-      ...storage,
-      uploadJson: async (jsonData: Record<string, unknown>, options?: any) => {
-        const result = await storage.uploadJson(jsonData, options);
-        return {
-          id: result.id,
-          metadata: result.metadata || {},
-        };
-      },
-      get: async (hash: string) => {
-        if (!storage.get) {
-          throw new Error("Storage service does not support get operation");
-        }
-        const result = await storage.get(hash);
-        if (!result?.data || !result?.metadata) {
-          throw new Error("Invalid backup format");
-        }
-        return result;
-      },
-      unpin: async (hash: string) => {
-        if (!storage.unpin) {
-          throw new Error("Storage service does not support unpin operation");
-        }
-        return storage.unpin(hash);
-      },
-    };
+    this.storage = storage as StorageServiceWithMetadata;
   }
 
   public getStorage(): StorageService {

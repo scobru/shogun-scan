@@ -259,17 +259,7 @@ export class ShogunIpfs {
   public async uploadJson(jsonData: Record<string, unknown>, options?: any) {
     return this.storage.uploadJson(jsonData, options);
   }
-
-  /**
-   * Upload a file directly to storage
-   * @param {string} path - Path to the file
-   * @param {any} options - Upload options
-   * @returns {Promise<{ id: string; metadata: Record<string, unknown> }>} Upload result
-   */
-  public async uploadFile(path: string, options?: any) {
-    return this.storage.uploadFile(path, options);
-  }
-
+  
   /**
    * Get data from storage by hash
    * @param {string} hash - The hash to retrieve

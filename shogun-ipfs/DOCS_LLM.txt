@@ -29,7 +29,7 @@ shogun-ipfs is a modern decentralized backup system that combines end-to-end enc
 
 ## CONFIGURATION STRUCTURE
 ```typescript
-interface shogun-ipfsConfig {
+interface ShogunIpfsConfig {
   storage: {
     service: 'PINATA' | 'IPFS-CLIENT';
     config: {
@@ -64,31 +64,31 @@ interface shogun-ipfsConfig {
 
 1. BACKUP
 ```typescript
-shogun-ipfs.backup(sourcePath: string, options?: BackupOptions): Promise<BackupResult>
+shogunipfs.backup(sourcePath: string, options?: BackupOptions): Promise<BackupResult>
 // Creates a backup of the specified directory
 // Options include encryption settings and metadata
 ```
 
 2. RESTORE
 ```typescript
-shogun-ipfs.restore(hash: string, targetPath: string, options?: BackupOptions): Promise<boolean>
+shogunipfs.restore(hash: string, targetPath: string, options?: BackupOptions): Promise<boolean>
 // Restores a backup to the specified directory
 // Uses the same encryption settings as backup
 ```
 
 3. COMPARE
 ```typescript
-shogun-ipfs.compare(hash: string, sourcePath: string): Promise<VersionComparison>
+shogunipfs.compare(hash: string, sourcePath: string): Promise<VersionComparison>
 // Compares a backup with local files
 // Returns basic comparison info
 
-shogun-ipfs.compareDetailed(hash: string, sourcePath: string): Promise<DetailedComparison>
+shogunipfs.compareDetailed(hash: string, sourcePath: string): Promise<DetailedComparison>
 // Returns detailed file-by-file comparison
 ```
 
 4. DELETE
 ```typescript
-shogun-ipfs.delete(hash: string): Promise<boolean>
+shogunipfs.delete(hash: string): Promise<boolean>
 // Deletes a backup from storage
 // Returns success status
 ```
@@ -104,7 +104,7 @@ The system implements comprehensive error handling:
 
 1. Basic Backup with Pinata
 ```typescript
-const shogun-ipfs = new shogun-ipfs({
+const shogunipfs = new ShogunIpfs({
   storage: {
     service: 'PINATA',
     config: {
@@ -112,12 +112,12 @@ const shogun-ipfs = new shogun-ipfs({
     }
   }
 });
-const backup = await shogun-ipfs.backup('./data');
+const backup = await shogunipfs.backup('./data');
 ```
 
 2. Encrypted Backup
 ```typescript
-const backup = await shogun-ipfs.backup('./data', {
+const backup = await shogunipfs.backup('./data', {
   encryption: {
     enabled: true,
     key: 'your-encryption-key'
@@ -127,7 +127,7 @@ const backup = await shogun-ipfs.backup('./data', {
 
 3. Version Comparison
 ```typescript
-const comparison = await shogun-ipfs.compareDetailed(backup.hash, './data');
+const comparison = await shogunipfs.compareDetailed(backup.hash, './data');
 console.log(`Modified files: ${comparison.totalChanges.modified}`);
 ```
 
@@ -213,14 +213,14 @@ const shogun-ipfs = new shogun-ipfs({
 
 // Pattern 2: Error handling wrapper
 try {
-  const result = await shogun-ipfs.operation();
+  const result = await shogunipfs.operation();
   if (!result) handleError();
 } catch (error) {
   handleError(error);
 }
 
 // Pattern 3: Version comparison
-const comparison = await shogun-ipfs.compareDetailed(hash, path);
+const comparison = await shogunipfs.compareDetailed(hash, path);
 if (comparison.totalChanges.modified > 0) {
   // Handle changes
 }

@@ -1,6 +1,4 @@
-export type Web3StashServices = 
-  | "PINATA"
-  | "IPFS-CLIENT";
+export type Web3StashServices = "PINATA" | "IPFS-CLIENT";
 
 export interface BaseConfig {
   pinataJwt?: string;
@@ -16,7 +14,25 @@ export interface IpfsServiceConfig {
   url: string;
 }
 
-export interface StorageServiceWithMetadata extends StorageService {
+export interface StorageService {
+  serviceBaseUrl: string;
+  serviceInstance: any;
+  get(hash: string): Promise<any>;
+  uploadJson(jsonData: Record<string, unknown>, options?: any): Promise<UploadOutput>;
+  uploadFile(path: string, options?: any): Promise<UploadOutput>;
+  uploadImage(path: string, options?: any): Promise<UploadOutput>;
+  uploadVideo(path: string, options?: any): Promise<UploadOutput>;
+  unpin(hash: string): Promise<boolean>;
+  getMetadata(hash: string): Promise<any>;
+  isPinned(hash: string): Promise<boolean>;
+}
+
+export interface StorageServiceWithMetadata {
+  get(hash: string): Promise<any>;
+  uploadJson(jsonData: Record<string, unknown>, options?: any): Promise<UploadOutput>;
+  uploadFile(fileData: any, options?: any): Promise<UploadOutput>;
+  uploadImage(fileData: any, options?: any): Promise<UploadOutput>;
+  unpin(hash: string): Promise<boolean>;
   getMetadata(hash: string): Promise<any>;
   isPinned(hash: string): Promise<boolean>;
 }
@@ -38,16 +54,5 @@ export interface UploadOptions {
   metadata?: Record<string, any>;
 }
 
-export interface StorageService {
-  get(hash: string): Promise<any>;
-  upload(data: Buffer, options?: UploadOptions): Promise<UploadOutput>;
-  pin(hash: string): Promise<boolean>;
-  unpin(hash: string): Promise<void>;
-  uploadJson?(jsonData: Record<string, unknown>, options?: any): Promise<UploadOutput>;
-  uploadImage?(path: string, options?: any): Promise<UploadOutput>;
-  uploadVideo?(path: string, options?: any): Promise<UploadOutput>;
-  uploadFile?(path: string, options?: any): Promise<UploadOutput>;
-}
-
 // Re-export per retrocompatibilità
-export type { StorageService as BaseStorageService } from './services/base-storage'; 
+export type { StorageService as BaseStorageService } from "./services/base-storage";

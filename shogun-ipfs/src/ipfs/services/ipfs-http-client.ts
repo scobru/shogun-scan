@@ -39,26 +39,6 @@ export class IpfsService extends StorageService {
       },
     };
   }
-
-  public async uploadFile(path: string): Promise<UploadOutput> {
-    const result = await this.serviceInstance.add(path);
-    return {
-      id: result.path,
-      metadata: {
-        size: result.size,
-        type: "file",
-      },
-    };
-  }
-
-  public async uploadImage(path: string): Promise<UploadOutput> {
-    return this.uploadFile(path);
-  }
-
-  public async uploadVideo(path: string): Promise<UploadOutput> {
-    return this.uploadFile(path);
-  }
-
   public async unpin(hash: string): Promise<boolean> {
     try {
       await this.serviceInstance.pin.rm(hash);
