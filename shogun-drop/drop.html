@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DROP - Minimal P2P (v5)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --primary:#4A90E2; --primary-light:#79B8F2; --background:linear-gradient(135deg,#79B8F2 0%,#4A90E2 100%); --card:#FFF; --text:#2C3E50; --muted:#7F8C8D; --radius:12px; --spacing:1.5rem; --transition:.3s; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Nunito',sans-serif; background:var(--background); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:var(--spacing); }
+    h1 { font-size:2.5rem; margin-bottom:var(--spacing); color:#FFF; text-shadow:1px 1px 4px rgba(0,0,0,.2); }
+    .card { background:var(--card); border-radius:var(--radius); box-shadow:0 4px 20px rgba(0,0,0,.1); padding:var(--spacing); width:100%; max-width:600px; margin-bottom:var(--spacing); }
+    form { display:flex; flex-direction:column; gap:1rem; }
+    input, button, progress { font-size:1rem; }
+    input { padding:.75rem; border:1px solid #DDD; border-radius:var(--radius); }
+    input:focus { outline:none; border-color:var(--primary); }
+    button { background:var(--primary); color:#FFF; border:none; border-radius:var(--radius); padding:.75rem; cursor:pointer; transition:background var(--transition),transform var(--transition); font-weight:600; }
+    button:hover { background:var(--primary-light); transform:translateY(-2px); }
+    #messages { background:#FFF; color:var(--text); padding:1rem; border-radius:var(--radius); min-height:2rem; margin-bottom:var(--spacing); font-weight:600; }
+    table { width:100%; border-collapse:collapse; margin-top:1rem; }
+    th, td { padding:.75rem; border-bottom:1px solid #EEE; text-align:left; white-space:nowrap; }
+    th { color:var(--muted); font-weight:600; }
+    tr:nth-child(even) { background:#FBFBFB; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ipfs/dist/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.umd.min.js"></script>
+</head>
+<body>
+  <h1>DROP v5</h1>
+  <div id="messages" class="card">Effettua login (GunDB) per iniziare</div>
+
+  <div id="authCard" class="card">
+    <h2>Accedi / Registrati</h2>
+    <form id="authForm">
+      <input id="userInput" type="text" placeholder="Username" autocomplete="username" required>
+      <input id="passInput" type="password" placeholder="Password" autocomplete="current-password" required>
+      <div style="display:flex; justify-content:flex-end; gap:1rem;">
+        <button type="button" id="signUpBtn">Registrati</button>
+        <button type="button" id="signInBtn">Accedi</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="dropCard" class="card" style="display:none;">
+    <h2>Crea un nuovo Drop</h2>
+    <form id="dropForm">
+      <input id="downloadsInput" type="number" placeholder="Numero download" min="1" required>
+      <input id="feeInput" type="text" placeholder="Fee download (ETH)" required>
+      <input id="fileInput" type="file" accept="*/*" required>
+      <button type="submit">Crea Drop</button>
+      <progress id="uploadProgress" max="100" hidden></progress>
+    </form>
+  </div>
+
+  <div id="statsCard" class="card" style="display:none;">
+    <h2>I tuoi Drop</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Rimanenti</th><th>Fee (ETH)</th><th>Azioni</th></tr></thead>
+      <tbody id="statsBody"></tbody>
+    </table>
+  </div>
+
+  <div id="buyCard" class="card" style="display:none; text-align:center;">
+    <h2>Acquista e Scarica</h2>
+    <p>Drop #<span id="curId"></span></p>
+    <button id="buyBtn">Paga & Scarica</button>
+    <progress id="downloadProgress" max="100" hidden></progress>
+  </div>
+
+  <script>
+    const id = s => document.getElementById(s);
+    const setMsg = (m,t='info') => { const e = id('messages'); e.textContent = m; e.style.background = t==='error'?'#FDECEA':t==='success'?'#EAF8E0':'#FFF'; e.style.color = t==='error'?'red':t==='success'?'green':'var(--text)'; };
+    const gun = Gun();
+    const ipfsP = Ipfs.create();
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const FACTORY_ADDR = '0x0577797C798fbd64fb852182F96ee1579948F7DA';
+    const FACTORY_ABI = [
+      'function createDrop(uint256,uint256) external',
+      'function dropDownloadFee(uint256) view returns(uint256)',
+      'function dropsCreated(address) view returns(uint256)',
+      'function maxDropsPerUser() view returns(uint256)',
+      'function purchaseDrop(uint256) external payable',
+      'event DropCreated(uint256,address,uint256,uint256)',
+      'event DropPurchased(address,uint256,uint256)'
+    ];
+    let user = null, signer, factory;
+
+    id('signUpBtn').onclick = async () => {
+      const u = id('userInput').value.trim(), p = id('passInput').value;
+      if (!u||!p) return setMsg('Compila tutti i campi','error');
+      const pair = await Gun.SEA.pair();
+      const auth = await Gun.SEA.encrypt(pair,p);
+      gun.get('users').get(u).put({ pub: pair.pub, auth });
+      setMsg('Registrato! Ora accedi','success');
+    };
+
+    id('signInBtn').onclick = () => {
+      const u = id('userInput').value.trim(), p = id('passInput').value;
+      if (!u||!p) return setMsg('Compila tutti i campi','error');
+      gun.get('users').get(u).once(async data => {
+        if (!data) return setMsg('Utente non trovato','error');
+        const pair = await Gun.SEA.decrypt(data.auth,p);
+        if (!pair) return setMsg('Password errata','error');
+        user = { username: u, pair };
+        setMsg(`Benvenuto ${u}`,'success');
+        id('authCard').style.display = 'none';
+        id('dropCard').style.display = 'block';
+        id('statsCard').style.display = 'block';
+        await initWallet(); await syncDrops(); loadStats();
+      });
+    };
+
+    async function initWallet() {
+      await provider.send('eth_requestAccounts', []);
+      signer = await provider.getSigner();
+      factory = new ethers.Contract(FACTORY_ADDR, FACTORY_ABI, signer);
+    }
+
+    async function syncDrops() {
+      const addr = await signer.getAddress();
+      const logs = await factory.queryFilter(
+        factory.filters.DropCreated(null, addr),
+        0,
+        'latest'
+      );
+      for (const log of logs) {
+        const dropId = log.args.dropId.toNumber();
+        const rec = await new Promise(r => gun.get('drops').get(dropId).once(r));
+        if (!rec) {
+          await new Promise(r => gun.get('drops').get(dropId).put({
+            cid: '', key: '', fileName: '', fileType: '', remaining: 0, creator: user.username
+          }, r));
+        }
+      }
+    }
+
+    id('dropForm').onsubmit = async e => {
+      e.preventDefault();
+      if (!user) return setMsg('Login richiesto','error');
+      const file = id('fileInput').files[0]; if (!file) return setMsg('Seleziona un file','error');
+      const allowed = +id('downloadsInput').value;
+      const feeWei = ethers.parseEther(id('feeInput').value);
+      const addr = await signer.getAddress();
+      const created = await factory.dropsCreated(addr);
+      const max = await factory.maxDropsPerUser();
+      if (created >= max) return setMsg('Limite drop raggiunto','error');
+      const buf = await file.arrayBuffer();
+      const aesKey = await crypto.subtle.generateKey({ name:'AES-GCM', length:256 }, true, ['encrypt','decrypt']);
+      const raw = await crypto.subtle.exportKey('raw', aesKey);
+      const rawB64 = btoa(String.fromCharCode(...new Uint8Array(raw)));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, aesKey, buf);
+      const data = new Uint8Array(iv.byteLength + cipher.byteLength);
+      data.set(iv); data.set(new Uint8Array(cipher), iv.byteLength);
+      const ipfs = await ipfsP;
+      id('uploadProgress').hidden = false;
+      const { cid } = await ipfs.add(data, { progress: bytes => id('uploadProgress').value = Math.round(bytes/data.length*100) });
+      id('uploadProgress').hidden = true;
+      const tx = await factory.createDrop(allowed, feeWei);
+      const receipt = await tx.wait();
+      let dropId;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = factory.interface.parseLog(log);
+          if (parsed.name === 'DropCreated') { dropId = parsed.args.dropId.toNumber(); break; }
+        } catch {}
+      }
+      if (dropId === undefined) return setMsg('Errore dropId','error');
+      gun.get('drops').get(dropId).put({
+        cid: cid.toString(), key: rawB64, fileName: file.name, fileType: file.type, remaining: allowed, creator: user.username
+      });
+      setMsg(`Drop ${dropId} creato`,'success'); loadStats();
+    };
+
+    async function loadStats() {
+      const addr = await signer.getAddress();
+      const total = await factory.dropsCreated(addr);
+      const tbody = id('statsBody'); tbody.innerHTML = '';
+      for (let i = 1; i <= total; i++) {
+        const rec = await new Promise(r => gun.get('drops').get(i).once(r));
+        if (!rec) continue;
+        const fee = await factory.dropDownloadFee(i);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i}</td>
+          <td>${rec.remaining}</td>
+          <td>${ethers.formatEther(fee)}</td>
+          <td><button data-id="${i}" class="buyBtn">Scarica</button></td>
+          <td><button data-id="${i}" class="delBtn">Elimina</button></td>
+        `;
+        tbody.appendChild(tr);
+        tr.querySelector('.buyBtn').onclick = () => selectDrop(i);
+        tr.querySelector('.delBtn').onclick = async () => {
+          if (confirm(`Eliminare il drop #${i}?`)) {
+            await new Promise(r => gun.get('drops').get(i).put(null, r));
+            loadStats();
+          }
+        };
+      }
+    }
+
+    let currentDrop;
+    function selectDrop(id) {
+      currentDrop = id;
+      id('curId').textContent = id;
+      id('buyCard').style.display = 'block';
+    }
+
+    id('buyBtn').onclick = async () => {
+      const fee = await factory.dropDownloadFee(currentDrop);
+      const tx = await factory.purchaseDrop(currentDrop, { value: fee });
+      await tx.wait();
+      const rec = await new Promise(r => gun.get('drops').get(currentDrop).once(r));
+      const rawArr = Uint8Array.from(atob(rec.key), c => c.charCodeAt(0));
+      const aesKey = await crypto.subtle.importKey('raw', rawArr.buffer, { name:'AES-GCM' }, false, ['decrypt']);
+      const ipfs = await ipfsP;
+      const chunks = []; let size = 0;
+      for await (const c of ipfs.cat(rec.cid)) { chunks.push(c); size += c.length; id('downloadProgress').hidden = false; id('downloadProgress').value = Math.round(size/(rec.remaining+1)*100); }
+      const buff = new Uint8Array(size); let offset=0; chunks.forEach(c => { buff.set(c, offset); offset += c.length; });
+      const iv = buff.slice(0,12), ct = buff.slice(12);
+      const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, aesKey, ct);
+      const blob = new Blob([pt], { type: rec.fileType });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = rec.fileName; a.click();
+      setMsg('Download completato','success'); loadStats();
+    };
+  </script>
+</body>
+</html>

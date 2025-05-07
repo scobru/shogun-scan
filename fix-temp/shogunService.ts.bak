@@ -1,0 +1,3956 @@
+import { ShogunCore } from "shogun-core";
+import type {
+  TimelineResult,
+  Post,
+  Comment,
+  UserProfile,
+  Message,
+  MessageType,
+  MessageSubtype,
+} from "./types";
+import { writable, get, derived } from "svelte/store";
+
+// Define message types as constants since the import is causing issues
+const CORE_MESSAGE_TYPES = {
+  POST: "POST",
+  MODERATION: "MODERATION",
+  PROFILE: "PROFILE",
+  CONNECTION: "CONNECTION",
+  PRIVATE: "PRIVATE",
+  DELETE: "DELETE",
+};
+
+const POST_SUBTYPES = {
+  DEFAULT: "",
+  REPOST: "REPOST",
+  REPLY: "REPLY",
+  MIRROR_POST: "M_POST",
+  MIRROR_REPLY: "M_REPLY",
+  STANDARD: "STANDARD",
+};
+
+const MODERATION_SUBTYPES = {
+  LIKE: "LIKE",
+  BLOCK: "BLOCK",
+  THREAD_BLOCK: "THREAD_HIDE_BLOCK",
+  THREAD_FOLLOW: "THREAD_SHOW_FOLLOW",
+  THREAD_MENTION: "THREAD_ONLY_MENTION",
+  GLOBAL: "GLOBAL",
+  DEFAULT: "",
+};
+
+// Add private message subtypes to match the core protocol
+const PRIVATE_MESSAGE_SUBTYPES = {
+  DIRECT: "DIRECT",
+  GROUP_CHAT: "GROUP_CHAT",
+  SYSTEM: "SYSTEM",
+  READ_RECEIPT: "READ_RECEIPT",
+  DEFAULT: "",
+};
+
+// Store per lo stato dell'applicazione
+export const currentUser = writable<UserProfile | null>(null);
+export const isAuthenticated = writable<boolean>(false);
+export const timeline = writable<Message[]>([]);
+export const isLoading = writable<boolean>(false);
+export const errorMessage = writable<string | null>(null);
+export const currentPost = writable<Message | null>(null);
+export const userPosts = writable<Message[]>([]);
+export const useIndexer = writable<boolean>(true);
+export const indexerAvailable = writable<boolean>(true);
+export const allUsers = writable<UserProfile[]>([]); // New store for all users
+
+// Store per mantenere i like dell'utente corrente
+export const likedPosts = writable<string[]>([]);
+
+// Dizionario per memorizzare i post in modo efficiente
+const postsCache: Record<string, Message> = {};
+
+// Cache for comments
+const commentsCache: Record<string, Comment[]> = {};
+
+// Cache for user profiles
+const userProfiles: Record<string, UserProfile> = {};
+
+// Variabile che tiene traccia dell'interval per il polling
+let timelinePollingInterval: number | null = null;
+let userPostsPollingInterval: number | null = null;
+let commentsPollingInterval: Record<string, number> = {};
+
+// Timestamp dell'ultimo aggiornamento della timeline
+let lastTimelineUpdate = 0;
+
+// Dizionario degli interval attivi per i topic
+const topicIntervals: Record<string, number> = {};
+
+// Dizionario per memorizzare gli alias degli utenti (pub -> UserProfile)
+const aliasCache: Record<string, string> = {};
+
+// Flag per indicare se il componente shogun è già stato inizializzato
+let initialized = false;
+
+// Flag per indicare se è in corso il refresh della timeline
+let isRefreshingTimeline = false;
+
+// Dizionario per memorizzare i post per tag
+const postsByTag: Record<string, Message[]> = {
+  lastUpdated: 0,
+};
+
+// Configurazione API indexer
+// Use a URL that matches the backend structure
+const INDEXER_API_URL = "/api/indexer";
+
+// Make sure these endpoints match the backend's expected routes
+const INDEXER_ENDPOINTS = {
+  USERS: '/users',
+  USER_PROFILE: '/users/profile',
+  USER_FOLLOWERS: '/users/{userPub}/followers',
+  USER_FOLLOWING: '/users/{userPub}/following',
+  POSTS: '/posts',
+  POST_DETAILS: '/posts',
+  POSTS_BY_AUTHOR: '/posts/author',
+  POSTS_BY_HASHTAG: '/posts/hashtag',
+  TRENDING_HASHTAGS: '/hashtags/trending',
+  POPULAR_USERS: '/users/popular',
+  SEARCH_USERS: '/search/users',
+  SEARCH_POSTS: '/search/posts',
+  STATS: '/stats',
+  SYNC: '/sync',
+  STATUS: '/status',
+  SYNC_POST: '/sync-post',
+  TIMELINE: '/posts/recent', // Added for backward compatibility
+  HASHTAGS: '/hashtags/trending' // Added for backward compatibility
+};
+
+// Use the same token as configured in the relay server
+const AUTH_TOKEN = "thisIsTheTokenForReals";
+
+// Custom interface to extend RequestInit with url property
+interface FetchOptions extends RequestInit {
+  url?: string; // Add url property for our custom usage
+  useCors?: boolean; // Keep existing property
+}
+
+/**
+ * Helper function to create fetch config with the auth token
+ * @param options Optional fetch options to merge with the auth header
+ * @returns Fetch configuration with auth token and optional url
+ */
+function createFetchConfig(options: FetchOptions = {}): FetchOptions {
+  // Create a headers object
+  const headers = new Headers(options.headers || {});
+  headers.set("Content-Type", "application/json");
+
+  // Add token in both formats for maximum compatibility
+  headers.set("Authorization", `Bearer ${AUTH_TOKEN}`);
+
+  // Create the base config
+  const config: FetchOptions = {
+    ...options,
+    headers,
+    credentials: "include", // Include credentials in request
+    mode: "cors", // Default to CORS mode
+  };
+
+  // If using no-cors mode, we need to modify the config
+  if (options.mode === "no-cors") {
+    // In no-cors mode, we can't use custom headers
+    delete config.headers;
+
+    // Instead, include the token in the body for POST/PUT requests
+    if (options.method === "POST" || options.method === "PUT") {
+      let bodyContent = {};
+
+      // If there's existing body content, parse it
+      if (options.body) {
+        try {
+          bodyContent =
+            typeof options.body === "string"
+              ? JSON.parse(options.body)
+              : options.body;
+        } catch (e) {
+          console.warn("Could not parse existing body content");
+        }
+      }
+
+      // Add token to body
+      const newBody = {
+        ...bodyContent,
+        token: AUTH_TOKEN,
+      };
+
+      config.body = JSON.stringify(newBody);
+    } else if (options.method === "GET" || !options.method) {
+      // For GET requests in no-cors mode, add token to URL
+      const url = new URL(options.url || window.location.href);
+      url.searchParams.append("token", AUTH_TOKEN);
+      config.url = url.toString();
+    }
+  }
+
+  return config;
+}
+
+/**
+ * Helper function to add auth token to URL
+ * @param url Base URL
+ * @returns URL with auth token
+ */
+function addAuthToUrl(url: string): string {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}token=${AUTH_TOKEN}`;
+}
+
+/**
+ * Make an authenticated request that works in both CORS and no-cors modes
+ * @param url The URL to request
+ * @param options Fetch options
+ * @returns Promise with the response
+ */
+async function makeAuthenticatedRequest(
+  url: string,
+  options: FetchOptions = {}
+): Promise<Response> {
+  // Always convert absolute URLs to relative for consistency
+  if (url.startsWith('http://localhost:') || url.startsWith('http://127.0.0.1:')) {
+    // Extract the path portion after the port
+    const urlObj = new URL(url);
+    const path = urlObj.pathname + urlObj.search;
+    url = path;
+    console.log(`[DEBUG] Converting absolute URL to relative: ${url}`);
+  }
+  
+  console.log(`[DEBUG] Making authenticated request to ${url}`);
+  
+  // Add authorization and content-type headers
+  const headers = new Headers(options.headers || {});
+  headers.set("Content-Type", "application/json");
+  headers.set("Authorization", AUTH_TOKEN);
+  
+  // Set origin header when in browser context
+  if (typeof window !== 'undefined') {
+    headers.set('Origin', window.location.origin);
+  }
+  
+  // Track if we should retry with token in URL
+  let shouldRetryWithToken = false;
+  
+  // First attempt: standard fetch with auth headers
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include',
+      mode: 'cors'
+    });
+    
+    if (response.ok) {
+      // Check if response is JSON before returning
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        console.warn(`[DEBUG] Response has unexpected content type: ${contentType}`);
+        shouldRetryWithToken = true;
+      } else {
+        return response;
+      }
+    } else {
+      console.warn(`[DEBUG] Response not OK: ${response.status} ${response.statusText}`);
+      shouldRetryWithToken = true;
+    }
+  } catch (error) {
+    console.warn(`[DEBUG] CORS request failed (${url}):`, error);
+    shouldRetryWithToken = true;
+  }
+  
+  // Second attempt: URL with token if the first attempt failed
+  if (shouldRetryWithToken) {
+    try {
+      // Add token to URL
+      const separator = url.includes('?') ? '&' : '?';
+      const tokenizedUrl = `${url}${separator}token=${AUTH_TOKEN}`;
+      
+      console.log(`[DEBUG] Retrying with tokenized URL: ${tokenizedUrl}`);
+      
+      const response = await fetch(tokenizedUrl, {
+        method: options.method || 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      return response;
+    } catch (error) {
+      console.error(`[DEBUG] All request attempts failed:`, error);
+    }
+  }
+  
+  // If all attempts fail, return a mock error response
+  return new Response(JSON.stringify({ 
+    success: false, 
+    error: "Connection failed" 
+  }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+/**
+ * Check if the indexer is available and properly authenticated
+ */
+async function checkIndexerAvailability(): Promise<boolean> {
+  try {
+    console.log("[DEBUG] Checking indexer availability...");
+    
+    // Use the INDEXER_API_URL constant with the status endpoint
+    const url = `${INDEXER_API_URL}/status`;
+    console.log(`[DEBUG] Checking indexer at: ${url}`);
+    
+    const response = await fetch(url, createFetchConfig());
+    
+    if (!response.ok) {
+      console.warn(`[DEBUG] Indexer returned status: ${response.status}`);
+      indexerAvailable.set(false);
+      return false;
+    }
+    
+    const result = await response.json();
+    console.log("[DEBUG] Indexer status response:", result);
+    
+    if (result && (result.success === true || result.initialized === true)) {
+      console.log("[DEBUG] Indexer is available and ready");
+      indexerAvailable.set(true);
+      return true;
+    }
+    
+    indexerAvailable.set(false);
+    return false;
+  } catch (error) {
+    console.warn("[DEBUG] Error checking indexer availability:", error);
+    indexerAvailable.set(false);
+    return false;
+  }
+}
+
+/**
+ * Funzione helper per convertire un post dall'indexer al formato Message
+ */
+function transformIndexerPostToMessage(indexerPost: any): Message {
+  return {
+    id: indexerPost.id,
+    type: "post" as MessageType,
+    subtype: "text" as MessageSubtype,
+    creator: indexerPost.author_pub,
+    createdAt: indexerPost.created_at || indexerPost.timestamp,
+    payload: {
+      content: indexerPost.content,
+      topic: indexerPost.topic || "",
+      title: indexerPost.title || "",
+      attachment: indexerPost.attachment || null
+    },
+    likes_count: indexerPost.likes_count || 0,
+    comments_count: indexerPost.comments_count || 0,
+    hasLiked: indexerPost.hasLiked || false
+  };
+}
+
+// Istanza di Shogun
+export let shogun: ShogunCore;
+export let socialPlugin: any = null;
+
+// Add a local cache for posts and messages
+const localCache: {
+  posts: Message[];
+  users: Record<string, UserProfile>;
+  lastUpdated: number;
+} = {
+  posts: [],
+  users: {},
+  lastUpdated: 0,
+};
+
+// Riferimenti alle sottoscrizioni attive
+let activeTimelineSubscription: any = null;
+let activeUserPostsSubscription: any = null;
+
+/**
+ * Synchronizes all instances of a post with an update function
+ * @param postId ID of the post to update
+ * @param updateFn Function to apply to each post instance
+ */
+export function syncAllPostInstances(
+  postId: string,
+  updateFn: (post: Message) => Message
+): void {
+  // Update timeline posts
+  timeline.update((posts) => {
+    return posts.map((post) => {
+      if (post.id === postId) {
+        return updateFn(post);
+      }
+      return post;
+    });
+  });
+
+  // Update user posts if loaded
+  userPosts.update((posts) => {
+    return posts.map((post) => {
+      if (post.id === postId) {
+        return updateFn(post);
+      }
+      return post;
+    });
+  });
+
+  // Update current post if it's being viewed
+  const currentViewedPost = get(currentPost);
+  if (currentViewedPost && currentViewedPost.id === postId) {
+    currentPost.set(updateFn(currentViewedPost));
+  }
+}
+
+/**
+ * Get the alias (username) for a given user public key
+ * @param userPub The public key of the user
+ * @returns The formatted alias/username
+ */
+export function getUserAlias(userPub: string): string {
+  // Se l'utente non esiste, restituisci una stringa di fallback
+  if (!userPub) return "Utente";
+
+  // Controlla se l'utente ha un profilo e un alias nella cache
+  if (userProfiles[userPub] && userProfiles[userPub].alias) {
+    return "@" + userProfiles[userPub].alias;
+  }
+
+  // If not in cache, try to fetch from API in the background
+  if (socialPlugin) {
+    console.log(`[shogunService] Fetching user alias for ${userPub}`);
+
+    // Try direct Gun access first for admin users or fallback cases
+    if (userPub === "admin-user-pub-key") {
+      if (!userProfiles[userPub]) {
+        userProfiles[userPub] = {
+          pub: userPub,
+          alias: "Admin",
+          followers: [],
+          following: [],
+          customFields: {
+            bio: "System administrator",
+            profileImage: "",
+          }
+        };
+      }
+      return "@" + userProfiles[userPub].alias;
+    }
+
+    // Use makeAuthenticatedRequest instead of fetch directly to handle CORS properly
+    makeAuthenticatedRequest(`${INDEXER_API_URL}/users/${userPub}`, {
+      method: "GET"
+    })
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.success && result.user) {
+          const profile = {
+            pub: result.user.pub,
+            alias: result.user.alias || result.user.pub.substring(0, 8) + "...",
+            followers: result.user.followers || [],
+            following: result.user.following || [],
+            customFields: {
+              bio: result.user.bio,
+              profileImage: result.user.profile_image,
+            },
+          };
+          userProfiles[userPub] = profile;
+        }
+      })
+      .catch((error) => {
+        // Log error but don't interrupt the flow
+        console.warn(`Error fetching user profile for ${userPub}:`, error);
+        
+        // Try direct Gun access as fallback
+        if (shogun && shogun.gun) {
+          console.log(`[shogunService] Falling back to direct Gun access for ${userPub}`);
+          shogun.gun.user(userPub).get('alias').once((alias) => {
+            if (alias) {
+              if (!userProfiles[userPub]) {
+                userProfiles[userPub] = {
+                  pub: userPub,
+                  alias: alias,
+                  followers: [],
+                  following: [],
+                  customFields: {}
+                };
+              } else {
+                userProfiles[userPub].alias = alias;
+              }
+              console.log(`[shogunService] Got alias from Gun: ${alias}`);
+            }
+          });
+        }
+      });
+  }
+
+  // Restituisce una versione abbreviata della chiave pubblica
+  return userPub.length > 12
+    ? "@" + userPub.substring(0, 6) + "..."
+    : "@" + userPub;
+}
+
+/**
+ * Search for posts by topic/hashtag
+ */
+export async function searchByTopic(topic: string): Promise<Message[]> {
+  if (!socialPlugin) {
+    throw new Error("Plugin social non disponibile");
+  }
+
+  console.log(`[DEBUG] searchByTopic: Ricerca post con topic: ${topic}`);
+
+  try {
+    // Rimuovi il carattere # se presente
+    const cleanTopic = topic.startsWith("#") ? topic.substring(1) : topic;
+
+    // Determina se usare indexer o GunDB
+    if (get(useIndexer) && get(indexerAvailable)) {
+      console.log(`[DEBUG] searchByTopic: Usando indexer per topic "${cleanTopic}"`);
+      try {
+        const result = await indexerApi.getPostsByHashtag(cleanTopic, 20, 0);
+
+        if (result.success && Array.isArray(result.posts)) {
+          console.log(`[DEBUG] searchByTopic: Trovati ${result.posts.length} post con topic "${cleanTopic}"`);
+          return result.posts;
+        } else {
+          console.warn(`[DEBUG] searchByTopic: Nessun risultato dall'indexer per "${cleanTopic}"`);
+        }
+      } catch (err) {
+        console.warn(`[DEBUG] searchByTopic: Errore ricerca topic da indexer:`, err);
+      }
+    }
+
+    // Fallback a ricerca tramite full-text se disponibile
+    try {
+      console.log(`[DEBUG] searchByTopic: Tentativo ricerca post con query text search`);
+      const result = await indexerApi.searchPosts(cleanTopic, 20, 0);
+      
+      if (result.success && Array.isArray(result.posts)) {
+        console.log(`[DEBUG] searchByTopic: Trovati ${result.posts.length} post tramite text search`);
+        return result.posts;
+      }
+    } catch (textSearchErr) {
+      console.warn(`[DEBUG] searchByTopic: Errore ricerca con text search:`, textSearchErr);
+    }
+
+    // Se ancora non abbiamo risultati, restituiamo un array vuoto
+    console.log(`[DEBUG] searchByTopic: Nessun risultato trovato per "${cleanTopic}"`);
+    return [];
+  } catch (err) {
+    console.error(`[ERROR] searchByTopic: Errore ricerca topic:`, err);
+    return [];
+  }
+}
+
+/**
+ * Cerca post per topic tramite GunDB direttamente (metodo originale)
+ */
+async function searchByTopicFromGun(topic: string): Promise<Message[]> {
+  if (!socialPlugin) {
+    throw new Error("Plugin social non disponibile");
+  }
+
+  try {
+    console.log("Falling back to direct API call for topic search");
+
+    // Get current user for authentication if available
+    const userProfile = get(currentUser);
+
+    // Try generic messages endpoint with payload filter
+    try {
+      const response = await fetch(
+        `${INDEXER_API_URL}/messages?topic=${topic}`,
+        createFetchConfig()
+      );
+      const result = await response.json();
+
+      if (result.success && result.messages) {
+        // Convert messages to Message format
+        const messages = result.messages.map((msg: any) => ({
+          id: msg.id,
+          type: msg.type || ("post" as MessageType),
+          subtype: msg.subtype || ("text" as MessageSubtype),
+          creator: msg.creator,
+          createdAt: msg.createdAt,
+          payload: msg.payload || {},
+          likes_count: msg.likes_count || 0,
+          comments_count: msg.comments_count || 0,
+        }));
+
+        return messages;
+      } else {
+        console.warn("Error searching topics from API");
+        return [];
+      }
+    } catch (err) {
+      console.error("Error searching topic:", err);
+      return [];
+    }
+  } catch (err) {
+    console.error("Error searching topic:", err);
+    return [];
+  }
+}
+
+/**
+ * Funzioni per interagire con l'API Indexer
+ */
+export const indexerApi = {
+  /**
+   * Controlla lo stato dell'indexer
+   */
+  async checkStatus(): Promise<any> {
+    try {
+      const url = `http://localhost:8765${INDEXER_ENDPOINTS.STATUS}`;
+      const response = await fetch(url, createFetchConfig());
+      return await response.json();
+    } catch (err) {
+      console.error("Errore check stato indexer:", err);
+      return { success: false, error: "Impossibile contattare l'indexer" };
+    }
+  },
+
+  /**
+   * Ottiene post recenti dall'indexer
+   */
+  async getRecentPosts(limit = 20, offset = 0): Promise<any> {
+    try {
+      console.log(`[DEBUG] indexerApi.getRecentPosts: Recupero ${limit} post recenti dall'indexer`);
+      
+      // Get current user for checking likes
+      const userProfile = get(currentUser);
+      const userPubParam = userProfile?.pub
+        ? `&userPub=${userProfile.pub}`
+        : "";
+
+      // Prima prova con l'endpoint dedicato
+      const url = `http://localhost:8765/api/indexer/posts/recent?limit=${limit}&offset=${offset}${userPubParam}`;
+      console.log(`[DEBUG] indexerApi.getRecentPosts: URL: ${url}`);
+
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[DEBUG] indexerApi.getRecentPosts: Risposta indexer:`, result);
+        
+        if (result.success && Array.isArray(result.posts)) {
+          console.log(`[DEBUG] indexerApi.getRecentPosts: Recuperati ${result.posts.length} post`);
+          
+          // Verifica il formato dei post
+          if (result.posts.length > 0) {
+            const samplePost = result.posts[0];
+            // Se i post sono già nel formato corretto, non è necessaria trasformazione
+            if (samplePost.type && samplePost.payload) {
+              console.log(`[DEBUG] indexerApi.getRecentPosts: Post già in formato corretto`);
+              return {
+                success: true,
+                posts: result.posts
+              };
+            }
+          }
+          
+          // Altrimenti trasforma i post nel formato atteso
+          return {
+            success: true,
+            posts: result.posts.map(transformIndexerPostToMessage)
+          };
+        } else {
+          console.warn(`[DEBUG] indexerApi.getRecentPosts: Nessun post o risposta non valida, provo fallback`);
+        }
+      } else {
+        console.warn(`[DEBUG] indexerApi.getRecentPosts: Risposta non OK: ${response.status}, provo fallback`);
+      }
+
+      // Fallback all'endpoint generico dei post
+      const fallbackUrl = `http://localhost:8765/api/indexer/posts?limit=${limit}&offset=${offset}${userPubParam}`;
+      console.log(`[DEBUG] indexerApi.getRecentPosts: Fallback URL: ${fallbackUrl}`);
+      
+      const fallbackResponse = await makeAuthenticatedRequest(fallbackUrl, {
+        method: "GET"
+      });
+      
+      if (fallbackResponse.ok) {
+        const result = await fallbackResponse.json();
+        console.log(`[DEBUG] indexerApi.getRecentPosts: Risposta fallback:`, result);
+        
+        if (result.success && Array.isArray(result.posts)) {
+          console.log(`[DEBUG] indexerApi.getRecentPosts: Recuperati ${result.posts.length} post da fallback`);
+          return {
+            success: true,
+            posts: result.posts.map(transformIndexerPostToMessage)
+          };
+        }
+      }
+
+      return {
+        success: false,
+        error: "Failed to fetch posts",
+        useGunFallback: true
+      };
+    } catch (err) {
+      console.error("[DEBUG] indexerApi.getRecentPosts: Error fetching recent posts from indexer:", err);
+      return {
+        success: false,
+        error: "Error fetching posts",
+        useGunFallback: true
+      };
+    }
+  },
+  
+  /**
+   * Ottiene post per hashtag dall'indexer
+   */
+  async getPostsByHashtag(
+    hashtag: string,
+    limit = 20,
+    offset = 0
+  ): Promise<any> {
+    try {
+      // Rimuovi il carattere # se presente
+      const cleanTag = hashtag.startsWith("#") ? hashtag.substring(1) : hashtag;
+
+      const url = `http://localhost:8765/api/indexer/hashtags/${cleanTag}/posts?limit=${limit}&offset=${offset}`;
+      console.log(`[DEBUG] indexerApi.getPostsByHashtag: URL: ${url}`);
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.posts)) {
+          return {
+            success: true,
+            posts: result.posts.map(transformIndexerPostToMessage)
+          };
+        }
+      }
+      
+      return { success: false, error: "Errore recupero post" };
+    } catch (err) {
+      console.error("Errore recupero post per hashtag da indexer:", err);
+      return { success: false, error: "Errore recupero post" };
+    }
+  },
+
+  /**
+   * Ottiene post di un autore dall'indexer
+   */
+  async getPostsByAuthor(
+    authorPub: string,
+    limit = 20,
+    offset = 0
+  ): Promise<any> {
+    try {
+      console.log(`[DEBUG] indexerApi.getPostsByAuthor: Recupero post per ${authorPub}`);
+      
+      // Prima prova con il percorso specifico
+      const url = `http://localhost:8765/api/indexer/posts/author/${authorPub}?limit=${limit}&offset=${offset}`;
+      console.log(`[DEBUG] indexerApi.getPostsByAuthor: URL: ${url}`);
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[DEBUG] indexerApi.getPostsByAuthor: Risposta:`, result);
+        
+        if (result.success && Array.isArray(result.posts)) {
+          console.log(`[DEBUG] indexerApi.getPostsByAuthor: Trovati ${result.posts.length} post`);
+          
+          // Verifica il formato dei post
+          if (result.posts.length > 0) {
+            const samplePost = result.posts[0];
+            // Se i post sono già nel formato corretto, non è necessaria trasformazione
+            if (samplePost.type && samplePost.payload) {
+              console.log(`[DEBUG] indexerApi.getPostsByAuthor: Post già in formato corretto`);
+              return {
+                success: true,
+                posts: result.posts
+              };
+            }
+          }
+          
+          // Altrimenti trasforma i post nel formato atteso
+          return {
+            success: true,
+            posts: result.posts.map(transformIndexerPostToMessage)
+          };
+        } else {
+          console.warn(`[DEBUG] indexerApi.getPostsByAuthor: Nessun post o risposta non valida`);
+        }
+      } else {
+        console.warn(`[DEBUG] indexerApi.getPostsByAuthor: Risposta non OK: ${response.status}`);
+      }
+      
+      // Fallback al percorso users/userPub/posts
+      console.log(`[DEBUG] indexerApi.getPostsByAuthor: Tentativo con percorso fallback`);
+      const fallbackUrl = `http://localhost:8765/api/indexer/users/${authorPub}/posts?limit=${limit}&offset=${offset}`;
+      
+      const fallbackResponse = await makeAuthenticatedRequest(fallbackUrl, {
+        method: "GET"
+      });
+      
+      if (fallbackResponse.ok) {
+        const result = await fallbackResponse.json();
+        console.log(`[DEBUG] indexerApi.getPostsByAuthor: Risposta fallback:`, result);
+        
+        if (result.success && Array.isArray(result.posts)) {
+          console.log(`[DEBUG] indexerApi.getPostsByAuthor: Trovati ${result.posts.length} post con fallback`);
+          
+          return {
+            success: true,
+            posts: result.posts.map(transformIndexerPostToMessage)
+          };
+        }
+      }
+      
+      return { success: false, error: "Errore recupero post" };
+    } catch (err) {
+      console.error("[DEBUG] indexerApi.getPostsByAuthor: Errore recupero post autore:", err);
+      return { success: false, error: "Errore recupero post" };
+    }
+  },
+
+  /**
+   * Ottiene dettagli di un post specifico dall'indexer
+   */
+  async getPostDetails(postId: string): Promise<any> {
+    try {
+      const url = `http://localhost:8765${INDEXER_ENDPOINTS.POST_DETAILS.replace('{postId}', postId)}`;
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.post) {
+          return {
+            success: true,
+            post: transformIndexerPostToMessage(result.post),
+            comments: result.post.comments || []
+          };
+        }
+      }
+      
+      return { success: false, error: "Errore recupero post" };
+    } catch (err) {
+      console.error("Errore recupero dettagli post da indexer:", err);
+      return { success: false, error: "Errore recupero post" };
+    }
+  },
+
+  /**
+   * Ottiene hashtag di tendenza dall'indexer
+   */
+  async getTrendingHashtags(limit = 10): Promise<any> {
+    try {
+      const url = `http://localhost:8765${INDEXER_ENDPOINTS.HASHTAGS}?limit=${limit}`;
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      return { success: false, error: "Errore recupero hashtag" };
+    } catch (err) {
+      console.error("Errore recupero hashtag tendenza da indexer:", err);
+      return { success: false, error: "Errore recupero hashtag" };
+    }
+  },
+
+  /**
+   * Ottiene utenti popolari dall'indexer
+   */
+  async getPopularUsers(limit = 10): Promise<any> {
+    try {
+      const url = `http://localhost:8765${INDEXER_ENDPOINTS.USERS}/popular?limit=${limit}`;
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      return { success: false, error: "Errore recupero utenti" };
+    } catch (err) {
+      console.error("Errore recupero utenti popolari da indexer:", err);
+      return { success: false, error: "Errore recupero utenti" };
+    }
+  },
+
+  /**
+   * Ottiene tutti gli utenti dall'indexer
+   */
+  async getAllUsers(limit = 50, offset = 0): Promise<any> {
+    try {
+      console.log(`[shogunService] Fetching all users from indexer, limit=${limit}, offset=${offset}`);
+      
+      const url = `${INDEXER_API_URL}/users?limit=${limit}&offset=${offset}`;
+      console.log(`[shogunService] Requesting URL: ${url}`);
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        // Check content type to make sure we're getting JSON
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const result = await response.json();
+          console.log(`[shogunService] Retrieved ${result.users?.length || 0} users from indexer`);
+          
+          // Populate the user profiles cache
+          if (result.success && Array.isArray(result.users)) {
+            result.users.forEach((user: any) => {
+              if (user.pub) {
+                userProfiles[user.pub] = {
+                  pub: user.pub,
+                  alias: user.alias || user.pub.substring(0, 8) + "...",
+                  followers: user.followers || [],
+                  following: user.following || [],
+                  customFields: {
+                    bio: user.bio || "",
+                    profileImage: user.profile_image || "",
+                    followersCount: user.followers_count || 0,
+                    followingCount: user.following_count || 0,
+                    postsCount: user.posts_count || 0
+                  }
+                };
+              }
+            });
+          }
+          
+          return result;
+        } else {
+          console.warn(`[shogunService] Received non-JSON response: ${contentType}`);
+          return { success: false, error: "Invalid response format", users: [] };
+        }
+      }
+      
+      console.warn(`[shogunService] Failed to fetch users: ${response.status}`);
+      return { success: false, error: "Error retrieving users", users: [] };
+    } catch (err) {
+      console.error("[shogunService] Error retrieving users from indexer:", err);
+      return { success: false, error: "Error retrieving users", users: [] };
+    }
+  },
+
+  /**
+   * Ottiene i followers di un utente dall'indexer
+   */
+  async getUserFollowers(
+    userPub: string,
+    limit = 20,
+    offset = 0
+  ): Promise<any> {
+    try {
+      const url = `${INDEXER_API_URL}/users/${encodeURIComponent(userPub)}/followers?limit=${limit}&offset=${offset}`;
+      console.log(`[shogunService] Fetching followers from: ${url}`);
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      console.warn(`[shogunService] Indexer API returned ${response.status} for followers`);
+      return { success: false, error: `Server returned ${response.status}`, followers: [], count: 0 };
+    } catch (err) {
+      console.error("Errore recupero followers da indexer:", err);
+      return { success: false, error: "Errore recupero followers", followers: [], count: 0 };
+    }
+  },
+
+  /**
+   * Ottiene gli utenti seguiti da un utente dall'indexer
+   */
+  async getUserFollowing(
+    userPub: string,
+    limit = 20,
+    offset = 0
+  ): Promise<any> {
+    try {
+      const url = `${INDEXER_API_URL}/users/${encodeURIComponent(userPub)}/following?limit=${limit}&offset=${offset}`;
+      console.log(`[shogunService] Fetching following from: ${url}`);
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      console.warn(`[shogunService] Indexer API returned ${response.status} for following`);
+      return { success: false, error: `Server returned ${response.status}`, following: [], count: 0 };
+    } catch (err) {
+      console.error("Errore recupero following da indexer:", err);
+      return { success: false, error: "Errore recupero following", following: [], count: 0 };
+    }
+  },
+
+  /**
+   * Cerca utenti per alias o bio nell'indexer
+   */
+  async searchUsers(query: string, limit = 20, offset = 0): Promise<any> {
+    try {
+      console.log(`[shogunService] Searching for users with query: "${query}"`);
+      
+      const url = `${INDEXER_API_URL}/search/users?query=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[shogunService] Found ${result.users?.length || 0} users matching query "${query}"`);
+        
+        // Ensure users is always an array
+        if (result.success && !Array.isArray(result.users)) {
+          result.users = [];
+        }
+        
+        // Cache user profiles for later use
+        if (result.success && Array.isArray(result.users)) {
+          result.users.forEach((user: any) => {
+            if (user.pub) {
+              userProfiles[user.pub] = {
+                pub: user.pub,
+                alias: user.alias || user.pub.substring(0, 8) + "...",
+                followers: user.followers || [],
+                following: user.following || [],
+                customFields: {
+                  bio: user.bio || "",
+                  profileImage: user.profile_image || "",
+                  followersCount: user.followers_count || 0,
+                  followingCount: user.following_count || 0,
+                  postsCount: user.posts_count || 0
+                }
+              };
+            }
+          });
+        }
+        
+        return result;
+      }
+      
+      console.warn(`[shogunService] Search users failed with status: ${response.status}`);
+      return { success: false, error: `Server error: ${response.status}`, users: [] };
+    } catch (err) {
+      console.error("[shogunService] Error searching users:", err);
+      return { success: false, error: "Error searching users", users: [] };
+    }
+  },
+
+  /**
+   * Cerca post per contenuto nell'indexer
+   */
+  async searchPosts(
+    query: string,
+    limit = 20,
+    offset = 0
+  ): Promise<any> {
+    try {
+      const url = `${INDEXER_API_URL}/search/posts?query=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`;
+      console.log(`[DEBUG] indexerApi.searchPosts: URL: ${url}`);
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.posts)) {
+          return {
+            success: true,
+            posts: result.posts.map(transformIndexerPostToMessage)
+          };
+        }
+      }
+      
+      return { success: false, error: "Errore ricerca post" };
+    } catch (err) {
+      console.error("Errore ricerca posts:", err);
+      return { success: false, error: "Errore ricerca post" };
+    }
+  },
+  
+  /**
+   * Forza una sincronizzazione nell'indexer
+   */
+  async forceSync(options = {}): Promise<any> {
+    try {
+      const url = `http://localhost:8765${INDEXER_ENDPOINTS.SYNC}`;
+      
+      console.log(`[DEBUG] indexerApi.forceSync: Forzando sincronizzazione`, options);
+      
+      const response = await makeAuthenticatedRequest(url, {
+        method: "POST",
+        body: JSON.stringify(options)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[DEBUG] indexerApi.forceSync: Risposta:`, result);
+        return result;
+      }
+      
+      return { success: false, error: "Errore forzatura sync" };
+    } catch (err) {
+      console.error("Errore forzatura sync indexer:", err);
+      return { success: false, error: "Errore forzatura sync" };
+    }
+  },
+  
+  /**
+   * Ottiene le statistiche dell'indexer
+   */
+  async getStats(): Promise<any> {
+    try {
+      const url = `http://localhost:8765${INDEXER_ENDPOINTS.STATS}`;
+      const response = await makeAuthenticatedRequest(url, {
+        method: "GET"
+      });
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      return { success: false, error: "Errore recupero statistiche" };
+    } catch (err) {
+      console.error("Errore recupero statistiche indexer:", err);
+      return { success: false, error: "Errore recupero statistiche" };
+    }
+  }
+};
+
+/**
+ * Inizializza la connessione a Shogun
+ */
+export async function initShogun(): Promise<boolean> {
+  console.log(
+    "[DEBUG] initShogun: Inizializzazione Shogun con configurazione GunDB:",
+    {
+      peers: ["http://localhost:8765/gun"],
+      authToken: AUTH_TOKEN ? "presente" : "assente",
+    }
+  );
+
+  try {
+    isLoading.set(true);
+
+    // Crea una nuova istanza di ShogunCore
+    shogun = new ShogunCore({
+      gundb: {
+        peers: ["http://localhost:8765/gun"],
+        localStorage: false,
+        radisk: false,
+        authToken: AUTH_TOKEN,
+      },
+      social: {
+        enabled: true,
+      },
+      metamask: {
+        enabled: true,
+      },
+      webauthn: {
+        enabled: true,
+      },
+      logging: {
+        level: "debug",
+      },
+    });
+
+    // Attendiamo l'inizializzazione completa
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Recupera il plugin social
+    socialPlugin = shogun.getPlugin("social");
+    console.log("Plugin social:", socialPlugin);
+
+    // Verifica stato indexer
+    try {
+      console.log("[DEBUG] initShogun: Checking indexer availability...");
+
+      const indexerAvailable = await checkIndexerAvailability();
+
+      if (indexerAvailable) {
+        console.log("[DEBUG] initShogun: Indexer is available and responding");
+        useIndexer.set(true);
+      } else {
+        console.log(
+          "[DEBUG] initShogun: Indexer is not available, falling back to Gun only mode"
+        );
+        useIndexer.set(false);
+      }
+    } catch (err) {
+      console.warn("Error checking indexer status:", err);
+      useIndexer.set(false);
+    }
+
+    // Verifica se l'utente è già autenticato (recall sessione)
+    try {
+      if (shogun.user && shogun.user.is && shogun.user.is.pub) {
+        console.log("Sessione utente esistente rilevata:", shogun.user.is.pub);
+
+        // Ottieni il profilo
+        const profile = await getProfile();
+        console.log("Sessione recuperata, profilo:", profile);
+
+        // Aggiorna gli store
+        currentUser.set(profile);
+        isAuthenticated.set(true);
+
+        // Load user likes
+        getUserLikes().catch((err) =>
+          console.warn("Error loading user likes after session restore:", err)
+        );
+      } else {
+        console.log("Nessuna sessione utente esistente");
+      }
+    } catch (sessionErr) {
+      console.warn("Errore recupero sessione:", sessionErr);
+    }
+
+    isLoading.set(false);
+    return true;
+  } catch (err) {
+    console.error("Errore inizializzazione Shogun:", err);
+    errorMessage.set(`Errore connessione: ${err}`);
+    isLoading.set(false);
+    return false;
+  }
+}
+
+/**
+ * Effettua l'accesso con un utente
+ */
+export async function login(
+  username: string,
+  password: string
+): Promise<boolean> {
+  if (!shogun) {
+    console.log("Shogun non inizializzato, tentativo di inizializzazione");
+    await initShogun();
+  }
+
+  try {
+    console.log(`Tentativo di login per l'utente: ${username}`);
+    isLoading.set(true);
+    errorMessage.set(null);
+
+    // Effettua l'autenticazione
+    const user = await shogun.login(username, password);
+
+    console.log("Risultato login:", user);
+
+    // Verifica se l'utente è autenticato correttamente
+    if (user && typeof user === "object") {
+      // Controlla se c'è un errore nel risultato
+      if (user.error) {
+        console.error(`Errore di login: ${user.error}`);
+        errorMessage.set(`Errore di login: ${user.error}`);
+        isLoading.set(false);
+
+        // Assicuriamoci che l'utente non sia considerato autenticato
+        isAuthenticated.set(false);
+        currentUser.set(null);
+        return false;
+      }
+
+      // Controlla se il successo è false (ad esempio nel caso di timeout)
+      if (user.success === false) {
+        console.error("Login fallito: success=false");
+        errorMessage.set(user.error || "Login fallito");
+        isLoading.set(false);
+
+        // Assicuriamoci che l'utente non sia considerato autenticato
+        isAuthenticated.set(false);
+        currentUser.set(null);
+        return false;
+      }
+
+      // Se siamo arrivati qui, il login è probabilmente riuscito
+      console.log("Login avvenuto con successo:", user);
+
+      // Controlliamo veramente che l'utente sia autenticato prima di procedere
+      const is = shogun.user?.is;
+      if (!is || !is.pub) {
+        console.error("Login fallito: utente non autenticato dopo il login");
+        errorMessage.set("Login fallito");
+        isLoading.set(false);
+
+        isAuthenticated.set(false);
+        currentUser.set(null);
+        return false;
+      }
+
+      // Creiamo un profilo minimo
+      const defaultProfile: UserProfile = {
+        pub: is.pub, // Usa la chiave pubblica reale invece dello username
+        alias: username,
+        followers: [],
+        following: [],
+        customFields: {},
+      };
+
+      // Impostiamo prima un profilo di default
+      currentUser.set(defaultProfile);
+
+      try {
+        // Prova a caricare i dati utente
+        console.log("Tentativo di recupero profilo");
+        const profile = await getProfile();
+        console.log("Profilo recuperato:", profile);
+        currentUser.set(profile);
+      } catch (err) {
+        console.warn(
+          "Impossibile recuperare il profilo, uso profilo di default",
+          err
+        );
+        // Profilo di default già impostato
+      }
+
+      // Forzare gli aggiornamenti di stato alla fine di tutto il processo
+      isAuthenticated.set(true);
+      isLoading.set(false);
+
+      // Load user likes
+      getUserLikes().catch((err) =>
+        console.warn("Error loading user likes after login:", err)
+      );
+
+      console.log("Login completato con successo");
+      return true;
+    }
+
+    console.log("Credenziali non valide o login fallito");
+    errorMessage.set("Credenziali non valide o login fallito");
+    isLoading.set(false);
+    isAuthenticated.set(false);
+    currentUser.set(null);
+    return false;
+  } catch (err) {
+    console.error("Errore login:", err);
+    errorMessage.set(`Errore accesso: ${err}`);
+    isLoading.set(false);
+    isAuthenticated.set(false);
+    currentUser.set(null);
+    return false;
+  }
+}
+
+/**
+ * Registrazione di un nuovo utente
+ */
+export async function signUp(
+  username: string,
+  password: string
+): Promise<boolean> {
+  if (!shogun) {
+    console.log("Shogun non inizializzato, tentativo di inizializzazione");
+    await initShogun();
+  }
+
+  try {
+    console.log(`Tentativo di registrazione per l'utente: ${username}`);
+    isLoading.set(true);
+    errorMessage.set(null);
+
+    // Effettua la registrazione (passando la password due volte come richiesto dall'API)
+    const result = await shogun.signUp(username, password, password);
+
+    console.log("Risultato registrazione:", result);
+
+    // Verifica se l'utente è stato registrato correttamente
+    if (result && typeof result === "object") {
+      // Controlla se c'è un errore nel risultato
+      if (result.error) {
+        console.error(`Errore di registrazione: ${result.error}`);
+        errorMessage.set(`Errore di registrazione: ${result.error}`);
+        isLoading.set(false);
+        return false;
+      }
+
+      // Controlla se il successo è false
+      if (result.success === false) {
+        console.error("Registrazione fallita: success=false");
+        errorMessage.set(result.error || "Registrazione fallita");
+        isLoading.set(false);
+        return false;
+      }
+
+      // Se siamo arrivati qui, la registrazione è riuscita
+      console.log("Registrazione completata con successo:", result);
+      isLoading.set(false);
+
+      // Non facciamo login automatico, l'utente dovrà fare login manualmente
+      return true;
+    }
+
+    console.log("Registrazione fallita o dati non validi");
+    errorMessage.set("Registrazione fallita. Controlla i dati inseriti.");
+    isLoading.set(false);
+    return false;
+  } catch (err) {
+    console.error("Errore registrazione:", err);
+    errorMessage.set(`Errore registrazione: ${err}`);
+    isLoading.set(false);
+    return false;
+  }
+}
+
+/**
+ * Effettua il logout
+ */
+export async function logout(): Promise<boolean> {
+  if (!shogun) return false;
+
+  try {
+    // Ferma il polling prima del logout
+    stopTimelinePolling();
+
+    // Clear cache e sottoscrizioni
+    if (activeTimelineSubscription) {
+      try {
+        activeTimelineSubscription.unsubscribe();
+        activeTimelineSubscription = null;
+      } catch (err) {
+        console.warn("Errore chiusura sottoscrizione timeline:", err);
+      }
+    }
+
+    if (activeUserPostsSubscription) {
+      try {
+        activeUserPostsSubscription.unsubscribe();
+        activeUserPostsSubscription = null;
+      } catch (err) {
+        console.warn("Errore chiusura sottoscrizione post utente:", err);
+      }
+    }
+
+    // Ferma gli eventuali polling topic
+    // Clear all topic intervals
+    Object.keys(topicIntervals).forEach((topic) => {
+      clearInterval(topicIntervals[topic]);
+      delete topicIntervals[topic];
+    });
+    console.log("Cleaned up all topic polling intervals");
+
+    // Esegui il logout effettivo
+    shogun.logout();
+    isAuthenticated.set(false);
+    currentUser.set(null);
+    timeline.set([]);
+    return true;
+  } catch (err) {
+    console.error("Errore logout:", err);
+    return false;
+  }
+}
+
+/**
+ * Ottieni il profilo dell'utente corrente
+ */
+export async function getProfile(): Promise<UserProfile> {
+  if (!shogun || !shogun.user || !shogun.user.is || !shogun.user.is.pub) {
+    return {
+      pub: "",
+      alias: "",
+      following: [],
+      followers: [],
+      customFields: {
+        followersCount: 0,
+        followingCount: 0
+      },
+    };
+  }
+
+  try {
+    const pub = shogun.user.is.pub;
+    console.log(`[DEBUG] getProfile: Fetching profile for user ${pub}`);
+
+    // Prima tentiamo di recuperare i dati dall'indexer
+    if (get(useIndexer) && get(indexerAvailable)) {
+      try {
+        console.log(`[DEBUG] getProfile: Trying to get profile from indexer`);
+        
+        // Recupera il profilo dall'indexer
+        const url = `http://localhost:8765${INDEXER_ENDPOINTS.USER_PROFILE}/${pub}`;
+        console.log(`[DEBUG] getProfile: Fetching from ${url}`);
+        
+        const response = await makeAuthenticatedRequest(url, {
+          method: "GET"
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+
+          if (userData.success && userData.user) {
+            console.log(`[DEBUG] getProfile: Successfully retrieved user profile from indexer`);
+            
+            // Recupera anche la lista completa di follower e following
+            const followersResponse = await indexerApi.getUserFollowers(pub, 100, 0);
+            const followingResponse = await indexerApi.getUserFollowing(pub, 100, 0);
+            
+            console.log(`[DEBUG] getProfile: Retrieved follower counts - ${followersResponse.success ? followersResponse.count : 'N/A'} followers and ${followingResponse.success ? followingResponse.count : 'N/A'} following`);
+            
+            // Estrai gli ID dei follower e following
+            const followersList = followersResponse.success && followersResponse.followers ? 
+              followersResponse.followers.map((follower: any) => follower.pub) : [];
+            const followingList = followingResponse.success && followingResponse.following ? 
+              followingResponse.following.map((following: any) => following.pub) : [];
+            
+            return {
+              pub: pub,
+              alias: userData.user.alias || pub.substring(0, 8),
+              followers: followersList,
+              following: followingList,
+              customFields: {
+                bio: userData.user.bio,
+                avatar: userData.user.avatar || userData.user.profile_image || "",
+                followersCount: userData.user.followers_count || followersList.length,
+                followingCount: userData.user.following_count || followingList.length,
+                postsCount: userData.user.posts_count || 0,
+                ...userData.user.customFields,
+              },
+            };
+          }
+        } else {
+          console.warn(`[DEBUG] getProfile: Failed to get profile from indexer - ${response.status}`);
+        }
+      } catch (err) {
+        console.warn(`[DEBUG] getProfile: Error fetching profile from indexer:`, err);
+      }
+    }
+
+    // Fallback: recupera il profilo direttamente da Gun
+    console.log(`[DEBUG] getProfile: Falling back to Gun for profile data`);
+    
+    // Profilo base
+    const profile: UserProfile = {
+      pub: pub,
+      alias: pub.substring(0, 8),
+      followers: [],
+      following: [],
+      customFields: {
+        followersCount: 0,
+        followingCount: 0
+      },
+    };
+
+    // Recupera i dati del profilo
+    await new Promise<void>((resolve) => {
+      shogun.gun
+        .user(pub)
+        .get("profile")
+        .once((profileData: any) => {
+          if (profileData) {
+            profile.alias = profileData.alias || profileData.name || profile.alias;
+            profile.customFields.bio = profileData.bio || "";
+            profile.customFields.avatar = profileData.avatar || profileData.profileImage || "";
+            
+            // Retrieve followers and following if available
+            if (profileData.followers && Array.isArray(profileData.followers)) {
+              profile.followers = profileData.followers;
+              profile.customFields.followersCount = profileData.followers.length;
+            }
+            
+            if (profileData.following && Array.isArray(profileData.following)) {
+              profile.following = profileData.following;
+              profile.customFields.followingCount = profileData.following.length;
+            }
+          }
+          resolve();
+        });
+        
+      // Timeout di sicurezza
+      setTimeout(resolve, 3000);
+    });
+
+    return profile;
+  } catch (err) {
+    console.error(`[ERROR] getProfile: Error getting profile:`, err);
+    return {
+      pub: shogun.user.is.pub,
+      alias: shogun.user.is.pub.substring(0, 8),
+      following: [],
+      followers: [],
+      customFields: {
+        followersCount: 0,
+        followingCount: 0
+      },
+    };
+  }
+}
+
+/**
+ * Updates user profile fields using the Profile message type
+ * @param fields Fields to update (e.g., {bio: "New bio"})
+ * @returns True if successful, false otherwise
+ */
+export async function updateProfile(
+  fields: Record<string, string>
+): Promise<boolean> {
+  if (!socialPlugin || !get(isAuthenticated)) {
+    errorMessage.set("Not authenticated");
+    return false;
+  }
+
+  isLoading.set(true);
+
+  try {
+    // Use the updated social plugin updateProfile method
+    const result = await socialPlugin.updateProfile(fields);
+
+    if (result) {
+      // Update local user profile
+      const currentUserProfile = get(currentUser);
+      if (currentUserProfile) {
+        if (!currentUserProfile.customFields) {
+          currentUserProfile.customFields = {};
+        }
+
+        // Update the custom fields
+        for (const [field, value] of Object.entries(fields)) {
+          // Handle special fields
+          switch (field.toLowerCase()) {
+            case "name":
+            case "alias":
+              currentUserProfile.alias = value;
+              break;
+            case "bio":
+              currentUserProfile.customFields.bio = value;
+              break;
+            case "profileimage":
+              currentUserProfile.customFields.profileImage = value;
+              break;
+            default:
+              currentUserProfile.customFields[field] = value;
+              break;
+          }
+        }
+
+        // Update the store
+        currentUser.set(currentUserProfile);
+      }
+
+      return true;
+    } else {
+      errorMessage.set("Failed to update profile");
+      return false;
+    }
+  } catch (error) {
+    console.error("Error updating profile:", error);
+    errorMessage.set(`Error updating profile: ${error}`);
+    return false;
+  } finally {
+    isLoading.set(false);
+  }
+}
+
+/**
+ * Carica la timeline
+ */
+export async function loadTimeline(
+  limit = 10,
+  skipLoadingState = false,
+  topicToSearch?: string
+): Promise<void> {
+  try {
+    if (!skipLoadingState) {
+      isLoading.set(true);
+    }
+
+    // If a topic is provided, search for posts with that topic
+    if (topicToSearch) {
+      // Se stiamo usando l'indexer, assicuriamoci che abbia tutti i post indicizzati
+      if (get(useIndexer) && get(indexerAvailable)) {
+        try {
+          console.log(`[DEBUG] loadTimeline: Forza sync prima della ricerca per topic "${topicToSearch}"`);
+          
+          // Forza una sincronizzazione prima di cercare
+          const syncResponse = await fetch(
+            `${INDEXER_API_URL}/sync`,
+            createFetchConfig({
+              method: "POST",
+              body: JSON.stringify({ forceAll: true })
+            })
+          );
+          
+          if (syncResponse.ok) {
+            console.log(`[DEBUG] loadTimeline: Sync completato prima della ricerca per topic`);
+            // Attendi un breve momento per dare all'indexer il tempo di elaborare i dati
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (syncError) {
+          console.warn(`[DEBUG] loadTimeline: Errore sync prima della ricerca per topic:`, syncError);
+        }
+      }
+      
+      const messages = await searchByTopic(topicToSearch);
+
+      // Update the timeline with the new posts
+      timeline.set(messages);
+
+      // If the user is authenticated, load their likes to update hasLiked property
+      if (get(isAuthenticated)) {
+        await getUserLikes();
+      }
+
+      return;
+    }
+
+    // Try to load from the indexer first if enabled
+    if (get(useIndexer) && get(indexerAvailable)) {
+      try {
+        console.log(`[DEBUG] loadTimeline: Fetching from indexer, limit=${limit}`);
+
+        // Force a sync before fetching posts to ensure we have the latest data
+        try {
+          const syncResponse = await fetch(
+            `${INDEXER_API_URL}/sync`,
+            createFetchConfig({
+              method: "POST",
+              body: JSON.stringify({ forceAll: true })
+            })
+          );
+          
+          if (syncResponse.ok) {
+            console.log(`[DEBUG] loadTimeline: Pre-fetch sync completed`);
+            // Wait a brief moment to give the indexer time to process the data
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (syncError) {
+          console.warn(`[DEBUG] loadTimeline: Error during pre-fetch sync:`, syncError);
+        }
+
+        // Use the getRecentPosts method from indexerApi
+        console.log(`[DEBUG] loadTimeline: Calling indexerApi.getRecentPosts with limit=${limit}`);
+        const result = await indexerApi.getRecentPosts(limit, 0);
+        console.log(`[DEBUG] loadTimeline: Indexer response:`, result);
+
+        if (result.success && Array.isArray(result.posts)) {
+          if (result.posts.length > 0) {
+            console.log(`[DEBUG] loadTimeline: Loaded ${result.posts.length} posts from indexer`);
+            console.log(`[DEBUG] loadTimeline: Sample post:`, result.posts[0]);
+            
+            // Make sure all posts have required fields for display
+            const validatedPosts = result.posts.map((post: any) => {
+              // Ensure post has payload structure
+              if (!post.payload) {
+                post.payload = {
+                  content: post.content || "",
+                  topic: post.topic || "",
+                  attachment: post.attachment || null
+                };
+              }
+              
+              // Ensure post has correct type
+              if (!post.type) {
+                post.type = "POST";
+              }
+              
+              return post;
+            });
+            
+            // Update the timeline with the indexed posts
+            timeline.set(validatedPosts);
+
+            // Cache the results for fallback purposes
+            localCache.posts = validatedPosts;
+            localCache.lastUpdated = Date.now();
+
+            // If the user is authenticated, load their likes to update hasLiked property
+            if (get(isAuthenticated)) {
+              await getUserLikes();
+            }
+
+            return;
+          } else {
+            console.log(`[DEBUG] loadTimeline: Indexer returned empty posts array`);
+          }
+        } else {
+          console.warn(`[DEBUG] loadTimeline: No posts from indexer or error in response`);
+        }
+      } catch (err) {
+        console.error(`[DEBUG] loadTimeline: Error fetching from indexer:`, err);
+      }
+    }
+
+    // Fallback to Gun if indexer is not available or returned an error
+    try {
+      if (socialPlugin) {
+        console.log(`[DEBUG] loadTimeline: Falling back to Gun for timeline data`);
+        // Replace getLatestMessages with getTimeline which is the correct method according to the SocialPlugin
+        const timelineResult = await socialPlugin.getTimeline(limit, { includeLikes: true });
+        
+        if (timelineResult && Array.isArray(timelineResult.messages) && timelineResult.messages.length > 0) {
+          console.log(`[DEBUG] loadTimeline: Loaded ${timelineResult.messages.length} posts from Gun`);
+          timeline.set(timelineResult.messages);
+          return;
+        } else {
+          console.warn(`[DEBUG] loadTimeline: No posts retrieved from Gun: ${timelineResult?.error || 'No messages'}`);
+        }
+      }
+    } catch (gunError) {
+      console.error(`[DEBUG] loadTimeline: Error retrieving posts from Gun:`, gunError);
+    }
+
+    // If we still don't have posts at this point, use the cached posts if available
+    if (localCache.posts.length > 0 && Date.now() - localCache.lastUpdated < 300000) {
+      console.log(`[DEBUG] loadTimeline: Using ${localCache.posts.length} cached posts`);
+      timeline.set(localCache.posts);
+      return;
+    }
+
+    // If we get here, set an empty timeline
+    console.log(`[DEBUG] loadTimeline: Setting empty timeline - no data available`);
+    timeline.set([]);
+  } catch (error) {
+    console.error(`[ERROR] Error in loadTimeline:`, error);
+    timeline.set([]);
+  } finally {
+    isLoading.set(false);
+  }
+}
+
+/**
+ * Cancella tutte le sottoscrizioni/interval di ricerca per topic
+ */
+export function clearTopicSearchObservables(): void {
+  // Ferma gli interval di polling per topic se attivi
+  Object.keys(topicIntervals).forEach((topicKey) => {
+    clearInterval(topicIntervals[topicKey]);
+    delete topicIntervals[topicKey];
+  });
+  console.log("Cancellati tutti gli observable di ricerca per topic");
+}
+
+/**
+ * Configura un observable per un topic specifico
+ * @param topic Il topic/hashtag da osservare
+ * @param callback La funzione da chiamare quando arrivano nuovi post con questo topic
+ */
+export function setupTopicSearchObservable(
+  topic: string,
+  callback: (posts: Message[]) => void
+): void {
+  if (!topic) {
+    console.warn("Topic non valido per la configurazione dell'observable");
+    return;
+  }
+
+  // Rimuovi # iniziale se presente
+  const cleanTopic = topic.startsWith("#") ? topic.substring(1) : topic;
+
+  console.log(`Configurazione observable per topic: ${cleanTopic}`);
+
+  // Interrompi eventuali polling precedenti per questo topic
+  if (topicIntervals[cleanTopic]) {
+    clearInterval(topicIntervals[cleanTopic]);
+    delete topicIntervals[cleanTopic];
+  }
+
+  // Esegui subito la prima ricerca
+  searchByTopic(cleanTopic)
+    .then(callback)
+    .catch((err) =>
+      console.error(`Errore ricerca iniziale per topic ${cleanTopic}:`, err)
+    );
+
+  // Se stiamo usando l'indexer, configura un polling
+  if (get(useIndexer)) {
+    console.log(`Configurazione polling per topic ${cleanTopic}`);
+
+    // Polling ogni 5 secondi
+    topicIntervals[cleanTopic] = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return; // Non eseguire se la pagina non è visibile
+
+      searchByTopic(cleanTopic)
+        .then(callback)
+        .catch((err) =>
+          console.warn(`Errore polling topic ${cleanTopic}:`, err)
+        );
+    }, 5000);
+
+    return;
+  }
+}
+
+/**
+ * Setup a polling interval for timeline updates
+ */
+function setupTimelinePolling() {
+  // Clear any existing polling interval
+  stopTimelinePolling();
+
+  console.log("Setting up timeline polling");
+  timelinePollingInterval = window.setInterval(() => {
+    // Don't poll if page is not visible or user is not authenticated
+    if (document.visibilityState === "hidden" || !get(isAuthenticated)) return;
+
+    // Check for new posts every 5 seconds
+    loadTimeline(20, true).catch((err) =>
+      console.warn("Error polling timeline:", err)
+    );
+  }, 5000);
+
+  // Clear the interval when the page is closed
+  window.addEventListener("beforeunload", () => {
+    stopTimelinePolling();
+  });
+}
+
+/**
+ * Stop the timeline polling
+ */
+function stopTimelinePolling() {
+  if (timelinePollingInterval) {
+    clearInterval(timelinePollingInterval);
+    timelinePollingInterval = null;
+    console.log("Timeline polling stopped");
+  }
+}
+
+/**
+ * Configure the timeline observable
+ */
+export function setupTimelineObservable(): void {
+  try {
+    // Ferma qualsiasi observable precedente
+    if (activeTimelineSubscription) {
+      try {
+        activeTimelineSubscription.unsubscribe();
+      } catch (err) {
+        console.warn("Error unsubscribing from timeline:", err);
+      }
+      activeTimelineSubscription = null;
+    }
+
+    // Carica la timeline per inizializzare
+    loadTimeline(20, true);
+
+    // Se l'utente è loggato
+    if (!get(isAuthenticated)) {
+      console.warn(
+        "Impossibile configurare observable: utente non autenticato"
+      );
+      return;
+    }
+
+    // Always use polling for updates
+    console.log("Configurazione polling per timeline");
+    setupTimelinePolling();
+  } catch (err) {
+    console.error("Errore configurazione observable timeline:", err);
+    // Fallback to polling
+    setupTimelinePolling();
+  }
+}
+
+/**
+ * Create a getUserPosts function to fix references to it
+ */
+export async function getUserPosts(
+  limit = 20,
+  skipCache = false
+): Promise<Message[]> {
+  if (!socialPlugin) {
+    throw new Error("Social plugin not available");
+  }
+
+  try {
+    // Get the current user profile
+    const userProfile = get(currentUser);
+    if (!userProfile || !userProfile.pub) {
+      throw new Error("User profile not available");
+    }
+
+    console.log(`[DEBUG] getUserPosts: Tentativo recupero post per utente ${userProfile.pub}`);
+
+    // Try to fetch from indexer
+    if (get(useIndexer) && get(indexerAvailable)) {
+      try {
+        console.log(`[DEBUG] getUserPosts: Usando indexer per recuperare post utente`);
+        
+        // Forza una sincronizzazione prima di richiedere i post
+        try {
+          console.log(`[DEBUG] getUserPosts: Forzando sincronizzazione per l'utente ${userProfile.pub}`);
+          await indexerApi.forceSync({
+            forceUser: userProfile.pub
+          });
+          
+          console.log(`[DEBUG] getUserPosts: Sincronizzazione forzata completata`);
+        } catch (syncError) {
+          console.warn(`[DEBUG] getUserPosts: Errore durante la sincronizzazione forzata:`, syncError);
+        }
+        
+        // Ottieni i post dall'endpoint posts/author che abbiamo appena aggiunto
+        const result = await indexerApi.getPostsByAuthor(userProfile.pub, limit);
+        console.log(`[DEBUG] getUserPosts: Risultato indexer:`, result);
+        
+        if (result.success && Array.isArray(result.posts)) {
+          console.log(`[DEBUG] getUserPosts: Recuperati ${result.posts.length} post da indexer`);
+          // Salva nei post dell'utente corrente
+          userPosts.set(result.posts);
+          return result.posts;
+        } else {
+          console.warn(`[DEBUG] getUserPosts: Nessun risultato valido dall'indexer`, result);
+        }
+      } catch (err) {
+        console.error(`[DEBUG] getUserPosts: Errore recupero post da indexer`, err);
+      }
+    }
+
+    // Fallback to Gun if indexer is not available or returned an error
+    console.log(`[DEBUG] getUserPosts: Fallback a Gun per recuperare post`);
+    const posts = await socialPlugin.getUserPosts(userProfile.pub);
+    if (posts && Array.isArray(posts)) {
+      console.log(`[DEBUG] getUserPosts: Recuperati ${posts.length} post da Gun`);
+      userPosts.set(posts);
+      return posts;
+    } else {
+      console.warn(`[DEBUG] getUserPosts: Nessun post recuperato da Gun`);
+      userPosts.set([]);
+      return [];
+    }
+  } catch (error) {
+    console.error(`[DEBUG] getUserPosts: Unable to retrieve user posts (indexer unavailable or error)`, error);
+    userPosts.set([]);
+    return [];
+  }
+}
+
+/**
+ * Configure user posts observable with polling
+ */
+export function setupUserPostsObservable(): void {
+  try {
+    // Ferma qualsiasi observable precedente
+    if (activeUserPostsSubscription) {
+      try {
+        activeUserPostsSubscription.unsubscribe();
+      } catch (err) {
+        console.warn("Error unsubscribing from user posts:", err);
+      }
+      activeUserPostsSubscription = null;
+    }
+
+    console.log("Configurazione observable post utente");
+
+    // Carica i post dell'utente per inizializzare
+    getUserPosts(20, false).catch((err) =>
+      console.warn("Errore caricamento iniziale post utente:", err)
+    );
+
+    // Set up polling for user posts
+    const userProfile = get(currentUser);
+    if (userProfile && userProfile.pub) {
+      console.log("Configurazione polling per post utente");
+
+      // Using a different name so we don't overwrite the timeline polling
+      const userPostsPollingInterval = window.setInterval(() => {
+        // Non facciamo il polling se la pagina non è attiva o se l'utente non è autenticato
+        if (document.visibilityState === "hidden" || !get(isAuthenticated))
+          return;
+
+        // Verifica se ci sono nuovi post ogni 7 secondi
+        getUserPosts(20, true).catch((err) =>
+          console.warn("Errore polling post utente:", err)
+        );
+      }, 7000); // Slightly different interval to avoid exact overlap with timeline polling
+
+      // Pulisci l'interval quando la pagina viene chiusa
+      window.addEventListener("beforeunload", () => {
+        if (userPostsPollingInterval) {
+          clearInterval(userPostsPollingInterval);
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Errore configurazione observable post utente:", err);
+  }
+}
+
+/**
+ * Resetta lo stato dell'applicazione (sottoscrizioni, polling)
+ */
+export function resetApplicationState(): void {
+  console.log("Rimozione di tutte le sottoscrizioni e polling");
+
+  // Ferma il polling della timeline
+  stopTimelinePolling();
+
+  // Ferma gli observable attivi
+  if (activeTimelineSubscription) {
+    try {
+      activeTimelineSubscription.unsubscribe();
+      activeTimelineSubscription = null;
+    } catch (err) {
+      console.warn("Errore chiusura sottoscrizione timeline:", err);
+    }
+  }
+
+  if (activeUserPostsSubscription) {
+    try {
+      activeUserPostsSubscription.unsubscribe();
+      activeUserPostsSubscription = null;
+    } catch (err) {
+      console.warn("Errore chiusura sottoscrizione post utente:", err);
+    }
+  }
+
+  // Ferma tutti gli interval di topic
+  clearTopicSearchObservables();
+
+  console.log("Stato dell'applicazione resettato");
+}
+
+/**
+ * Carica i like fatti dall'utente corrente
+ */
+async function getUserLikes(): Promise<void> {
+  if (!get(isAuthenticated)) {
+    console.error("User not authenticated, can't fetch likes");
+    userLikes.set(new Map());
+    return;
+  }
+
+  try {
+    // Ottiene la chiave pubblica dell'utente corrente
+    const userProfile = get(currentUser);
+    if (!userProfile || !userProfile.pub) {
+      console.error("User profile not available");
+      userLikes.set(new Map());
+      return;
+    }
+
+    console.log("Loading user likes using indexer API");
+
+    // Fetch likes from the indexer API
+    try {
+      // First try the direct likes API endpoint
+      try {
+        const response = await fetch(
+          `${INDEXER_API_URL}/likes/user/${encodeURIComponent(
+            userProfile.pub
+          )}`,
+          createFetchConfig()
+        );
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && Array.isArray(result.likes)) {
+            // Build a map of postId -> like data
+            const likesMap = new Map<string, any>();
+            result.likes.forEach((like: any) => {
+              likesMap.set(like.post_id, like);
+            });
+
+            console.log(`Retrieved ${likesMap.size} likes from API`);
+            userLikes.set(likesMap);
+
+            // Update hasLiked property on timeline posts
+            const timelinePosts = get(timeline);
+            if (timelinePosts.length > 0) {
+              const updatedPosts = timelinePosts.map((post) => ({
+                ...post,
+                hasLiked: likesMap.has(post.id),
+              }));
+              timeline.set(updatedPosts);
+            }
+
+            return;
+          } else {
+            console.warn(
+              "Error retrieving likes from API:",
+              result.error || "Unknown error"
+            );
+          }
+        } else {
+          console.warn(
+            `API likes error: ${response.status} ${response.statusText}`
+          );
+        }
+      } catch (directError) {
+        console.warn("Error with direct likes endpoint:", directError);
+      }
+
+      // If the direct endpoint fails, try fetching likes from posts endpoint
+      console.log("Trying alternative approach to fetch user likes");
+      const timelinePosts = get(timeline);
+
+      if (timelinePosts.length > 0) {
+        const likesMap = new Map<string, any>();
+
+        // Process each post in the timeline
+        for (const post of timelinePosts) {
+          try {
+            // For each post, check if the user has liked it
+            const likeCheckResponse = await fetch(
+              `${INDEXER_API_URL}/posts/${
+                post.id
+              }/like?userPub=${encodeURIComponent(userProfile.pub)}`,
+              createFetchConfig()
+            );
+
+            if (likeCheckResponse.ok) {
+              const likeResult = await likeCheckResponse.json();
+              if (likeResult.success && likeResult.hasLiked) {
+                likesMap.set(post.id, {
+                  post_id: post.id,
+                  user_id: userProfile.pub,
+                  created_at: Date.now(),
+                });
+
+                // Update the post's hasLiked property
+                syncAllPostInstances(post.id, (p) => ({
+                  ...p,
+                  hasLiked: true,
+                }));
+              }
+            }
+          } catch (postError) {
+            console.warn(
+              `Error checking like status for post ${post.id}:`,
+              postError
+            );
+          }
+        }
+
+        console.log(
+          `Retrieved ${likesMap.size} likes through alternative approach`
+        );
+        userLikes.set(likesMap);
+        return;
+      }
+
+      // If we reach here, something went wrong with all approaches
+      userLikes.set(new Map());
+    } catch (apiError) {
+      console.error("Error fetching user likes:", apiError);
+      userLikes.set(new Map());
+    }
+  } catch (err) {
+    console.error("Error loading likes:", err);
+    userLikes.set(new Map());
+  }
+}
+
+/**
+ * Retrieves all users from the system
+ * @returns Array of user profiles
+ */
+export async function getAllUsers(): Promise<UserProfile[]> {
+  console.log(`[shogunService] Getting all users`);
+
+  // First try to get users from the indexer if available
+  if (get(useIndexer)) {
+    try {
+      // Check if the indexer API is available
+      const indexerIsAvailable = await checkIndexerAvailability();
+      indexerAvailable.set(indexerIsAvailable);
+
+      if (indexerIsAvailable) {
+        console.log(`[shogunService] Using indexer API to get users`);
+        try {
+          const response = await fetch(
+            `${INDEXER_API_URL}/users?limit=100`,
+            createFetchConfig()
+          );
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && Array.isArray(result.users)) {
+              console.log(
+                `[shogunService] Retrieved ${result.users.length} users from indexer`
+              );
+
+              // Transform indexer users to UserProfile format
+              const users: UserProfile[] = result.users.map(
+                (user: any): UserProfile => {
+                  return {
+                    pub: user.pub,
+                    alias: user.alias || getUserAlias(user.pub),
+                    cert: user.cert || "",
+                    epub: user.epub || "",
+                    following: Array.isArray(user.following) ? user.following : [],
+                    followers: Array.isArray(user.followers) ? user.followers : [],
+                    customFields: {
+                      profileImage: user.profile_image || "",
+                      bio: user.bio || "",
+                      followersCount: user.followers_count || 0,
+                      followingCount: user.following_count || 0,
+                      isFollowing: false, // Will be set later
+                    },
+                  };
+                }
+              );
+
+              // Get the current user to check follow status
+              const currentUserValue = get(currentUser);
+              if (currentUserValue && currentUserValue.pub) {
+                // Check which users are being followed by current user
+                users.forEach((user) => {
+                  if (
+                    currentUserValue.following &&
+                    currentUserValue.following.includes(user.pub)
+                  ) {
+                    if (!user.customFields) user.customFields = {};
+                    user.customFields.isFollowing = true;
+                  }
+                });
+              }
+
+              // Cache the users
+              users.forEach((user) => {
+                userProfiles[user.pub] = user;
+              });
+
+              return users;
+            }
+          }
+        } catch (error) {
+          console.warn(`[shogunService] Error getting users from indexer:`, error);
+          indexerAvailable.set(false);
+        }
+      }
+    } catch (error) {
+      console.warn(`[shogunService] Error checking indexer availability:`, error);
+      indexerAvailable.set(false);
+    }
+  }
+
+  // If indexer failed or is disabled, get users from Gun
+  console.log(`[shogunService] Falling back to Gun DB for users`);
+  try {
+    return await getAllUsersFromGun();
+  } catch (gunError) {
+    console.error(`[shogunService] Error getting users from Gun:`, gunError);
+    return getFallbackUsers();
+  }
+}
+
+/**
+ * Retrieves all users directly from GunDB (original method)
+ */
+async function getAllUsersFromGun(): Promise<UserProfile[]> {
+  if (!socialPlugin) {
+    throw new Error("Social plugin not available");
+  }
+
+  try {
+    console.log("[shogunService] Getting users from Gun directly");
+
+    // Get current user for authentication if available
+    const userProfile = get(currentUser);
+
+    // Try to use the social plugin first
+    try {
+      const gunUsers = await socialPlugin.getAllUsers();
+      if (gunUsers && Array.isArray(gunUsers) && gunUsers.length > 0) {
+        console.log(`[shogunService] Retrieved ${gunUsers.length} users from Gun social plugin`);
+        
+        // Cache user profiles
+        gunUsers.forEach(user => {
+          if (user.pub) {
+            userProfiles[user.pub] = user;
+          }
+        });
+        
+        return gunUsers;
+      }
+    } catch (pluginErr) {
+      console.warn("[shogunService] Error getting users from social plugin:", pluginErr);
+    }
+
+    // Fallback to direct indexer API with centralized authentication
+    try {
+      console.log("[shogunService] Falling back to indexer API for users");
+      
+      // Use the centralized makeAuthenticatedRequest helper
+      const response = await makeAuthenticatedRequest(
+        `${INDEXER_API_URL}/users?limit=100`,
+        { method: "GET" }
+      );
+      
+      // Check if response is OK before trying to parse JSON
+      if (!response.ok) {
+        console.warn(`[shogunService] Indexer API returned error status: ${response.status}`);
+        throw new Error(`API returned status ${response.status}`);
+      }
+      
+      // Check content type to avoid parsing HTML as JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn(`[shogunService] Invalid content type: ${contentType}`);
+        throw new Error(`Expected JSON but got ${contentType}`);
+      }
+      
+      try {
+        const result = await response.json();
+        
+        if (result && result.success && Array.isArray(result.users)) {
+          console.log(`[shogunService] Successfully retrieved ${result.users.length} users from indexer API`);
+          
+          const userProfiles = result.users.map((user: any) => {
+            const profile: UserProfile = {
+              pub: user.pub,
+              alias: user.alias || user.pub.substring(0, 8),
+              followers: user.followers || [],
+              following: user.following || [],
+              customFields: {
+                bio: user.bio || "",
+                profileImage: user.profile_image || "",
+                followersCount: user.followers_count || 0,
+                followingCount: user.following_count || 0
+              }
+            };
+            
+            return profile;
+          });
+          
+          return userProfiles;
+        }
+      } catch (jsonError) {
+        console.warn("[shogunService] Failed to parse JSON response", jsonError);
+        // Optionally log the response text for debugging
+        const text = await response.text();
+        console.warn("[shogunService] Raw response:", text.substring(0, 100) + "...");
+      }
+    } catch (apiErr) {
+      console.warn("[shogunService] Error fetching users from indexer API:", apiErr);
+    }
+    
+    console.log("[DEBUG] API methods failed, using fallback static users list");
+    return getFallbackUsers();
+  } catch (err) {
+    console.error("[shogunService] Error retrieving users from Gun:", err);
+    return getFallbackUsers();
+  }
+}
+
+/**
+ * Provides a fallback list of users when all other methods fail
+ * @returns Array of user profiles
+ */
+function getFallbackUsers(): UserProfile[] {
+  console.log("[shogunService] Using fallback user list");
+  
+  // Generate proper aliases from the public keys
+  const getAliasFromPubKey = (pub: string): string => {
+    if (!pub) return "Unknown";
+    // Use first part of the public key for a readable alias
+    const parts = pub.split('.');
+    const firstPart = parts[0];
+    if (firstPart.length >= 6) {
+      return "@" + firstPart.substring(0, 6);
+    }
+    return "@" + pub.substring(0, 6);
+  };
+  
+  // Include all the real users we see in the SQL database
+  const fallbackUsers: UserProfile[] = [
+    {
+      pub: "admin-user-pub-key",
+      alias: "@Admin",
+      followers: [],
+      following: [],
+      customFields: {
+        bio: "System administrator (fallback)",
+        profileImage: "",
+        followersCount: 0,
+        followingCount: 0
+      }
+    },
+    {
+      pub: "T0oDxCHI1eungdwaCW6YjJtfQLNdV61wHopswemjGpk.cz1gwvquJKGk7vYdZjfsLn_h4g8ZT77gpvFPDBPah9E",
+      alias: "@User2",
+      followers: [],
+      following: [],
+      customFields: {
+        bio: "Real user from the Gun database",
+        profileImage: "",
+        followersCount: 0,
+        followingCount: 0
+      }
+    },
+    {
+      pub: "tO0PjxDEgdTNwmAO9N784n1ARh71QOb5MO9WiC2oZ6A.2retNBzmHCBu6RcUmkwJRHLH1I3qn0qF2oEg8YP3ppk",
+      alias: "@User3",
+      followers: [],
+      following: [],
+      customFields: {
+        bio: "Another real user from the Gun database",
+        profileImage: "",
+        followersCount: 0,
+        followingCount: 0
+      }
+    },
+    {
+      pub: "KYdvp9ztFcCkaJ-0a-FHUPSKgzIhkw.SnI-XNK52fyAJPcBuBweJBF-PKfG1ej8Gpp7D6oMwzA",
+      alias: "@User4",
+      followers: [],
+      following: [],
+      customFields: {
+        bio: "User from SQL database",
+        profileImage: "",
+        followersCount: 0,
+        followingCount: 0
+      }
+    },
+    {
+      pub: "mWo8blVozjyHf3o97B6PPnK7fALctWFP_lJ_w.9EpPyEz-L3HiB_Fhs1yXNZAFuQh2UeEGF6WcQNbI",
+      alias: "@User5",
+      followers: [],
+      following: [],
+      customFields: {
+        bio: "Another user from SQL database",
+        profileImage: "",
+        followersCount: 0,
+        followingCount: 0
+      }
+    }
+  ];
+  
+  // Store these in the cache for later use
+  fallbackUsers.forEach(user => {
+    if (user.pub) {
+      userProfiles[user.pub] = user;
+    }
+  });
+  
+  return fallbackUsers;
+}
+
+/**
+ * Elimina un post usando il nuovo formato di messaggi strutturati
+ */
+export async function deletePost(postId: string): Promise<boolean> {
+  if (!socialPlugin) {
+    throw new Error("Plugin social non disponibile");
+  }
+
+  console.log(`Tentativo di eliminazione post ${postId}`);
+
+  try {
+    // Ottieni l'utente corrente
+    const user = get(currentUser);
+    if (!user || !user.pub) {
+      throw new Error("Utente non autenticato");
+    }
+
+    // Create a DELETE message
+    const messageData = {
+      type: CORE_MESSAGE_TYPES.DELETE, // Special message type for deletions
+      subtype: "POST", // The type being deleted
+      creator: user.pub,
+      createdAt: Date.now(),
+      reference: postId, // Reference to the post being deleted
+      payload: {
+        postId: postId,
+      },
+    };
+
+    // Store the delete message
+    const messageId = await socialPlugin.deletePost(postId);
+
+    if (!messageId) {
+      console.error("Failed to store delete message");
+      return false;
+    }
+
+    // Ensure the delete is saved in the indexer directly as a backup
+    if (get(useIndexer)) {
+      try {
+        // Use the direct endpoint to ensure the post is deleted in the indexer
+        const response = await fetch(
+          `${INDEXER_API_URL}/posts/${postId}`,
+          createFetchConfig({
+            method: "DELETE",
+          })
+        );
+
+        const result = await response.json();
+        console.log(
+          `Backup delete direct to indexer: ${
+            result.success ? "success" : "failed"
+          }`
+        );
+      } catch (err) {
+        console.warn("Errore invio delete a indexer:", err);
+      }
+    }
+
+    // Aggiorniamo la timeline locale per rimuovere il post
+    const currentTimelineValue = get(timeline);
+    timeline.set(currentTimelineValue.filter((p: Message) => p.id !== postId));
+
+    // Dopo un secondo, ricarica la timeline per essere sicuri
+    setTimeout(() => {
+      loadTimeline(20, true).catch((err) =>
+        console.warn("Errore ricaricamento timeline dopo delete:", err)
+      );
+    }, 1000);
+
+    return true;
+  } catch (err) {
+    console.error("Errore eliminazione post:", err);
+    return false;
+  }
+}
+
+/**
+ * Like a post
+ */
+export async function likePost(postId: string): Promise<boolean> {
+  if (!get(isAuthenticated) || !socialPlugin) {
+    errorMessage.set("Not authenticated");
+    return false;
+  }
+
+  try {
+    console.log(`[DEBUG] likePost: Attempting to like post ${postId}`);
+    
+    // Get current user profile
+    const userProfile = get(currentUser);
+    if (!userProfile || !userProfile.pub) {
+      console.error(`[DEBUG] likePost: User profile not available`);
+      errorMessage.set("User profile not available");
+      return false;
+    }
+    
+    // Check if already liked
+    if (hasLiked(postId)) {
+      console.log(`[DEBUG] likePost: Post ${postId} already liked, skipping`);
+      return true; // Already liked, consider it a success
+    }
+
+    // Aggiorna l'UI immediatamente per un migliore UX
+    syncAllPostInstances(postId, (post) => ({
+      ...post,
+      hasLiked: true,
+      likes_count: (post.likes_count || 0) + 1,
+    }));
+
+    // Aggiorna lo store dei like dell'utente anticipatamente (optimistic update)
+    userLikes.update(likes => {
+      likes.set(postId, {
+        post_id: postId,
+        user_id: userProfile.pub,
+        created_at: Date.now(),
+      });
+      return likes;
+    });
+
+    // Usa il metodo likePost di socialPlugin per salvare il like
+    // Questo memorizzerà il like in GunDB e l'indexer lo rileverà automaticamente
+    console.log(`[DEBUG] likePost: Calling socialPlugin.likePost for ${postId}`);
+    const result = await socialPlugin.likePost(postId);
+
+    if (result) {
+      console.log(`[DEBUG] likePost: Successfully liked post ${postId}`);
+      
+      // Try to update via indexer API for immediate effect
+      if (get(useIndexer) && get(indexerAvailable)) {
+        try {
+          console.log(`[DEBUG] likePost: Notifying indexer about like for post ${postId}`);
+          // This endpoint might not exist yet, but it would be a good addition
+          const indexerResponse = await fetch(
+            `${INDEXER_API_URL}/posts/${postId}/like`,
+            createFetchConfig({
+              method: "POST",
+              body: JSON.stringify({ userPub: userProfile.pub })
+            })
+          );
+          
+          if (indexerResponse.ok) {
+            console.log(`[DEBUG] likePost: Indexer notified successfully`);
+          }
+        } catch (indexerErr) {
+          console.warn(`[DEBUG] likePost: Failed to notify indexer:`, indexerErr);
+          // Continue anyway since the Gun operation succeeded
+        }
+      }
+      
+      return true;
+    }
+
+    console.warn(`[DEBUG] likePost: Gun operation returned false for post ${postId}`);
+    
+    // Se il like fallisce, ripristiniamo l'UI
+    syncAllPostInstances(postId, (post) => ({
+      ...post,
+      hasLiked: false,
+      likes_count: Math.max(0, (post.likes_count || 1) - 1),
+    }));
+    
+    // Also remove from userLikes store
+    userLikes.update(likes => {
+      likes.delete(postId);
+      return likes;
+    });
+
+    return false;
+  } catch (error) {
+    console.error(`[DEBUG] likePost: Error liking post ${postId}:`, error);
+
+    // Ripristina l'update ottimistico
+    syncAllPostInstances(postId, (post) => ({
+      ...post,
+      hasLiked: false,
+      likes_count: Math.max(0, (post.likes_count || 1) - 1),
+    }));
+    
+    // Also remove from userLikes store
+    userLikes.update(likes => {
+      likes.delete(postId);
+      return likes;
+    });
+
+    return false;
+  }
+}
+
+/**
+ * Unlike a post - Uses DELETE message type since unlikePost is not implemented
+ */
+export async function unlikePost(postId: string): Promise<boolean> {
+  if (!get(isAuthenticated) || !socialPlugin) {
+    errorMessage.set("Not authenticated");
+    return false;
+  }
+
+  try {
+    console.log(`[DEBUG] unlikePost: Attempting to unlike post ${postId}`);
+    
+    // Get current user profile
+    const userProfile = get(currentUser);
+    if (!userProfile || !userProfile.pub) {
+      console.error(`[DEBUG] unlikePost: User profile not available`);
+      errorMessage.set("User profile not available");
+      return false;
+    }
+    
+    // Update local UI immediately for better UX
+    syncAllPostInstances(postId, (post) => ({
+      ...post,
+      hasLiked: false,
+      likes_count: Math.max(0, (post.likes_count || 1) - 1),
+    }));
+
+    // Create and store a DELETE message for the like since unlikePost is not implemented
+    const messageData = {
+      type: CORE_MESSAGE_TYPES.DELETE,
+      subtype: MODERATION_SUBTYPES.LIKE,
+      creator: userProfile.pub,
+      createdAt: Date.now(),
+      payload: {
+        reference: postId,
+        target: MODERATION_SUBTYPES.LIKE,
+      },
+    };
+
+    // Store the delete message
+    const result = await socialPlugin.unlikePost(postId);
+
+    if (result) {
+      // Update user likes store
+      const currentLikes = get(userLikes);
+      currentLikes.delete(postId);
+      userLikes.set(currentLikes);
+
+      // Try to get updated like count from API
+      try {
+        const response = await fetch(
+          `${INDEXER_API_URL}/posts/${postId}`,
+          createFetchConfig()
+        );
+        const data = await response.json();
+        if (data.success && data.post) {
+          syncAllPostInstances(postId, (post) => ({
+            ...post,
+            hasLiked: false,
+            likes_count: data.post.likes_count,
+          }));
+        }
+      } catch (err) {
+        console.warn("Could not fetch updated like count:", err);
+      }
+
+      return true;
+    }
+
+    // If unlike failed, revert UI update
+    syncAllPostInstances(postId, (post) => ({
+      ...post,
+      hasLiked: true,
+      likes_count: (post.likes_count || 0) + 1,
+    }));
+
+    return false;
+  } catch (error) {
+    console.error("Error unliking post:", error);
+    
+    // Revert UI update on error
+    syncAllPostInstances(postId, (post) => ({
+      ...post,
+      hasLiked: true,
+      likes_count: (post.likes_count || 0) + 1,
+    }));
+    
+    return false;
+  }
+}
+
+/**
+ * Get comments for a post - Uses API since socialPlugin doesn't have a get method
+ */
+export async function getComments(postId: string): Promise<Comment[]> {
+  try {
+    // First try to get comments from the indexer API
+    try {
+      console.log(`[DEBUG] getComments: Trying indexer API for post ${postId}`);
+      const response = await fetch(
+        `${INDEXER_API_URL}/posts/${postId}/comments`,
+        createFetchConfig({
+          // Use mode 'same-origin' which is safer for credentials
+          mode: "cors",
+          credentials: "include"
+        })
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.comments)) {
+          console.log(`[DEBUG] getComments: Got ${result.comments.length} comments from indexer`);
+          return result.comments;
+        }
+      } else {
+        console.warn(`[DEBUG] getComments: Indexer API returned ${response.status}`);
+      }
+    } catch (apiError) {
+      console.warn(`[DEBUG] getComments: Indexer API error, falling back to Gun: ${apiError}`);
+    }
+
+    // If API failed or returned no comments, try to get comments directly from Gun
+    if (socialPlugin) {
+      console.log(`[DEBUG] getComments: Trying to get comments from Gun`);
+      
+      try {
+        const gunComments = await socialPlugin.getComments(postId);
+        
+        if (gunComments && Array.isArray(gunComments) && gunComments.length > 0) {
+          console.log(`[DEBUG] getComments: Got ${gunComments.length} comments from Gun`);
+          return gunComments;
+        } else {
+          console.log(`[DEBUG] getComments: No comments found in Gun`);
+        }
+      } catch (gunError) {
+        console.warn(`[DEBUG] getComments: Error getting comments from Gun: ${gunError}`);
+      }
+    }
+
+    // If we got here, both methods failed or returned no comments
+    return [];
+  } catch (error) {
+    console.error("Error getting comments:", error);
+    return [];
+  }
+}
+
+/**
+ * Add a comment to a post
+ */
+export async function addComment(
+  postId: string,
+  content: string
+): Promise<Comment | null> {
+  if (!get(isAuthenticated) || !socialPlugin) {
+    errorMessage.set("Not authenticated");
+    return null;
+  }
+
+  try {
+    // Usa il metodo addComment di socialPlugin
+    // Questo memorizzerà il commento in GunDB e l'indexer lo rileverà automaticamente
+    const result = await socialPlugin.addComment(postId, content);
+
+    if (!result) {
+      errorMessage.set("Failed to add comment");
+      return null;
+    }
+
+    return {
+      id: result.id,
+      postId: postId,
+      author: result.author,
+      content: content,
+      timestamp: result.timestamp,
+    };
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    errorMessage.set(`Error adding comment: ${error}`);
+    return null;
+  }
+}
+
+/**
+ * Follow a user
+ * @param userPub The public key of the user to follow
+ * @returns True if successful, false otherwise
+ */
+export async function followUser(userPub: string): Promise<boolean> {
+  if (!socialPlugin || !get(isAuthenticated)) {
+    errorMessage.set("Not authenticated");
+    return false;
+  }
+
+  isLoading.set(true);
+
+  try {
+    // Get the current user profile
+    const currentUserProfile = get(currentUser);
+    if (!currentUserProfile || !currentUserProfile.pub) {
+      errorMessage.set("User profile not available");
+      return false;
+    }
+
+    console.log(`[shogunService] Attempting to follow user ${userPub}`);
+
+    // Verifica se stiamo già seguendo l'utente
+    if (currentUserProfile.following.includes(userPub)) {
+      console.log(
+        `[shogunService] Already following ${userPub}, skipping operation`
+      );
+      return true;
+    }
+
+    // MODIFICATO: Implementiamo un approccio alternativo a causa dell'errore "Unverified data"
+    // Invece di usare il social plugin (che prova a modificare sia following che followers),
+    // modifichiamo solo la nostra lista following per evitare problemi di permessi
+    let success = false;
+    
+    try {
+      // Aggiorna solo la lista following dell'utente corrente
+      console.log(`[shogunService] Using direct approach to follow ${userPub}`);
+      
+      // Ottieni l'istanza Gun
+      const gun = shogun.gun;
+      
+      // Aggiungi l'utente alla lista following
+      await new Promise<void>((resolve, reject) => {
+        gun.user().get("following").get(userPub).put(true, (ack: any) => {
+          if (ack.err) {
+            console.error(`[shogunService] Error in follow operation: ${ack.err}`);
+            reject(new Error(ack.err));
+          } else {
+            console.log(`[shogunService] Successfully added ${userPub} to following list`);
+            resolve();
+          }
+        });
+      });
+      
+      success = true;
+    } catch (directError) {
+      console.error(`[shogunService] Direct follow approach failed:`, directError);
+      
+      // Fallback al metodo originale se l'approccio diretto fallisce
+      try {
+        console.log(`[shogunService] Falling back to plugin method`);
+        const messageId = await socialPlugin.follow(userPub);
+        success = !!messageId;
+      } catch (pluginError) {
+        console.error(`[shogunService] Plugin follow method also failed:`, pluginError);
+        success = false;
+      }
+    }
+
+    if (success) {
+      console.log(`[shogunService] Successfully followed ${userPub}`);
+
+      // Update local profile data - optimistic update
+      currentUserProfile.following.push(userPub);
+      
+      // Update counter
+      if (!currentUserProfile.customFields) {
+        currentUserProfile.customFields = {};
+      }
+      
+      currentUserProfile.customFields.followingCount = 
+        (currentUserProfile.customFields.followingCount || 0) + 1;
+      
+      // Update the store
+      currentUser.set({ ...currentUserProfile });
+
+      // If indexer is enabled, also call the API directly for immediate effect
+      if (get(useIndexer)) {
+        try {
+          console.log(`[shogunService] Ensuring indexer follow relationship for ${currentUserProfile.pub} -> ${userPub}`);
+          
+          // Call the follow endpoint directly to ensure the indexer has the data
+          const followResponse = await fetch(
+            `${INDEXER_API_URL}/follow`,
+            createFetchConfig({
+              method: "POST",
+              body: JSON.stringify({
+                followerPub: currentUserProfile.pub,
+                followeePub: userPub,
+                timestamp: Date.now()
+              }),
+            })
+          );
+
+          if (!followResponse.ok) {
+            console.warn(`[shogunService] Indexer follow response not OK: ${followResponse.status}`);
+          } else {
+            const result = await followResponse.json();
+            console.log(`[shogunService] Indexer follow result: ${JSON.stringify(result)}`);
+            
+            // Force an immediate update of counts
+            try {
+              console.log(`[shogunService] Immediately updating counts after follow operation`);
+              const targetUser = userProfiles[userPub];
+              
+              if (targetUser) {
+                // Directly increment the follower count on the target user
+                if (!targetUser.customFields) targetUser.customFields = {};
+                targetUser.customFields.followersCount = (targetUser.customFields.followersCount || 0) + 1;
+                
+                // Send a user update event right away for immediate UI feedback
+                if (typeof window !== 'undefined') {
+                  const event = new CustomEvent('shogun:user-update', { 
+                    detail: { 
+                      userPub,
+                      counts: {
+                        followersCount: targetUser.customFields.followersCount,
+                        followingCount: targetUser.customFields.followingCount || 0
+                      }
+                    }
+                  });
+                  window.dispatchEvent(event);
+                  console.log(`[shogunService] Dispatched immediate shogun:user-update event for ${userPub}`);
+                }
+              }
+              
+              // Also schedule a full refresh of counts for accuracy
+              setTimeout(async () => {
+                await updateTargetUserCounts(userPub);
+                
+                // Update current user counts too
+                const counts = await getUserCounts(currentUserProfile.pub);
+                if (!currentUserProfile.customFields) {
+                  currentUserProfile.customFields = {};
+                }
+                currentUserProfile.customFields.followersCount = counts.followersCount;
+                currentUserProfile.customFields.followingCount = counts.followingCount;
+                currentUser.set({ ...currentUserProfile });
+              }, 1000);
+            } catch (e) {
+              console.warn(`[shogunService] Error updating counts after follow:`, e);
+            }
+          }
+        } catch (indexerError) {
+          console.warn(
+            `[shogunService] Error calling indexer follow endpoint:`,
+            indexerError
+          );
+        }
+      } else {
+        // Even without indexer, still try to update the target user's follower count
+        const targetUser = userProfiles[userPub];
+        if (targetUser) {
+          if (!targetUser.customFields) targetUser.customFields = {};
+          targetUser.customFields.followersCount = (targetUser.customFields.followersCount || 0) + 1;
+          
+          // Dispatch event for UI update
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('shogun:user-update', { 
+              detail: { 
+                userPub,
+                counts: {
+                  followersCount: targetUser.customFields.followersCount,
+                  followingCount: targetUser.customFields.followingCount || 0
+                }
+              }
+            });
+            window.dispatchEvent(event);
+          }
+        }
+      }
+
+      // Immediately begin updating the target user's counts
+      setTimeout(() => {
+        updateTargetUserCounts(userPub).catch(e => 
+          console.warn(`[shogunService] Error updating target user counts: ${e}`)
+        );
+      }, 100);
+
+      return true;
+    } else {
+      console.error(`[shogunService] Error following user: operation failed`);
+      errorMessage.set("Failed to follow user");
+      return false;
+    }
+  } catch (error) {
+    console.error(`[shogunService] Error following user:`, error);
+    errorMessage.set(`Error following user: ${error}`);
+    return false;
+  } finally {
+    isLoading.set(false);
+  }
+  // This is unreachable but needed to satisfy TypeScript
+  return false;
+}
+
+/**
+ * Unfollow a user
+ * @param userPub The public key of the user to unfollow
+ * @returns True if successful, false otherwise
+ */
+export async function unfollowUser(userPub: string): Promise<boolean> {
+  if (!socialPlugin || !get(isAuthenticated)) {
+    errorMessage.set("Not authenticated");
+    return false;
+  }
+
+  isLoading.set(true);
+
+  try {
+    // Get the current user profile
+    const currentUserProfile = get(currentUser);
+    if (!currentUserProfile || !currentUserProfile.pub) {
+      errorMessage.set("User profile not available");
+      return false;
+    }
+
+    console.log(`[shogunService] Attempting to unfollow user ${userPub}`);
+
+    // Verifica se stiamo seguendo effettivamente l'utente
+    if (!currentUserProfile.following.includes(userPub)) {
+      console.log(
+        `[shogunService] Not following ${userPub}, skipping operation`
+      );
+      return true;
+    }
+
+    // MODIFICATO: Implementiamo un approccio alternativo a causa dell'errore "Unverified data"
+    // Invece di usare il social plugin (che prova a modificare sia following che followers),
+    // modifichiamo solo la nostra lista following per evitare problemi di permessi
+    let success = false;
+    
+    try {
+      // Aggiorna solo la lista following dell'utente corrente
+      console.log(`[shogunService] Using direct approach to unfollow ${userPub}`);
+      
+      // Ottieni l'istanza Gun
+      const gun = shogun.gun;
+      
+      // Rimuovi l'utente dalla lista following
+      await new Promise<void>((resolve, reject) => {
+        gun.user().get("following").get(userPub).put(null, (ack: any) => {
+          if (ack.err) {
+            console.error(`[shogunService] Error in unfollow operation: ${ack.err}`);
+            reject(new Error(ack.err));
+          } else {
+            console.log(`[shogunService] Successfully removed ${userPub} from following list`);
+            resolve();
+          }
+        });
+      });
+      
+      success = true;
+    } catch (directError) {
+      console.error(`[shogunService] Direct unfollow approach failed:`, directError);
+      
+      // Fallback al metodo originale se l'approccio diretto fallisce
+      try {
+        console.log(`[shogunService] Falling back to plugin method`);
+        const messageId = await socialPlugin.unfollow(userPub);
+        success = !!messageId;
+      } catch (pluginError) {
+        console.error(`[shogunService] Plugin unfollow method also failed:`, pluginError);
+        success = false;
+      }
+    }
+
+    if (success) {
+      console.log(`[shogunService] Successfully unfollowed ${userPub}`);
+
+      // Update local profile data - optimistic update
+      const followingIndex = currentUserProfile.following.indexOf(userPub);
+      if (followingIndex > -1) {
+        currentUserProfile.following.splice(followingIndex, 1);
+      }
+      
+      // Update counter
+      if (!currentUserProfile.customFields) {
+        currentUserProfile.customFields = {};
+      }
+      
+      if (currentUserProfile.customFields.followingCount && currentUserProfile.customFields.followingCount > 0) {
+        currentUserProfile.customFields.followingCount -= 1;
+      }
+      
+      // Update the store
+      currentUser.set({ ...currentUserProfile });
+
+      // If indexer is enabled, also call the API directly for immediate effect
+      if (get(useIndexer)) {
+        try {
+          console.log(`[shogunService] Ensuring indexer unfollow relationship for ${currentUserProfile.pub} -> ${userPub}`);
+          
+          // Call the unfollow endpoint directly to ensure the indexer has the data
+          const unfollowResponse = await fetch(
+            `${INDEXER_API_URL}/unfollow`,
+            createFetchConfig({
+              method: "POST",
+              body: JSON.stringify({
+                followerPub: currentUserProfile.pub,
+                followeePub: userPub,
+                timestamp: Date.now()
+              }),
+            })
+          );
+
+          if (!unfollowResponse.ok) {
+            console.warn(`[shogunService] Indexer unfollow response not OK: ${unfollowResponse.status}`);
+          } else {
+            const result = await unfollowResponse.json();
+            console.log(`[shogunService] Indexer unfollow result: ${JSON.stringify(result)}`);
+            
+            // Force an immediate update of counts
+            try {
+              console.log(`[shogunService] Immediately updating counts after unfollow operation`);
+              const targetUser = userProfiles[userPub];
+              
+              if (targetUser) {
+                // Directly decrement the follower count on the target user
+                if (!targetUser.customFields) targetUser.customFields = {};
+                if (targetUser.customFields.followersCount && targetUser.customFields.followersCount > 0) {
+                  targetUser.customFields.followersCount -= 1;
+                }
+                
+                // Send a user update event right away for immediate UI feedback
+                if (typeof window !== 'undefined') {
+                  const event = new CustomEvent('shogun:user-update', { 
+                    detail: { 
+                      userPub,
+                      counts: {
+                        followersCount: targetUser.customFields.followersCount || 0,
+                        followingCount: targetUser.customFields.followingCount || 0
+                      }
+                    }
+                  });
+                  window.dispatchEvent(event);
+                  console.log(`[shogunService] Dispatched immediate shogun:user-update event for ${userPub}`);
+                }
+              }
+              
+              // Also schedule a full refresh of counts for accuracy
+              setTimeout(async () => {
+                await updateTargetUserCounts(userPub);
+                
+                // Update current user counts too
+                const counts = await getUserCounts(currentUserProfile.pub);
+                if (!currentUserProfile.customFields) {
+                  currentUserProfile.customFields = {};
+                }
+                currentUserProfile.customFields.followersCount = counts.followersCount;
+                currentUserProfile.customFields.followingCount = counts.followingCount;
+                currentUser.set({ ...currentUserProfile });
+              }, 1000);
+            } catch (e) {
+              console.warn(`[shogunService] Error updating counts after unfollow:`, e);
+            }
+          }
+        } catch (indexerError) {
+          console.warn(
+            `[shogunService] Error calling indexer unfollow endpoint:`,
+            indexerError
+          );
+        }
+      } else {
+        // Even without indexer, still try to update the target user's follower count
+        const targetUser = userProfiles[userPub];
+        if (targetUser) {
+          if (!targetUser.customFields) targetUser.customFields = {};
+          if (targetUser.customFields.followersCount && targetUser.customFields.followersCount > 0) {
+            targetUser.customFields.followersCount -= 1;
+          }
+          
+          // Dispatch event for UI update
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('shogun:user-update', { 
+              detail: { 
+                userPub,
+                counts: {
+                  followersCount: targetUser.customFields.followersCount || 0,
+                  followingCount: targetUser.customFields.followingCount || 0
+                }
+              }
+            });
+            window.dispatchEvent(event);
+          }
+        }
+      }
+    }
+
+    return message;
+  } catch (error) {
+    console.error("Error sending private message:", error);
+    errorMessage.set(`Error sending message: ${error}`);
+    return null;
+  } finally {
+    isLoading.set(false);
+  }
+}
+
+/**
+ * Gets private messages for the current user
+ * @param limit Maximum number of messages to retrieve
+ * @param offset Offset for pagination
+ * @returns Array of private messages
+ */
+export async function getPrivateMessages(
+  limit = 50,
+  offset = 0
+): Promise<Message[]> {
+  if (!socialPlugin || !get(isAuthenticated)) {
+    return [];
+  }
+
+  try {
+    isLoading.set(true);
+
+    // Get the current user profile
+    const userProfile = get(currentUser);
+    if (!userProfile || !userProfile.pub) {
+      return [];
+    }
+
+    // Try to fetch from indexer
+    if (get(useIndexer)) {
+      try {
+        const response = await fetch(
+          `${INDEXER_API_URL}/messages/private?userPub=${encodeURIComponent(
+            userProfile.pub
+          )}&limit=${limit}&offset=${offset}`,
+          createFetchConfig()
+        );
+
+        const result = await response.json();
+
+        if (result.success && Array.isArray(result.messages)) {
+          // Convert to Message format
+          const messages = result.messages.map((msg: any) => ({
+            id: msg.id,
+            type: "PRIVATE" as MessageType,
+            subtype: msg.subtype || ("DIRECT" as MessageSubtype),
+            creator: msg.creator,
+            createdAt: msg.createdAt,
+            payload:
+              typeof msg.payload === "string"
+                ? JSON.parse(msg.payload)
+                : msg.payload || { content: "" },
+          }));
+
+          // Update the privateMessages store
+          privateMessages.set(messages);
+
+          // Organize messages by chat
+          const chatMap = new Map<string, Message[]>();
+          const unreadCounts = new Map<string, number>();
+
+          messages.forEach((message: Message) => {
+            let chatId: string;
+
+            if (message.subtype === "GROUP_CHAT") {
+              // For group chats, use the recipient array as ID
+              const recipients = message.payload.recipients || [];
+              chatId = `group:${recipients.sort().join(",")}`;
+            } else {
+              // For direct messages, use the other user's pub key
+              chatId =
+                message.creator === userProfile.pub
+                  ? message.payload.recipient || "unknown"
+                  : message.creator || "unknown";
+            }
+
+            // Add to chat map
+            if (!chatMap.has(chatId)) {
+              chatMap.set(chatId, []);
+            }
+            chatMap.get(chatId)?.push(message);
+
+            // Track unread messages (those not created by the current user and not marked as read)
+            if (message.creator !== userProfile.pub && !message.payload.read) {
+              unreadCounts.set(chatId, (unreadCounts.get(chatId) || 0) + 1);
+            }
+          });
+
+          // Sort each chat by timestamp
+          chatMap.forEach((chat, chatId) => {
+            chatMap.set(
+              chatId,
+              chat.sort((a, b) => b.createdAt - a.createdAt)
+            );
+          });
+
+          // Update stores
+          privateChats.set(chatMap);
+          unreadMessageCounts.set(unreadCounts);
+
+          return messages;
+        }
+      } catch (err) {
+        console.warn("Error fetching private messages from indexer:", err);
+      }
+    }
+
+    // Fallback to direct GunDB query (simplified)
+    console.log("Falling back to direct GunDB query for private messages");
+
+    // Return empty array for now, full Gun implementation would be more complex
+    return [];
+      } catch (error) {
+    console.error("Error getting private messages:", error);
+    return [];
+  } finally {
+    isLoading.set(false);
+  }
+}
+
+/**
+ * Gets messages for a specific chat (direct or group)
+ * @param chatId Identifier for the chat (pub key for direct, group ID for group chats)
+ * @param limit Maximum number of messages to retrieve
+ * @returns Array of messages for the chat
+ */
+export async function getChatMessages(
+  chatId: string,
+  limit = 50
+): Promise<Message[]> {
+  try {
+    // First check if we have this chat in our local store
+    const chats = get(privateChats);
+    if (chats.has(chatId)) {
+      return chats.get(chatId) || [];
+    }
+
+    // Otherwise, fetch all messages and filter
+    await getPrivateMessages(100, 0);
+
+    // Now check again
+    const updatedChats = get(privateChats);
+    return updatedChats.get(chatId) || [];
+  } catch (error) {
+    console.error(`Error fetching chat messages for ${chatId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Marks messages in a chat as read
+ * @param chatId Identifier for the chat
+ * @returns True if successful, false otherwise
+ */
+export async function markChatAsRead(chatId: string): Promise<boolean> {
+  if (!socialPlugin || !get(isAuthenticated)) {
+    return false;
+  }
+
+  try {
+    // Get the current user profile
+    const userProfile = get(currentUser);
+    if (!userProfile || !userProfile.pub) {
+      return false;
+    }
+
+    // Get messages for this chat
+    const chats = get(privateChats);
+    const messages = chats.get(chatId) || [];
+
+    if (messages.length === 0) {
+      return true; // Nothing to mark as read
+    }
+
+    // Determine if this is a group chat
+    const isGroupChat = chatId.startsWith("group:");
+
+    // Find messages that need to be marked as read (not created by current user and not read)
+    const unreadMessages = messages.filter(
+      (msg) => msg.creator !== userProfile.pub && !msg.payload.read
+    );
+
+    if (unreadMessages.length === 0) {
+      return true; // All messages already read
+    }
+
+    // Create a read receipt message
+    const receiptsCreated = await Promise.all(
+      unreadMessages.map(async (msg) => {
+        try {
+          // Create a READ_RECEIPT message
+          const readReceiptData = {
+            type: CORE_MESSAGE_TYPES.PRIVATE,
+            subtype: PRIVATE_MESSAGE_SUBTYPES.READ_RECEIPT,
+            creator: userProfile.pub,
+            createdAt: Date.now(),
+            payload: {
+              recipient: isGroupChat ? "" : chatId,
+              recipients: isGroupChat
+                ? chatId.replace("group:", "").split(",")
+                : [],
+              content: "",
+              isEncrypted: false,
+              metadata: {
+                messageId: msg.id,
+                timestamp: Date.now(),
+              },
+            },
+          };
+
+          // Store the read receipt
+          const receiptId = await socialPlugin.messageService.sendMessage(
+            chatId,
+            chatId, // Use the chatId as the recipient key 
+            JSON.stringify(readReceiptData),
+            () => {}
+          );
+
+          // If indexer is enabled, also update directly
+          if (get(useIndexer) && get(indexerAvailable)) {
+            try {
+              await fetch(
+                `${INDEXER_API_URL}/messages/mark-read`,
+                createFetchConfig({
+                  method: "POST",
+                  body: JSON.stringify({
+                    messageId: msg.id,
+                    userPub: userProfile.pub,
+                  }),
+                })
+              );
+            } catch (indexerError) {
+              console.warn(
+                "Error updating read status in indexer:",
+                indexerError
+              );
+            }
+          }
+
+          return !!receiptId;
+        } catch (error) {
+          console.error(
+            `Error creating read receipt for message ${msg.id}:`,
+            error
+          );
+          return false;
+        }
+      })
+    );
+
+    // Update local state to mark messages as read
+    privateChats.update((chats) => {
+      const chatMessages = chats.get(chatId) || [];
+      const updatedMessages = chatMessages.map((msg) => {
+        if (msg.creator !== userProfile.pub && !msg.payload.read) {
+          return {
+            ...msg,
+            payload: {
+              ...msg.payload,
+              read: true,
+            },
+          };
+        }
+        return msg;
+      });
+
+      return new Map(chats.set(chatId, updatedMessages));
+    });
+
+    // Update unread counts
+    unreadMessageCounts.update((counts) => {
+      counts.set(chatId, 0);
+      return counts;
+    });
+
+    return receiptsCreated.every((success) => success);
+  } catch (error) {
+    console.error(`Error marking chat ${chatId} as read:`, error);
+    return false;
+  }
+}
+
+/**
+ * Recupera il conteggio aggiornato di follower e following per un utente
+ * @param userPub Chiave pubblica dell'utente
+ * @returns Oggetto con conteggi {followersCount, followingCount}
+ */
+export async function getUserCounts(userPub: string): Promise<{followersCount: number, followingCount: number}> {
+  console.log(`[shogunService] Fetching counts for user ${userPub}`);
+  
+  // Valori predefiniti
+  let followersCount = 0;
+  let followingCount = 0;
+  
+  // Prima prova dall'indexer
+  if (get(useIndexer)) {
+    try {
+      // First attempt: Get from user endpoint directly
+      const response = await fetch(
+        `${INDEXER_API_URL}/users/${encodeURIComponent(userPub)}`,
+        createFetchConfig()
+      );
+      
+      if (response.ok) {
+        const userData = await response.json();
+        
+        if (userData.success && userData.user) {
+          console.log(`[shogunService] User counts retrieved from indexer`, userData.user);
+          followersCount = userData.user.followers_count || 0;
+          followingCount = userData.user.following_count || 0;
+          
+          // If we have valid counts, return immediately
+          if (followersCount > 0 || followingCount > 0) {
+            console.log(`[shogunService] Counts from indexer: followers=${followersCount}, following=${followingCount}`);
+            return { followersCount, followingCount };
+          }
+        }
+      }
+      
+      // Second attempt: Try to count the actual relationships
+      console.log(`[shogunService] Attempting to count direct follow relationships`);
+      
+      // Get followers count
+      const followersResponse = await fetch(
+        `${INDEXER_API_URL}/users/${encodeURIComponent(userPub)}/followers?limit=1000`,
+        createFetchConfig()
+      );
+      
+      if (followersResponse.ok) {
+        const followersData = await followersResponse.json();
+        if (followersData.success) {
+          followersCount = followersData.count || (followersData.followers ? followersData.followers.length : 0);
+          console.log(`[shogunService] Followers count from relationships: ${followersCount}`);
+        }
+      }
+      
+      // Get following count
+      const followingResponse = await fetch(
+        `${INDEXER_API_URL}/users/${encodeURIComponent(userPub)}/following?limit=1000`,
+        createFetchConfig()
+      );
+      
+      if (followingResponse.ok) {
+        const followingData = await followingResponse.json();
+        if (followingData.success) {
+          followingCount = followingData.count || (followingData.following ? followingData.following.length : 0);
+          console.log(`[shogunService] Following count from relationships: ${followingCount}`);
+        }
+      }
+      
+      // If we got at least one count, update the user record
+      if (followersCount > 0 || followingCount > 0) {
+        try {
+          // Update the user record with the counts for future use
+          await fetch(
+            `${INDEXER_API_URL}/users/update`,
+            createFetchConfig({
+              method: "POST",
+              body: JSON.stringify({
+                userPub,
+                followersCount,
+                followingCount
+              }),
+            })
+          );
+          console.log(`[shogunService] Updated user record with computed counts`);
+        } catch (updateError) {
+          console.warn(`[shogunService] Error updating user record:`, updateError);
+        }
+      }
+    } catch (err) {
+      console.warn(`[shogunService] Error fetching counts from indexer:`, err);
+    }
+  }
+  
+  // If no counts from indexer, try Gun DB
+  if (followersCount === 0 && followingCount === 0) {
+    console.log(`[shogunService] Falling back to Gun DB for user counts`);
+    
+    try {
+      // Create a promise with timeout for followers
+      const followersPromise = new Promise<number>((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log(`[shogunService] Timeout getting followers from Gun, returning 0`);
+          resolve(0);
+        }, 3000);
+        
+        shogun.gun
+          .user(userPub)
+          .get("profile")
+          .get("followers")
+          .once((followers: any) => {
+            clearTimeout(timeout);
+            if (Array.isArray(followers)) {
+              console.log(`[shogunService] Got ${followers.length} followers from Gun`);
+              resolve(followers.length);
+            } else {
+              resolve(0);
+            }
+          });
+      });
+      
+      // Create a promise with timeout for following
+      const followingPromise = new Promise<number>((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log(`[shogunService] Timeout getting following from Gun, returning 0`);
+          resolve(0);
+        }, 3000);
+        
+        shogun.gun
+          .user(userPub)
+          .get("profile")
+          .get("following")
+          .once((following: any) => {
+            clearTimeout(timeout);
+            if (Array.isArray(following)) {
+              console.log(`[shogunService] Got ${following.length} following from Gun`);
+              resolve(following.length);
+            } else {
+              resolve(0);
+            }
+          });
+      });
+      
+      // Get counts from Gun DB
+      followersCount = await followersPromise;
+      followingCount = await followingPromise;
+    } catch (err) {
+      console.warn(`[shogunService] Error fetching counts from Gun:`, err);
+    }
+  }
+  
+  console.log(`[shogunService] Final counts for ${userPub}: followers=${followersCount}, following=${followingCount}`);
+  return { followersCount, followingCount };
+}
+
+/**
+ * Creates a group chat message
+ * @param recipients Array of recipient public keys
+ * @param content Message content
+ * @param options Additional options
+ * @returns The created message or null on failure
+ */
+export async function createGroupMessage(
+  recipients: string[],
+  content: string,
+  options: {
+    isEncrypted?: boolean;
+    metadata?: {
+      attachmentType?: string;
+      attachmentUrl?: string;
+      replyToId?: string;
+    };
+  } = {}
+): Promise<Message | null> {
+  if (!socialPlugin || !get(isAuthenticated)) {
+    errorMessage.set("Not authenticated");
+    return null;
+  }
+
+  isLoading.set(true);
+
+  try {
+    // Get the current user profile
+    const userProfile = get(currentUser);
+    if (!userProfile || !userProfile.pub) {
+      errorMessage.set("User profile not available");
+      return null;
+    }
+
+    // Create the primary recipient value (first recipient for compatibility)
+    const primaryRecipient = recipients.length > 0 ? recipients[0] : "";
+    const timestamp = Date.now();
+
+    // Create a unique identifier for the group chat
+    const groupChatId = `group:${recipients.sort().join(",")}`;
+
+    // For each recipient, create or ensure a chat exists and send the message
+    for (const recipient of recipients) {
+      // Create a unique room ID for this recipient
+      const chatId = `${userProfile.pub}_${recipient}`;
+      
+      // Use the social plugin's message service to send the message
+      socialPlugin.messageService.sendMessage(
+        chatId,
+        recipient,
+        content,
+        (response: { errMessage?: string; errCode?: string; success?: string }) => {
+          if (response.errMessage) {
+            console.warn(`Error sending group message to ${recipient}:`, response.errMessage);
+          }
+        }
+      );
+    }
+
+    // Generate a message ID
+    const messageId = `msg_group_${timestamp}_${Math.random().toString(36).substring(2, 15)}`;
+
+    // Create a message object for the UI
+    const message: Message = {
+      id: messageId,
+      type: "PRIVATE" as MessageType,
+      subtype: "GROUP_CHAT" as MessageSubtype,
+      creator: userProfile.pub,
+      createdAt: timestamp,
+      payload: {
+        content: content,
+        recipient: primaryRecipient,
+        recipients: recipients,
+        ...options,
+      },
+    };
+
+    // Update the private messages store
+    privateMessages.update((messages) => [message, ...messages]);
+
+    // Update the chat for this group
+    privateChats.update((chats) => {
+      const existingChat = chats.get(groupChatId) || [];
+      const updatedChat = [message, ...existingChat];
+      return new Map(chats.set(groupChatId, updatedChat));
+    });
+
+    // Ensure the message is indexed by the indexer
+    if (get(useIndexer)) {
+      try {
+        const indexerResponse = await fetch(
+          `${INDEXER_API_URL}/messages`,
+          createFetchConfig({
+            method: "POST",
+            body: JSON.stringify({
+              id: messageId,
+              type: "PRIVATE",
+              subtype: "GROUP_CHAT",
+              creator: userProfile.pub,
+              createdAt: timestamp,
+              payload: {
+                recipient: primaryRecipient,
+                recipients: recipients,
+                content: content,
+                isEncrypted: options.isEncrypted || false,
+                metadata: options.metadata || {},
+              }
+            }),
+          })
+        );
+
+        const indexerResult = await indexerResponse.json();
+        console.log(
+          `Group message directly indexed: ${
+            indexerResult.success ? "success" : "failed"
+          }`
+        );
+      } catch (indexerError) {
+        console.warn(
+          "Error notifying indexer about new group message:",
+          indexerError
+        );
+      }
+    }
+
+    return message;
+  } catch (error) {
+    console.error("Error sending group message:", error);
+    errorMessage.set(`Error sending group message: ${error}`);
+    return null;
+  } finally {
+    isLoading.set(false);
+  }
+}
+
+/**
+ * Helper function to dispatch a user update event to notify components about changed counts
+ */
+function dispatchUserUpdateEvent(userPub: string, counts: {followersCount: number, followingCount: number}) {
+  if (typeof window !== 'undefined') {
+    const event = new CustomEvent('shogun:user-update', { 
+      detail: { 
+        userPub,
+        counts
+      }
+    });
+    window.dispatchEvent(event);
+  }
+}
+
+/**
+ * Helper function to update target user counts after a follow/unfollow
+ */
+async function updateTargetUserCounts(userPub: string): Promise<void> {
+  try {
+    // Check if user is in cache
+    const cachedUser = userProfiles[userPub];
+    if (cachedUser) {
+      console.log(`[shogunService] Updating cached counts for user ${userPub}`);
+      
+      // Get updated counts from indexer
+      const counts = await getUserCounts(userPub);
+      
+      // Update the cached user data
+      if (!cachedUser.customFields) {
+        cachedUser.customFields = {};
+      }
+      
+      cachedUser.customFields.followersCount = counts.followersCount;
+      cachedUser.customFields.followingCount = counts.followingCount;
+      
+      console.log(`[shogunService] Updated user ${userPub} counts: followers=${counts.followersCount}, following=${counts.followingCount}`);
+      
+      // Dispatch an event to notify UI components of the count change
+      if (typeof window !== 'undefined') {
+        try {
+          const event = new CustomEvent('shogun:user-update', {
+            detail: {
+              userPub,
+              counts: {
+                followersCount: counts.followersCount,
+                followingCount: counts.followingCount
+              }
+            }
+          });
+          window.dispatchEvent(event);
+          console.log(`[shogunService] Dispatched count update event for user ${userPub}`);
+        } catch (e) {
+          console.warn('[shogunService] Error dispatching user update event:', e);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn(`[shogunService] Error updating target user counts:`, error);
+  }
+}
+
