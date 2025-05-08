@@ -2,230 +2,2403 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DROP - Minimal P2P (v5)</title>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DROP - File Sharing Minimale</title>
+  <!-- Font moderni -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Configuration -->
+  <script src="config.js"></script>
+  <script src="configLoader.js"></script>
   <style>
-    :root { --primary:#4A90E2; --primary-light:#79B8F2; --background:linear-gradient(135deg,#79B8F2 0%,#4A90E2 100%); --card:#FFF; --text:#2C3E50; --muted:#7F8C8D; --radius:12px; --spacing:1.5rem; --transition:.3s; }
-    * { box-sizing:border-box; margin:0; padding:0; }
-    body { font-family:'Nunito',sans-serif; background:var(--background); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:var(--spacing); }
-    h1 { font-size:2.5rem; margin-bottom:var(--spacing); color:#FFF; text-shadow:1px 1px 4px rgba(0,0,0,.2); }
-    .card { background:var(--card); border-radius:var(--radius); box-shadow:0 4px 20px rgba(0,0,0,.1); padding:var(--spacing); width:100%; max-width:600px; margin-bottom:var(--spacing); }
-    form { display:flex; flex-direction:column; gap:1rem; }
-    input, button, progress { font-size:1rem; }
-    input { padding:.75rem; border:1px solid #DDD; border-radius:var(--radius); }
-    input:focus { outline:none; border-color:var(--primary); }
-    button { background:var(--primary); color:#FFF; border:none; border-radius:var(--radius); padding:.75rem; cursor:pointer; transition:background var(--transition),transform var(--transition); font-weight:600; }
-    button:hover { background:var(--primary-light); transform:translateY(-2px); }
-    #messages { background:#FFF; color:var(--text); padding:1rem; border-radius:var(--radius); min-height:2rem; margin-bottom:var(--spacing); font-weight:600; }
-    table { width:100%; border-collapse:collapse; margin-top:1rem; }
-    th, td { padding:.75rem; border-bottom:1px solid #EEE; text-align:left; white-space:nowrap; }
-    th { color:var(--muted); font-weight:600; }
-    tr:nth-child(even) { background:#FBFBFB; }
+    :root {
+      --primary: #0078ff;
+      --primary-light: #3d9bfd;
+      --primary-dark: #0058c3;
+      --accent: #00c16e;
+      --success: #00c16e;
+      --warning: #ffb801;
+      --error: #ff3d57;
+      --text-light: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Base styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow-x: hidden;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-light);
+      background-color: #000;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--spacing-md);
+      position: relative;
+    }
+
+    /* Background effect - Modern dark style */
+    #dynamic-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: -2;
+      background-size: cover;
+      background-position: center;
+      transition: background-image 1s cubic-bezier(.4,0,.2,1);
+      pointer-events: none;
+    }
+
+    /* Add gradient overlay to image */
+    #dynamic-bg::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%);
+      z-index: -1;
+    }
+
+    /* Typography */
+    h1 {
+      font-size: 4rem;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 1.5rem;
+      margin-top: 1.5rem;
+      letter-spacing: -0.05em;
+      text-align: center;
+      background: linear-gradient(90deg, #0078ff, #00c16e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.02em;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    p {
+      margin-bottom: var(--spacing-md);
+      color: var(--text-secondary);
+    }
+
+    /* Layout */
+    .container {
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+
+    /* Cards - Modern Glass Style */
+    .card {
+      background: rgba(20, 20, 25, 0.7);
+      border-radius: 1.5rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+      padding: 2rem;
+      margin-bottom: 2rem;
+      width: 100%;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Forms */
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Input fields - Modern dark style */
+    .input-group {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 1rem;
+    }
+
+    .input-group label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-light);
+      margin-bottom: 0.5rem;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"] {
+      font-family: inherit;
+      font-size: 1rem;
+      line-height: 1.5;
+      padding: 0.85rem 1.2rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-md);
+      width: 100%;
+      transition: all 0.3s ease;
+      color: #fff;
+    }
+
+    input:hover {
+      border-color: rgba(64, 159, 255, 0.5);
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(64, 159, 255, 0.15);
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* File input custom styling - Modern dark style */
+    .file-upload {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 3rem 2rem;
+      min-height: 240px;
+      border: 2px dashed rgba(64, 159, 255, 0.3);
+      border-radius: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      transition: all 0.3s ease;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .file-upload:hover, .file-upload.highlight {
+      border-color: var(--primary);
+      background: rgba(64, 159, 255, 0.1);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(64, 159, 255, 0.15);
+    }
+
+    .file-upload i {
+      font-size: 3.5rem;
+      color: var(--primary);
+      margin-bottom: var(--spacing-md);
+      transition: transform 0.3s ease;
+      background: linear-gradient(90deg, #0078ff, #00c16e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .file-upload:hover i, .file-upload.highlight i {
+      transform: scale(1.1);
+    }
+
+    .file-upload p {
+      margin-bottom: var(--spacing-xs);
+      font-weight: 600;
+      font-size: 1.25rem;
+      color: var(--text-light);
+    }
+
+    .file-upload span {
+      font-size: 1rem;
+      color: var(--text-secondary);
+    }
+
+    .file-upload input[type="file"] {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    /* Progress bar for uploads and downloads */
+    .download-progress, .upload-progress {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      margin: 1.5rem 0;
+      overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      width: 0%;
+      transition: width 0.3s ease-out;
+      border-radius: 4px;
+    }
+
+    /* Enhanced status messages */
+    #messages {
+      position: fixed;
+      top: var(--spacing-md);
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      z-index: 1000;
+      width: 90%;
+      max-width: 500px;
+      padding: var(--spacing-md);
+      border-radius: var(--radius-lg);
+      background: rgba(20, 20, 25, 0.9);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      display: flex;
+      align-items: center;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    #messages.success {
+      border-left: 4px solid var(--success);
+    }
+
+    #messages.error {
+      border-left: 4px solid var(--error);
+    }
+
+    #messages.active {
+      opacity: 1;
+      transform: translate(-50%, 0);
+      pointer-events: all;
+    }
+
+    /* Buttons - Dark modern style */
+    .btn {
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 1rem 1.75rem;
+      border: none;
+      border-radius: 0.5rem;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 20px rgba(0, 87, 255, 0.2);
+      margin-top: 0.5rem;
+    }
+
+    .btn::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(rgba(255,255,255,0), rgba(255,255,255,0.2), rgba(255,255,255,0));
+      transform: translateY(100%) rotate(10deg);
+      transition: transform 0.6s ease;
+    }
+
+    .btn:hover {
+      background: linear-gradient(90deg, var(--accent), var(--primary));
+      transform: translateY(-3px);
+      box-shadow: 0 14px 28px rgba(0, 87, 255, 0.25);
+    }
+
+    .btn:hover::after {
+      transform: translateY(-100%) rotate(10deg);
+    }
+
+    .btn:active {
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      background: rgba(255, 255, 255, 0.2);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-light);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-danger {
+      background: linear-gradient(90deg, var(--error), #ff618a);
+      box-shadow: 0 5px 15px rgba(255, 61, 87, 0.2);
+    }
+
+    .btn-danger:hover {
+      background: linear-gradient(90deg, #ff618a, var(--error));
+      box-shadow: 0 8px 20px rgba(255, 61, 87, 0.3);
+    }
+
+    .btn-sm {
+      font-size: 0.875rem;
+      padding: 0.6rem 1rem;
+    }
+
+    .btn-icon {
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 0;
+      border-radius: 50%;
+    }
+
+    /* Tabs - Dark style */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 1.5rem;
+    }
+
+    .tab {
+      padding: 0.75rem 1.25rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .tab:hover:not(.active) {
+      color: var(--text-light);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.5s forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Badges and status indicators */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 1rem;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-success {
+      background: rgba(0, 193, 110, 0.2);
+      color: var(--success);
+    }
+
+    .badge-error {
+      background: rgba(255, 61, 87, 0.2);
+      color: var(--error);
+    }
+
+    /* Stats table - Dark modern style */
+    .stats-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border-radius: 0.8rem;
+      overflow: hidden;
+      margin-top: 1.5rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+
+    .stats-table th, .stats-table td {
+      padding: 1rem 1.25rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stats-table th {
+      background-color: rgba(20, 20, 25, 0.7);
+      font-weight: 600;
+      color: var(--text-light);
+    }
+
+    .stats-table td {
+      background-color: rgba(30, 30, 35, 0.5);
+      color: var(--text-light);
+      padding: 12px 15px;
+    }
+
+    /* Column widths */
+    .stats-table th:nth-child(1), .stats-table td:nth-child(1) { width: 15%; }
+    .stats-table th:nth-child(2), .stats-table td:nth-child(2) { 
+      width: 45%; 
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 250px;
+    }
+    .stats-table th:nth-child(3), .stats-table td:nth-child(3), 
+    .stats-table th:nth-child(4), .stats-table td:nth-child(4) { 
+      width: 10%; 
+      text-align: center; 
+    }
+    .stats-table th:nth-child(5), .stats-table td:nth-child(5) { 
+      width: 20%; 
+      text-align: center; 
+    }
+
+    .stats-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .stats-table tr:hover td {
+      background-color: rgba(64, 159, 255, 0.1);
+    }
+
+    /* Additional utility classes */
+    .text-light {
+      color: var(--text-light);
+    }
+
+    .text-secondary {
+      color: var(--text-secondary);
+    }
+
+    /* Download content styling */
+    .download-content {
+      text-align: center;
+      padding: var(--spacing-lg) 0;
+    }
+
+    .download-icon {
+      font-size: 4rem;
+      color: var(--primary);
+      margin-bottom: var(--spacing-md);
+      animation: pulse 2s infinite ease-in-out;
+      background: linear-gradient(90deg, #0078ff, #00c16e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.8; }
+    }
+
+    #downloadSection h2 {
+      margin-bottom: var(--spacing-lg);
+      font-size: 2rem;
+    }
+
+    .download-progress {
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto var(--spacing-lg);
+    }
+
+    #downloadInfo {
+      font-size: 1.1rem;
+      color: var(--text-light);
+      margin-top: var(--spacing-md);
+    }
+
+    /* Sfondo immagine in stile moderno */
+    #dynamic-bg {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -2;
+      background-size: cover;
+      background-position: center;
+      opacity: 1;
+      transition: background-image 0.8s cubic-bezier(.4,0,.2,1);
+      pointer-events: none;
+    }
+
+    /* Action buttons in tables */
+    .table-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .delete-btn, .copy-btn {
+      background: rgba(255, 61, 87, 0.2);
+      color: var(--error);
+      border: none;
+      padding: 5px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s ease;
+    }
+
+    .delete-btn:hover {
+      background: rgba(255, 61, 87, 0.4);
+    }
+
+    .copy-btn {
+      background: rgba(0, 193, 110, 0.2);
+      color: var(--success);
+    }
+
+    .copy-btn:hover {
+      background: rgba(0, 193, 110, 0.4);
+    }
+
+    /* Token link style */
+    .token-link {
+      color: var(--primary);
+      text-decoration: none;
+      font-family: monospace;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+    }
+
+    .token-link:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    /* Truncated file name with tooltip */
+    .file-name-cell {
+      position: relative;
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: default;
+      padding: 12px 15px;
+      display: block;
+    }
+    
+    /* Hover tooltip for long file names */
+    .file-name-cell:hover::after {
+      content: attr(title);
+      position: absolute;
+      left: 0;
+      top: 100%;
+      background: rgba(20, 20, 25, 0.95);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      z-index: 10;
+      white-space: normal;
+      max-width: 300px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: fadeInTooltip 0.3s forwards;
+    }
+    
+    @keyframes fadeInTooltip {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Count input container spacing */
+    .count-input {
+      margin: 1rem 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .count-input label {
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    /* Drops counter styling */
+    .drops-count {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      padding: 0.5rem 0;
+    }
+
+    /* Flex utilities */
+    .flex {
+      display: flex;
+    }
+
+    .justify-between {
+      justify-content: space-between;
+    }
+
+    .items-center {
+      align-items: center;
+    }
+
+    .mb-2 {
+      margin-bottom: 1rem;
+    }
+
+    /* Text alignment */
+    .text-center {
+      text-align: center;
+    }
+
+    /* Progress bar for uploads and downloads */
+    .download-progress, .upload-progress {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      margin: 1.5rem 0;
+      overflow: hidden;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    #generateBtn {
+      margin-top: 1rem;
+      padding: 1.2rem 2rem;
+    }
+
+    /* File preview styling with better spacing */
+    .file-preview {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    .file-details {
+      flex: 1;
+    }
+
+    .file-selected {
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+
+    .file-size {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ipfs/dist/index.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.umd.min.js"></script>
+  <!-- Librerie via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/sea.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/ipfs/dist/index.min.js" defer></script>
+  <!-- Shogun Core -->
+  <script src="shogun-core.js" defer></script>
 </head>
 <body>
-  <h1>DROP v5</h1>
-  <div id="messages" class="card">Effettua login (GunDB) per iniziare</div>
+  <!-- Background shapes container -->
+  <div class="background-shapes">
+    <div class="background-shape"></div>
+    <div class="background-shape"></div>
+    <div class="background-shape"></div>
+  </div>
 
-  <div id="authCard" class="card">
-    <h2>Accedi / Registrati</h2>
-    <form id="authForm">
-      <input id="userInput" type="text" placeholder="Username" autocomplete="username" required>
-      <input id="passInput" type="password" placeholder="Password" autocomplete="current-password" required>
-      <div style="display:flex; justify-content:flex-end; gap:1rem;">
-        <button type="button" id="signUpBtn">Registrati</button>
-        <button type="button" id="signInBtn">Accedi</button>
+  <h1>SHOGUN DROP</h1>
+  
+  <div class="container">
+    <div id="messages" class="card"></div>
+
+    <div class="card" id="creatorSection">
+      <h2>Accedi o Registrati</h2>
+      <div class="tabs">
+        <div class="tab active" data-tab="standard">Password</div>
+        <div class="tab" data-tab="webauthn">WebAuthn <span id="webauthnStatus" class="badge"></span></div>
+        <div class="tab" data-tab="metamask">MetaMask <span id="metamaskStatus" class="badge"></span></div>
       </div>
-    </form>
+
+      <!-- Autenticazione Standard -->
+      <div class="tab-content active" data-content="standard">
+        <form id="authForm">
+          <div class="input-group">
+            <label for="userInput">Username</label>
+            <input id="userInput" type="text" placeholder="Inserisci username" autocomplete="username" required>
+          </div>
+          <div class="input-group">
+            <label for="passInput">Password</label>
+            <input id="passInput" type="password" placeholder="Inserisci password" autocomplete="current-password" required>
+          </div>
+          <div class="flex gap-sm">
+            <button type="button" id="doSignUp" class="btn btn-secondary">Registrati</button>
+            <button type="button" id="doSignIn" class="btn">Accedi</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Autenticazione WebAuthn -->
+      <div class="tab-content" data-content="webauthn">
+        <form id="webauthnForm">
+          <div class="input-group">
+            <label for="webauthnUsername">Username per WebAuthn</label>
+            <input id="webauthnUsername" type="text" placeholder="Inserisci username" autocomplete="username" required>
+          </div>
+          <div class="flex gap-sm">
+            <button type="button" id="webauthnSignUp" class="btn btn-secondary" disabled>Registrati</button>
+            <button type="button" id="webauthnSignIn" class="btn" disabled>Accedi</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Autenticazione MetaMask -->
+      <div class="tab-content" data-content="metamask">
+        <div id="metamaskAddress" class="user-id mb-2">Indirizzo non rilevato</div>
+        <div class="flex flex-col gap-sm">
+          <button type="button" id="metamaskConnect" class="btn" disabled>Connetti MetaMask</button>
+          <button type="button" id="metamaskSignUp" class="btn btn-secondary mt-1" disabled>Registrati</button>
+          <button type="button" id="metamaskSignIn" class="btn mt-1" disabled>Accedi</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="uploadSection" style="display:none;">
+      <div class="flex justify-between items-center mb-2">
+        <h2 style="margin-bottom: 0;">Condividi File</h2>
+        <div class="drops-count">Drop: <span id="dropCounter">0</span>/<span id="maxDrops"></span></div>
+      </div>
+      
+      <form id="uploadForm">
+        <div class="file-upload" id="dropZone">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p>Trascina qui il tuo file o fai clic per selezionarlo</p>
+          <span>Limite file: <span id="fileSizeLimit">10</span> MB</span>
+          <input type="file" id="fileInput" accept="*/*" required>
+        </div>
+        
+        <div id="filePreview" style="display:none;" class="file-preview">
+          <i class="fas fa-file file-icon"></i>
+          <div class="file-details">
+            <div class="file-selected">Nessun file selezionato</div>
+            <div class="file-size"></div>
+          </div>
+          <button type="button" id="removeFileBtn" class="btn btn-icon btn-secondary">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <!-- Upload Progress Bar - Initially Hidden -->
+        <div class="upload-progress" id="uploadProgress" style="display: none;">
+          <div class="progress-bar" id="uploadProgressBar"></div>
+        </div>
+        <div id="uploadStatus" class="text-center" style="display: none; margin-bottom: 1.5rem;">
+          Caricamento in corso...
+        </div>
+        
+        <div class="count-input">
+          <label for="countInput">Numero di link da generare:</label>
+          <input type="number" id="countInput" value="1" min="1" max="20" required>
+        </div>
+        
+        <button type="submit" class="btn" id="generateBtn">
+          <i class="fas fa-link"></i>
+          Genera Link
+        </button>
+      </form>
+    </div>
+
+    <div class="card" id="statsSection" style="display:none;">
+      <h2>I Tuoi Link</h2>
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>File</th>
+            <th>Scaricati</th>
+            <th>Rimanenti</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody id="statsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card" id="downloadSection" style="display:none;">
+      <div class="download-content">
+        <i class="fas fa-cloud-download-alt download-icon"></i>
+        <h2>Download in corso</h2>
+        <div class="download-progress">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div id="downloadInfo" class="text-center">
+          Preparazione del download...
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div id="dropCard" class="card" style="display:none;">
-    <h2>Crea un nuovo Drop</h2>
-    <form id="dropForm">
-      <input id="downloadsInput" type="number" placeholder="Numero download" min="1" required>
-      <input id="feeInput" type="text" placeholder="Fee download (ETH)" required>
-      <input id="fileInput" type="file" accept="*/*" required>
-      <button type="submit">Crea Drop</button>
-      <progress id="uploadProgress" max="100" hidden></progress>
-    </form>
-  </div>
-
-  <div id="statsCard" class="card" style="display:none;">
-    <h2>I tuoi Drop</h2>
-    <table>
-      <thead><tr><th>ID</th><th>Rimanenti</th><th>Fee (ETH)</th><th>Azioni</th></tr></thead>
-      <tbody id="statsBody"></tbody>
-    </table>
-  </div>
-
-  <div id="buyCard" class="card" style="display:none; text-align:center;">
-    <h2>Acquista e Scarica</h2>
-    <p>Drop #<span id="curId"></span></p>
-    <button id="buyBtn">Paga & Scarica</button>
-    <progress id="downloadProgress" max="100" hidden></progress>
-  </div>
+  <div id="dynamic-bg"></div>
 
   <script>
-    const id = s => document.getElementById(s);
-    const setMsg = (m,t='info') => { const e = id('messages'); e.textContent = m; e.style.background = t==='error'?'#FDECEA':t==='success'?'#EAF8E0':'#FFF'; e.style.color = t==='error'?'red':t==='success'?'green':'var(--text)'; };
-    const gun = Gun();
-    const ipfsP = Ipfs.create();
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const FACTORY_ADDR = '0x0577797C798fbd64fb852182F96ee1579948F7DA';
-    const FACTORY_ABI = [
-      'function createDrop(uint256,uint256) external',
-      'function dropDownloadFee(uint256) view returns(uint256)',
-      'function dropsCreated(address) view returns(uint256)',
-      'function maxDropsPerUser() view returns(uint256)',
-      'function purchaseDrop(uint256) external payable',
-      'event DropCreated(uint256,address,uint256,uint256)',
-      'event DropPurchased(address,uint256,uint256)'
-    ];
-    let user = null, signer, factory;
-
-    id('signUpBtn').onclick = async () => {
-      const u = id('userInput').value.trim(), p = id('passInput').value;
-      if (!u||!p) return setMsg('Compila tutti i campi','error');
-      const pair = await Gun.SEA.pair();
-      const auth = await Gun.SEA.encrypt(pair,p);
-      gun.get('users').get(u).put({ pub: pair.pub, auth });
-      setMsg('Registrato! Ora accedi','success');
+    // Definisco le costanti globali all'inizio
+    const FILE_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
+    const MAX_USER_DROPS = 5; // Limite massimo di drop per utente
+    const RATE_LIMIT = {
+      uploads: {
+        max: 5,
+        period: 60 * 60 * 1000, // 1 ora in millisecondi
+      },
+      downloads: {
+        max: 20,
+        period: 60 * 60 * 1000, // 1 ora in millisecondi
+      }
     };
-
-    id('signInBtn').onclick = () => {
-      const u = id('userInput').value.trim(), p = id('passInput').value;
-      if (!u||!p) return setMsg('Compila tutti i campi','error');
-      gun.get('users').get(u).once(async data => {
-        if (!data) return setMsg('Utente non trovato','error');
-        const pair = await Gun.SEA.decrypt(data.auth,p);
-        if (!pair) return setMsg('Password errata','error');
-        user = { username: u, pair };
-        setMsg(`Benvenuto ${u}`,'success');
-        id('authCard').style.display = 'none';
-        id('dropCard').style.display = 'block';
-        id('statsCard').style.display = 'block';
-        await initWallet(); await syncDrops(); loadStats();
-      });
-    };
-
-    async function initWallet() {
-      await provider.send('eth_requestAccounts', []);
-      signer = await provider.getSigner();
-      factory = new ethers.Contract(FACTORY_ADDR, FACTORY_ABI, signer);
+    
+    // Globals per i timeout dei messaggi
+    let messageClearTimeout; 
+    
+    // Funzione globale per copiare testo negli appunti (scope globale)
+    async function copyTextToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showMessage('Link(s) copiati negli appunti!', false);
+      } catch (err) {
+        console.error('Errore nel copiare testo: ', err);
+        // Fallback per browser più vecchi
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          showMessage('Link(s) copiati (fallback)! ', false);
+        } catch (execErr) {
+          console.error('Fallback copy error: ', execErr);
+          showMessage('Impossibile copiare i link. Copia manualmente.', true);
+        }
+        document.body.removeChild(textArea);
+      }
+    }
+    
+    // Funzione globale per messaggio che può essere chiamata ovunque
+    function showMessage(content, error = false, isHtml = false) {
+      const messages = document.getElementById('messages');
+      if (!messages) return; // Protezione se chiamato prima che il DOM sia pronto
+      
+      clearTimeout(messageClearTimeout);
+      
+      if (isHtml) {
+        messages.innerHTML = content;
+      } else {
+        messages.textContent = content;
+      }
+      messages.className = error ? 'card error' : 'card success';
+      
+      messages.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      messageClearTimeout = setTimeout(() => {
+        messages.innerHTML = '';
+        messages.className = 'card';
+      }, 7000);
+    }
+    
+    // Funzione globale per eliminare un drop
+    async function deleteDrop(token) {
+      if (!window.currentUser) {
+        showMessage('Devi effettuare il login per eliminare i drop.', true);
+        return;
+      }
+      
+      if (!confirm('Sei sicuro di voler eliminare questo drop? Questa azione non può essere annullata.')) {
+        return;
+      }
+      
+      try {
+        showMessage('Eliminazione in corso...', false);
+        
+        // Ottieni riferimento a Gun
+        const gun = window.gunInstance;
+        if (!gun) {
+          showMessage('Database non disponibile.', true);
+          return;
+        }
+        
+        // Ottieni i dati del drop
+        const drop = await new Promise(resolve => {
+          gun.get('tokens').get(token).once(data => resolve(data));
+        });
+        
+        if (!drop) {
+          return showMessage('Drop non trovato.', true);
+        }
+        
+        // Verifica che il drop appartenga all'utente
+        if (drop.creator !== window.currentUser.username) {
+          return showMessage('Non sei autorizzato a eliminare questo drop.', true);
+        }
+        
+        // Creazione istanza IPFS
+        let ipfs;
+        try {
+          ipfs = await window.ipfsPromise;
+        } catch (e) {
+          console.error('Errore durante l\'inizializzazione di IPFS:', e);
+        }
+        
+        // Rimuovi il file da IPFS solo se sia IPFS che il CID sono disponibili
+        if (ipfs && drop.cid) {
+          try {
+            console.log(`Tentativo di rimozione del file con CID ${drop.cid}`);
+            const removalSuccess = await window.ensureFileRemoval(ipfs, drop.cid);
+            
+            if (removalSuccess) {
+              console.log('File rimosso con successo da IPFS');
+            } else {
+              console.warn('Non è stato possibile verificare la rimozione completa del file');
+              // Continuiamo comunque con l'eliminazione dei riferimenti
+            }
+          } catch (e) {
+            console.error('Errore durante la rimozione del file:', e);
+            // Non blocchiamo l'eliminazione dei riferimenti in caso di errore IPFS
+          }
+        } else if (!ipfs) {
+          console.warn('IPFS non disponibile, si procede solo con la rimozione dei riferimenti');
+        } else if (!drop.cid) {
+          console.log('Nessun CID associato a questo drop, nessun file da rimuovere');
+        }
+        
+        // Rimuovi il drop dal database
+        gun.get('tokens').get(token).put(null);
+        
+        showMessage('Drop eliminato con successo.', false);
+        
+        // Aggiorna le statistiche
+        window.loadStats && window.loadStats();
+        window.updateDropCounter && window.updateDropCounter();
+      } catch (error) {
+        console.error('Errore durante l\'eliminazione:', error);
+        showMessage('Errore durante l\'eliminazione: ' + (error.message || String(error)), true);
+      }
     }
 
-    async function syncDrops() {
-      const addr = await signer.getAddress();
-      const logs = await factory.queryFilter(
-        factory.filters.DropCreated(null, addr),
-        0,
-        'latest'
-      );
-      for (const log of logs) {
-        const dropId = log.args.dropId.toNumber();
-        const rec = await new Promise(r => gun.get('drops').get(dropId).once(r));
-        if (!rec) {
-          await new Promise(r => gun.get('drops').get(dropId).put({
-            cid: '', key: '', fileName: '', fileType: '', remaining: 0, creator: user.username
-          }, r));
+    // Assegna alla variabile globale
+    window.deleteDrop = deleteDrop;
+
+    // Funzione globale per verificare e rimuovere completamente file
+    async function ensureFileRemoval(ipfs, cid) {
+      try {
+        // Prima rimuovi il pin
+        try {
+          await ipfs.pin.rm(cid);
+          console.log('Pin rimosso con successo');
+        } catch (pinError) {
+          console.warn('Errore durante la rimozione del pin:', pinError.message);
+          // Continuiamo comunque con gli altri metodi
+        }
+        
+        // NOTA: ipfs.pin.gc() non esiste nel client js-ipfs
+        // Usiamo invece ipfs.repo.gc() se disponibile
+        try {
+          if (ipfs.repo && typeof ipfs.repo.gc === 'function') {
+            await ipfs.repo.gc();
+            console.log('Garbage collection eseguita con successo');
+          } else {
+            console.log('Garbage collection API non disponibile in questa versione di IPFS');
+          }
+        } catch (gcError) {
+          console.warn('Errore garbage collection:', gcError.message);
+        }
+        
+        // Verifica che il file sia effettivamente rimosso
+        let fileExists = false;
+        try {
+          // Tenta di recuperare 1 byte del file
+          for await (const _ of ipfs.cat(cid, { length: 1 })) {
+            fileExists = true;
+            break;
+          }
+        } catch (e) {
+          // Errore nel recupero indica che probabilmente il file non esiste più
+          fileExists = false;
+          console.log('File non più accessibile dopo la rimozione del pin');
+        }
+        
+        // Se il file esiste ancora, tenta una rimozione più aggressiva
+        if (fileExists) {
+          console.warn(`File ancora presente dopo unpinning: ${cid}`);
+          
+          // Tenta altri metodi di rimozione
+          try {
+            // Tenta la rimozione con force=true se supportato
+            try {
+              await ipfs.pin.rm(cid, { force: true });
+              console.log('Pin rimosso con force=true');
+            } catch (e) {
+              // Se force non è supportato, tenta recursive=true
+              try {
+                await ipfs.pin.rm(cid, { recursive: true });
+                console.log('Pin rimosso con recursive=true');
+              } catch (innerErr) {
+                console.warn('Impossibile rimuovere con opzioni alternative:', innerErr.message);
+              }
+            }
+            
+            // Tenta files.rm se disponibile
+            if (ipfs.files && typeof ipfs.files.rm === 'function') {
+              try {
+                await ipfs.files.rm(`/ipfs/${cid}`, { recursive: true });
+                console.log('Rimosso attraverso files.rm');
+              } catch (e) {
+                console.warn('files.rm non riuscito:', e.message);
+              }
+            }
+            
+            // Tenta di nuovo la garbage collection
+            if (ipfs.repo && typeof ipfs.repo.gc === 'function') {
+              await ipfs.repo.gc();
+              console.log('Garbage collection eseguita dopo rimozione forzata');
+            }
+          } catch (e) {
+            console.error(`Errore rimozione aggressiva: ${e.message}`);
+          }
+          
+          // Registra lo stato nel database per rimozione futura
+          const gun = window.gunInstance;
+          if (gun) {
+            gun.get('gc_queue').set({ cid: cid.toString(), timestamp: Date.now() });
+            console.log('File aggiunto alla coda di garbage collection futura');
+          }
+        }
+        
+        return !fileExists;
+      } catch (error) {
+        console.error(`Errore durante la rimozione del file: ${error.message}`);
+        return false;
+      }
+    }
+
+    // Assegna alla variabile globale
+    window.ensureFileRemoval = ensureFileRemoval;
+
+    // Dichiarazione di variabili globali che useremo per il riferimento tra funzioni
+    window.gunInstance = null;
+    window.currentUser = null;
+    window.ipfsPromise = null;
+    window.loadStats = null;
+    window.updateDropCounter = null;
+
+    // Funzione globale per aggiornare il contatore dei drop
+    window.updateDropCounter = async function() {
+      // Se non c'è un utente loggato, non fare nulla
+      if (!window.currentUser) return;
+      
+      // Riferimento al contatore nell'UI
+      const dropCounter = document.getElementById('dropCounter');
+      if (!dropCounter) return;
+      
+      try {
+        // Recupero l'istanza gun
+        const gun = window.gunInstance;
+        if (!gun) return;
+        
+        // Conta i drop dell'utente
+        const count = await new Promise(resolve => {
+          let dropCount = 0;
+          const processedTokens = new Set();
+          
+          gun.get('tokens').map().once((data, token) => {
+            if (data && data.creator === window.currentUser.username && !processedTokens.has(token)) {
+              processedTokens.add(token);
+              dropCount++;
+            }
+          });
+          
+          // Attesa per dare tempo a Gun di recuperare i dati
+          setTimeout(() => resolve(dropCount), 500);
+        });
+        
+        // Aggiorno l'UI
+        dropCounter.textContent = count;
+        
+        // Gestione avviso visivo per limite raggiunto
+        if (count >= MAX_USER_DROPS) {
+          dropCounter.classList.add('drops-limit-warning');
+        } else {
+          dropCounter.classList.remove('drops-limit-warning');
+        }
+        
+        // Abilita/disabilita il pulsante di upload
+        const uploadButton = document.querySelector('#uploadForm button');
+        if (uploadButton) {
+          uploadButton.disabled = (count >= MAX_USER_DROPS);
+        }
+        
+        return count;
+      } catch (error) {
+        console.error('Errore durante il conteggio dei drop:', error);
+        return 0;
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      
+      // Set the MAX_USER_DROPS display value
+      document.getElementById('maxDrops').textContent = MAX_USER_DROPS;
+      
+      // Verifica che la connessione sia sicura (HTTPS)
+      if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        window.location.href = window.location.href.replace('http:', 'https:');
+        return;
+      }
+      
+      // Cache per il rate limiting
+      const rateCache = {
+        uploads: new Map(),
+        downloads: new Map(),
+      };
+      
+      const messages = document.getElementById('messages');
+      const creatorSection = document.getElementById('creatorSection');
+      const authForm = document.getElementById('authForm');
+      const userInput = document.getElementById('userInput');
+      const passInput = document.getElementById('passInput');
+      const doSignUp = document.getElementById('doSignUp');
+      const doSignIn = document.getElementById('doSignIn');
+      const uploadSection = document.getElementById('uploadSection');
+      const uploadForm = document.getElementById('uploadForm');
+      const fileInput = document.getElementById('fileInput');
+      const countInput = document.getElementById('countInput');
+      const fileSizeLimit = document.getElementById('fileSizeLimit');
+      const statsSection = document.getElementById('statsSection');
+      const statsBody = document.getElementById('statsBody');
+      const downloadSection = document.getElementById('downloadSection');
+      
+      // Imposta il limite di file visualizzato
+      fileSizeLimit.textContent = FILE_SIZE_LIMIT / (1024 * 1024);
+      
+      // Elementi per WebAuthn
+      const webauthnForm = document.getElementById('webauthnForm');
+      const webauthnUsername = document.getElementById('webauthnUsername');
+      const webauthnSignUp = document.getElementById('webauthnSignUp');
+      const webauthnSignIn = document.getElementById('webauthnSignIn');
+      const webauthnStatusSpan = document.getElementById('webauthnStatus');
+      
+      // Elementi per MetaMask
+      const metamaskConnect = document.getElementById('metamaskConnect');
+      const metamaskSignUp = document.getElementById('metamaskSignUp');
+      const metamaskSignIn = document.getElementById('metamaskSignIn');
+      const metamaskAddressDiv = document.getElementById('metamaskAddress');
+      const metamaskStatusSpan = document.getElementById('metamaskStatus');
+      
+      // Variabili per Shogun Core
+      let shogun;
+      let webauthnPlugin;
+      let metamaskPlugin;
+      let metamaskAddress = '';
+      
+      // Gun DB e IPFS
+      let gun;
+      
+      // Dichiara ipfsPromise e imposta una configurazione minima
+      const ipfsPromise = Ipfs.create({
+        repo: 'ipfs-' + Math.random(),
+        start: true,
+        preload: { enabled: false },  // Disabilita il preload per evitare errori di connessione
+        config: {
+          Bootstrap: [
+            '/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
+            '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN'
+          ]
+        }
+      }).catch(err => {
+        console.warn('Errore inizializzazione IPFS standard:', err);
+        // Tenta con configurazione ancora più minimale
+        console.log('Tentativo con configurazione minima...');
+        return Ipfs.create({
+          repo: 'ipfs-fallback-' + Math.random(),
+          start: true,
+          config: {
+            Addresses: {
+              Swarm: []  // Nessun indirizzo swarm per evitare problemi di connessione
+            }
+          }
+        });
+      }).catch(err => {
+        console.error('Tutte le configurazioni IPFS hanno fallito:', err);
+        showMessage('Impossibile connettersi a IPFS. Il download potrebbe non funzionare.', true);
+        // Ritorna una promessa risolta con un oggetto IPFS fittizio per evitare errori successivi
+        return Promise.resolve({
+          cat: () => {
+            throw new Error('IPFS non disponibile. Impossibile scaricare file.');
+          },
+          pin: {
+            rm: () => Promise.resolve({ error: 'IPFS non disponibile' })
+          }
+        });
+      });
+      let user = null;
+      
+      // AGGIUNGI QUESTA RIGA:
+      initializeShogun();
+      
+      // Assegna alle variabili globali
+      window.ipfsPromise = ipfsPromise;
+      
+      // Tab di autenticazione
+      const authTabs = document.querySelectorAll('.tab');
+      const authContents = document.querySelectorAll('.tab-content');
+      
+      // Gestione dei tab di autenticazione
+      authTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const tabName = tab.getAttribute('data-tab');
+          
+          // Aggiorna classi dei tab
+          authTabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          
+          // Aggiorna contenuti
+          authContents.forEach(content => {
+            if (content.getAttribute('data-content') === tabName) {
+              content.classList.add('active');
+            } else {
+              content.classList.remove('active');
+            }
+          });
+        });
+      });
+
+      // Il resto del codice rimane uguale...
+
+      // Funzione per inizializzare Shogun Core
+      function initializeShogun() {
+        try {
+          // Verifica se ShogunCore è disponibile
+          if (typeof window.initShogunBrowser !== 'function') {
+            console.error('ShogunCore non è disponibile');
+            return false;
+          }
+
+          // Configurazione
+          const config = {
+            gundb: {
+              peers: ['http://localhost:8765/gun'],
+              localStorage: false,
+              radisk: false,
+              authToken: 'thisIsTheTokenForReals'
+            },
+            webauthn: {
+              enabled: true,
+              rpName: 'Shogun DROP',
+              rpId: window.location.hostname
+            },
+            metamask: {
+              enabled: true
+            },
+            logging: {
+              enabled: true,
+              level: 'debug',
+              prefix: '[Shogun DROP]'
+            }
+          };
+
+          // Inizializza ShogunCore
+          shogun = window.initShogunBrowser(config);
+
+          console.log(shogun);
+          
+          // Ottieni i plugin
+          webauthnPlugin = shogun.getPlugin("webauthn");
+          metamaskPlugin = shogun.getPlugin("metamask");
+
+          // Verifica il supporto di WebAuthn e MetaMask
+          checkWebAuthnSupport();
+          checkMetaMaskSupport();
+
+          // Condividi l'istanza Gun
+          gun = shogun.gun;
+          window.gunInstance = gun; // Assegna alla variabile globale
+          
+          return true;
+        } catch (error) {
+          console.error('Errore durante l\'inizializzazione di ShogunCore:', error);
+          return false;
         }
       }
-    }
 
-    id('dropForm').onsubmit = async e => {
-      e.preventDefault();
-      if (!user) return setMsg('Login richiesto','error');
-      const file = id('fileInput').files[0]; if (!file) return setMsg('Seleziona un file','error');
-      const allowed = +id('downloadsInput').value;
-      const feeWei = ethers.parseEther(id('feeInput').value);
-      const addr = await signer.getAddress();
-      const created = await factory.dropsCreated(addr);
-      const max = await factory.maxDropsPerUser();
-      if (created >= max) return setMsg('Limite drop raggiunto','error');
-      const buf = await file.arrayBuffer();
-      const aesKey = await crypto.subtle.generateKey({ name:'AES-GCM', length:256 }, true, ['encrypt','decrypt']);
-      const raw = await crypto.subtle.exportKey('raw', aesKey);
-      const rawB64 = btoa(String.fromCharCode(...new Uint8Array(raw)));
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, aesKey, buf);
-      const data = new Uint8Array(iv.byteLength + cipher.byteLength);
-      data.set(iv); data.set(new Uint8Array(cipher), iv.byteLength);
-      const ipfs = await ipfsP;
-      id('uploadProgress').hidden = false;
-      const { cid } = await ipfs.add(data, { progress: bytes => id('uploadProgress').value = Math.round(bytes/data.length*100) });
-      id('uploadProgress').hidden = true;
-      const tx = await factory.createDrop(allowed, feeWei);
-      const receipt = await tx.wait();
-      let dropId;
-      for (const log of receipt.logs) {
+      // Funzione per verificare il supporto a WebAuthn
+      function checkWebAuthnSupport() {
+        const isSupported = typeof window.PublicKeyCredential !== 'undefined' && !!webauthnPlugin;
+
+        webauthnStatusSpan.textContent = isSupported ? 'SUPPORTATO' : 'NON SUPPORTATO';
+        webauthnStatusSpan.className = `badge ${isSupported ? 'badge-success' : 'badge-error'}`;
+
+        webauthnSignIn.disabled = !isSupported;
+        webauthnSignUp.disabled = !isSupported;
+
+        return isSupported;
+      }
+
+      // Funzione per verificare il supporto a MetaMask
+      function checkMetaMaskSupport() {
+        const isSupported = typeof window.ethereum !== 'undefined' && !!metamaskPlugin;
+
+        metamaskStatusSpan.textContent = isSupported ? 'RILEVATO' : 'NON RILEVATO';
+        metamaskStatusSpan.className = `badge ${isSupported ? 'badge-success' : 'badge-error'}`;
+
+        metamaskConnect.disabled = !isSupported;
+        metamaskSignIn.disabled = !isSupported || !metamaskAddress;
+        metamaskSignUp.disabled = !isSupported || !metamaskAddress;
+
+        return isSupported;
+      }
+
+      // AUTENTICAZIONE STANDARD
+      doSignUp.onclick = async () => {
+        const u = userInput.value.trim();
+        const p = passInput.value;
+        
+        if (!u || !p) return showMessage('Inserisci credenziali', true);
+        
         try {
-          const parsed = factory.interface.parseLog(log);
-          if (parsed.name === 'DropCreated') { dropId = parsed.args.dropId.toNumber(); break; }
-        } catch {}
-      }
-      if (dropId === undefined) return setMsg('Errore dropId','error');
-      gun.get('drops').get(dropId).put({
-        cid: cid.toString(), key: rawB64, fileName: file.name, fileType: file.type, remaining: allowed, creator: user.username
-      });
-      setMsg(`Drop ${dropId} creato`,'success'); loadStats();
-    };
-
-    async function loadStats() {
-      const addr = await signer.getAddress();
-      const total = await factory.dropsCreated(addr);
-      const tbody = id('statsBody'); tbody.innerHTML = '';
-      for (let i = 1; i <= total; i++) {
-        const rec = await new Promise(r => gun.get('drops').get(i).once(r));
-        if (!rec) continue;
-        const fee = await factory.dropDownloadFee(i);
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${i}</td>
-          <td>${rec.remaining}</td>
-          <td>${ethers.formatEther(fee)}</td>
-          <td><button data-id="${i}" class="buyBtn">Scarica</button></td>
-          <td><button data-id="${i}" class="delBtn">Elimina</button></td>
-        `;
-        tbody.appendChild(tr);
-        tr.querySelector('.buyBtn').onclick = () => selectDrop(i);
-        tr.querySelector('.delBtn').onclick = async () => {
-          if (confirm(`Eliminare il drop #${i}?`)) {
-            await new Promise(r => gun.get('drops').get(i).put(null, r));
-            loadStats();
+          if (shogun) {
+            // Usa ShogunCore
+            const result = await shogun.signUp(u, p, p);
+            if (result.success) {
+              showMessage('Registrazione completata. Effettua il login.');
+            } else {
+              showMessage(result.error || 'Errore durante la registrazione', true);
+            }
+          } else {
+            // Usa GunDB direttamente
+            const pair = await Gun.SEA.pair();
+            const auth = await Gun.SEA.encrypt(pair, p);
+            gun.get('users').get(u).put({ pub: pair.pub, auth });
+            showMessage('Registrazione completata. Effettua il login.');
           }
+        } catch (error) {
+          showMessage('Errore registrazione: ' + (error.message || error), true);
+        }
+      };
+
+      doSignIn.onclick = async () => {
+        const u = userInput.value.trim();
+        const p = passInput.value;
+        
+        if (!u || !p) return showMessage('Inserisci credenziali', true);
+        
+        try {
+          if (shogun) {
+            // Usa ShogunCore
+            const result = await shogun.login(u, p);
+            if (result.success) {
+              user = { username: u, userPub: result.userPub };
+              window.currentUser = user; // Assegna alla variabile globale
+              showMessage('Benvenuto, ' + u);
+              creatorSection.style.display = 'none';
+              uploadSection.style.display = 'block';
+              statsSection.style.display = 'block';
+              
+              // Caricamento dati nell'UI con controlli sicuri
+              try {
+                window.loadStats && window.loadStats();
+              } catch (e) {
+                console.error('Errore durante il caricamento delle statistiche:', e);
+              }
+              
+              try {
+                window.updateDropCounter && window.updateDropCounter();
+              } catch (e) {
+                console.error('Errore durante l\'aggiornamento del contatore drop:', e);
+              }
+            } else {
+              showMessage(result.error || 'Errore durante il login', true);
+            }
+          } else {
+            // Usa GunDB direttamente
+            gun.get('users').get(u).once(async data => {
+              if (!data) return showMessage('Utente non trovato', true);
+              const pair = await Gun.SEA.decrypt(data.auth, p);
+              if (!pair) return showMessage('Password errata', true);
+              user = { username: u, pair };
+              window.currentUser = user; // Assegna alla variabile globale
+              showMessage('Benvenuto, ' + u);
+              creatorSection.style.display = 'none';
+              uploadSection.style.display = 'block';
+              statsSection.style.display = 'block';
+              
+              // Caricamento dati nell'UI con controlli sicuri
+              try {
+                window.loadStats && window.loadStats();
+              } catch (e) {
+                console.error('Errore durante il caricamento delle statistiche:', e);
+              }
+              
+              try {
+                window.updateDropCounter && window.updateDropCounter();
+              } catch (e) {
+                console.error('Errore durante l\'aggiornamento del contatore drop:', e);
+              }
+            });
+          }
+        } catch (error) {
+          showMessage('Errore login: ' + (error.message || error), true);
+        }
+      };
+
+      // AUTENTICAZIONE WEBAUTHN
+      webauthnSignUp.onclick = async () => {
+        const u = webauthnUsername.value.trim();
+        
+        if (!u) return showMessage('Inserisci username per WebAuthn', true);
+        if (!webauthnPlugin) return showMessage('WebAuthn non disponibile', true);
+        
+        try {
+          const result = await webauthnPlugin.signUpWithWebAuthn(u);
+          if (result.success) {
+            user = { username: u, userPub: result.userPub };
+            showMessage('Registrazione WebAuthn completata. Benvenuto, ' + u);
+            creatorSection.style.display = 'none';
+            uploadSection.style.display = 'block';
+            statsSection.style.display = 'block';
+            loadStats();
+            updateDropCounter();
+          } else {
+            showMessage(result.error || 'Errore durante la registrazione WebAuthn', true);
+          }
+        } catch (error) {
+          showMessage('Errore registrazione WebAuthn: ' + (error.message || error), true);
+        }
+      };
+
+      webauthnSignIn.onclick = async () => {
+        const u = webauthnUsername.value.trim();
+        
+        if (!u) return showMessage('Inserisci username per WebAuthn', true);
+        if (!webauthnPlugin) return showMessage('WebAuthn non disponibile', true);
+        
+        try {
+          const result = await webauthnPlugin.loginWithWebAuthn(u);
+          if (result.success) {
+            user = { username: u, userPub: result.userPub };
+            showMessage('Login WebAuthn completato. Benvenuto, ' + u);
+            creatorSection.style.display = 'none';
+            uploadSection.style.display = 'block';
+            statsSection.style.display = 'block';
+            loadStats();
+            updateDropCounter();
+          } else {
+            showMessage(result.error || 'Errore durante il login WebAuthn', true);
+          }
+        } catch (error) {
+          showMessage('Errore login WebAuthn: ' + (error.message || error), true);
+        }
+      };
+
+      // AUTENTICAZIONE METAMASK
+      metamaskConnect.onclick = async () => {
+        if (!metamaskPlugin) return showMessage('MetaMask non disponibile', true);
+        
+        try {
+          const result = await metamaskPlugin.connectMetaMask();
+          if (result.success) {
+            metamaskAddress = result.address;
+            metamaskAddressDiv.textContent = `Indirizzo: ${metamaskAddress}`;
+            metamaskSignIn.disabled = false;
+            metamaskSignUp.disabled = false;
+            showMessage('MetaMask connesso');
+          } else {
+            showMessage(result.error || 'Errore durante la connessione a MetaMask', true);
+          }
+        } catch (error) {
+          showMessage('Errore connessione MetaMask: ' + (error.message || error), true);
+        }
+      };
+
+      metamaskSignUp.onclick = async () => {
+        if (!metamaskPlugin) return showMessage('MetaMask non disponibile', true);
+        if (!metamaskAddress) return showMessage('Connetti prima MetaMask', true);
+        
+        try {
+          const result = await metamaskPlugin.signUpWithMetaMask(metamaskAddress);
+          if (result.success) {
+            user = { username: metamaskAddress, userPub: result.userPub };
+            showMessage('Registrazione MetaMask completata. Benvenuto!');
+            creatorSection.style.display = 'none';
+            uploadSection.style.display = 'block';
+            statsSection.style.display = 'block';
+            loadStats();
+            updateDropCounter();
+          } else {
+            showMessage(result.error || 'Errore durante la registrazione MetaMask', true);
+          }
+        } catch (error) {
+          showMessage('Errore registrazione MetaMask: ' + (error.message || error), true);
+        }
+      };
+
+      metamaskSignIn.onclick = async () => {
+        if (!metamaskPlugin) return showMessage('MetaMask non disponibile', true);
+        if (!metamaskAddress) return showMessage('Connetti prima MetaMask', true);
+        
+        try {
+          const result = await metamaskPlugin.loginWithMetaMask(metamaskAddress);
+          if (result.success) {
+            user = { username: metamaskAddress, userPub: result.userPub };
+            showMessage('Login MetaMask completato. Benvenuto!');
+            creatorSection.style.display = 'none';
+            uploadSection.style.display = 'block';
+            statsSection.style.display = 'block';
+            loadStats();
+            updateDropCounter();
+          } else {
+            showMessage(result.error || 'Errore durante il login MetaMask', true);
+          }
+        } catch (error) {
+          showMessage('Errore login MetaMask: ' + (error.message || error), true);
+        }
+      };
+
+      // Funzione per generare token ad alta entropia
+      function generateSecureToken(length = 32) {
+        // Combina più fonti di entropia per massima sicurezza
+        const tokenArr = new Uint8Array(length);
+        crypto.getRandomValues(tokenArr);
+        
+        // Converte in stringa base64 e rimuovi caratteri non alfanumerici
+        const rawToken = btoa(String.fromCharCode(...tokenArr))
+          .replace(/[+/=]/g, '')
+          .substring(0, length);
+          
+        // Aggiungi entropia da Gun.text.random come ulteriore livello
+        const gunToken = Gun.text.random(length);
+        
+        // Combina le due fonti e limita alla lunghezza richiesta
+        return (rawToken + gunToken).substring(0, length);
+      }
+      
+      // Funzione per validare i file
+      function validateFile(file) {
+        // Controlla dimensione del file
+        if (file.size > FILE_SIZE_LIMIT) {
+          return {
+            valid: false,
+            error: `Il file supera il limite di ${FILE_SIZE_LIMIT / (1024 * 1024)}MB`
+          };
+        }
+        
+        // Lista di estensioni pericolose
+        const dangerousExtensions = ['.exe', '.bat', '.cmd', '.vbs', '.js', '.php', '.jar'];
+        const fileName = file.name.toLowerCase();
+        
+        // Verifica estensioni pericolose
+        for (const ext of dangerousExtensions) {
+          if (fileName.endsWith(ext)) {
+            return {
+              valid: false,
+              error: `I file con estensione ${ext} non sono consentiti per motivi di sicurezza`
+            };
+          }
+        }
+        
+        // Controlla MIME type
+        const dangerousMimeTypes = [
+          'application/x-msdownload',
+          'application/x-executable',
+          'application/javascript',
+          'text/javascript'
+        ];
+        
+        if (dangerousMimeTypes.includes(file.type)) {
+          return {
+            valid: false,
+            error: `I file di tipo ${file.type} non sono consentiti per motivi di sicurezza`
+          };
+        }
+        
+        return { valid: true };
+      }
+      
+      // Funzione per applicare rate limiting
+      function checkRateLimit(type, userIdentifier) {
+        const cache = rateCache[type];
+        const config = RATE_LIMIT[type];
+        const now = Date.now();
+        
+        // Crea o recupera registro utente
+        if (!cache.has(userIdentifier)) {
+          cache.set(userIdentifier, { count: 0, timestamp: now });
+          return { allowed: true };
+        }
+        
+        const record = cache.get(userIdentifier);
+        
+        // Reimposta conteggio se è passato il periodo
+        if (now - record.timestamp > config.period) {
+          record.count = 0;
+          record.timestamp = now;
+          return { allowed: true };
+        }
+        
+        // Verifica se il limite è stato raggiunto
+        if (record.count >= config.max) {
+          const minutesLeft = Math.ceil((config.period - (now - record.timestamp)) / (60 * 1000));
+          return { 
+            allowed: false, 
+            error: `Hai raggiunto il limite di ${config.max} ${type}. Riprova tra ${minutesLeft} minuti.` 
+          };
+        }
+        
+        // Incrementa contatore
+        record.count++;
+        return { allowed: true };
+      }
+      
+      uploadForm.onsubmit = async e => {
+        e.preventDefault(); 
+        if (!user) return showMessage('Devi effettuare il login prima di caricare file', true);
+        
+        const file = fileInput.files[0]; 
+        if (!file) return showMessage('Seleziona un file', true);
+        
+        const numberOfLinks = Math.min(parseInt(countInput.value) || 1, 20);
+        const userDropCount = await getUserDropCount(user.username);
+
+        if (userDropCount + numberOfLinks > MAX_USER_DROPS) {
+          return showMessage(`Generando ${numberOfLinks} link supereresti il limite di ${MAX_USER_DROPS} drop totali. Liberane ${ (userDropCount + numberOfLinks) - MAX_USER_DROPS } per procedere.`, true);
+        }
+        
+        // Applica rate limiting
+        const rateLimitResult = checkRateLimit('uploads', user.username);
+        if (!rateLimitResult.allowed) {
+          return showMessage(rateLimitResult.error, true);
+        }
+        
+        // Validazione file
+        const validationResult = validateFile(file);
+        if (!validationResult.valid) {
+          return showMessage(validationResult.error, true);
+        }
+        
+        // Mostra indicatori di progresso
+        const uploadProgress = document.getElementById('uploadProgress');
+        const uploadProgressBar = document.getElementById('uploadProgressBar');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const generateBtn = document.getElementById('generateBtn');
+        
+        uploadProgress.style.display = 'block';
+        uploadStatus.style.display = 'block';
+        generateBtn.disabled = true;
+        
+        showMessage('Preparazione del file per il caricamento...', false);
+        
+        try {
+          const ipfs = await ipfsPromise;
+          if (!ipfs) return showMessage('Errore: IPFS non disponibile', true);
+          
+          // Imposta la progress bar al 10% per indicare l'inizio
+          uploadProgressBar.style.width = '10%';
+          uploadStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparazione file...';
+          
+          // Legge il file
+          const buf = await file.arrayBuffer();
+          
+          // Aggiorna progress al 20%
+          uploadProgressBar.style.width = '20%';
+          uploadStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Crittografia file...';
+          
+          // Crittografia del file (fatta una sola volta per il file)
+          const aesKey = await crypto.subtle.generateKey({ name:'AES-GCM', length:256 }, true, ['encrypt','decrypt']);
+          const rawAesKey = await crypto.subtle.exportKey('raw', aesKey);
+          const rawAesKeyB64 = btoa(String.fromCharCode(...new Uint8Array(rawAesKey)));
+          const iv = crypto.getRandomValues(new Uint8Array(12));
+          const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, aesKey, buf);
+          
+          const combined = new Uint8Array(iv.byteLength + cipher.byteLength);
+          combined.set(iv); 
+          combined.set(new Uint8Array(cipher), iv.byteLength);
+          
+          // Aggiorna progress al 40%
+          uploadProgressBar.style.width = '40%';
+          uploadStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Caricamento su IPFS...';
+          
+          // Carica su IPFS (fatto una sola volta per il file)
+          const { cid } = await ipfs.add(combined);
+          
+          // Aggiorna progress al 70%
+          uploadProgressBar.style.width = '70%';
+          uploadStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generazione link sicuri...';
+          
+          const generatedLinksOutput = [];
+          const generatedTokens = []; // Array per memorizzare i token generati
+
+          // Calcola l'incremento di progresso per ogni link
+          const progressIncrement = 25 / numberOfLinks;
+          
+          for (let i = 0; i < numberOfLinks; i++) {
+            const token = generateSecureToken(32);
+            generatedTokens.push(token); // Salva il token per riferimento futuro
+            
+            const encFileKeyForToken = await Gun.SEA.encrypt(rawAesKeyB64, token);
+            
+            const timestamp = Date.now();
+            
+            // Salva i metadati per QUESTO token specifico
+            gun.get('tokens').get(token).put({
+              cid: cid.toString(),
+              key: encFileKeyForToken,
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size,
+              initialCount: 1,
+              downloadsLeft: 1,
+              creator: user.username,
+              createdAt: timestamp,
+              lastDownloaded: null,
+              expiresAt: timestamp + (30 * 24 * 60 * 60 * 1000) // 30 giorni
+            });
+            
+            generatedLinksOutput.push(location.origin + location.pathname + '?token=' + token);
+            
+            // Aggiorna la barra di progresso per ogni link generato
+            uploadProgressBar.style.width = `${70 + progressIncrement * (i + 1)}%`;
+          }
+          
+          // Imposta progresso al 100% per completamento
+          uploadProgressBar.style.width = '100%';
+          uploadStatus.innerHTML = '<i class="fas fa-check-circle"></i> Completato!';
+          
+          if (generatedLinksOutput.length > 0) {
+            let linksHtml = `
+              <div class="generated-links-container">
+                <h3><i class="fas fa-check-circle" style="color: var(--success); margin-right: 8px;"></i> ${generatedLinksOutput.length} Link Generati</h3>
+                <ul id="generatedLinksList" class="generated-links-list">`;
+                
+            generatedLinksOutput.forEach(link => {
+              linksHtml += `
+                <li class="generated-link-item">
+                  <div class="link-content"><a href="${link}" target="_blank">${link}</a></div>
+                  <button type="button" class="copy-single-link-btn" data-link="${link}">
+                    <i class="fas fa-copy"></i>
+                  </button>
+                </li>`;
+            });
+            
+            linksHtml += `
+                </ul>
+                <button type="button" id="copyGeneratedLinksBtn" class="copy-btn">
+                  <i class="fas fa-copy"></i> Copia tutti i link
+                </button>
+              </div>`;
+            
+            showMessage(linksHtml, false, true);
+
+            // Aggiungi handlers per i pulsanti di copia
+            setTimeout(() => {
+                // Bottone per copiare tutti i link
+                const copyBtn = document.getElementById('copyGeneratedLinksBtn');
+                if (copyBtn) {
+                  copyBtn.addEventListener('click', () => {
+                    const linksToCopy = Array.from(document.querySelectorAll('#generatedLinksList .generated-link-item a'))
+                                            .map(a => a.href)
+                                            .join('\n');
+                    if (linksToCopy) {
+                      copyTextToClipboard(linksToCopy);
+                    }
+                  });
+                }
+                
+                // Bottoni per copiare singoli link
+                const singleCopyBtns = document.querySelectorAll('.copy-single-link-btn');
+                singleCopyBtns.forEach(btn => {
+                  btn.addEventListener('click', () => {
+                    const link = btn.getAttribute('data-link');
+                    copyTextToClipboard(link);
+                  });
+                });
+            }, 100);
+
+          } else {
+            showMessage('Nessun link generato.', true);
+          }
+
+          // Reimposta il form
+          fileInput.value = '';
+          countInput.value = '1';
+          filePreview.style.display = 'none';
+          
+          // Nascondi gli indicatori di progresso e riabilita il pulsante
+          setTimeout(() => {
+            uploadProgress.style.display = 'none';
+            uploadStatus.style.display = 'none';
+            uploadProgressBar.style.width = '0';
+            generateBtn.disabled = false;
+          }, 2000);
+          
+          // Forza l'aggiornamento delle statistiche con i token appena creati
+          await forceLoadStatsWithTokens(generatedTokens);
+          
+          // Ripulisci l'array dei token generati
+          generatedTokens.length = 0;
+
+        } catch (error) {
+          // In caso di errore, reimposta l'UI
+          uploadProgress.style.display = 'none';
+          uploadStatus.style.display = 'none';
+          generateBtn.disabled = false;
+          
+          showMessage('Errore caricamento: ' + (error.message || String(error)), true);
+        }
+      };
+
+      // Funzione migliorata per caricare le statistiche con token specifici
+      async function forceLoadStatsWithTokens(tokens = []) {
+        // Prima carica le statistiche normalmente
+        loadStats();
+        
+        // Poi attendi un po' per dare tempo a GunDB di sincronizzarsi
+        setTimeout(() => {
+          // Prova a ricaricare per assicurarsi che i nuovi token siano visibili
+          loadStats();
+          
+          // Se sono stati forniti token specifici, assicurati che siano presenti nelle statistiche
+          if (tokens.length > 0) {
+            setTimeout(async () => {
+              const tokenRows = new Set(Array.from(statsBody.querySelectorAll('tr')).map(tr => tr.getAttribute('data-token')));
+              
+              let missingToken = false;
+              for (const token of tokens) {
+                if (!tokenRows.has(token)) {
+                  missingToken = true;
+                  break;
+                }
+              }
+              
+              if (missingToken) {
+                // Se manca almeno un token, fai un altro tentativo finale
+                await new Promise(resolve => {
+                  gun.get('tokens').once(() => {
+                    setTimeout(resolve, 300); // Attendi che GunDB si sincronizzi
+                  });
+                });
+                loadStats(); // Ricarica le statistiche un'ultima volta
+              }
+            }, 500);
+          }
+        }, 1000);
+      }
+
+      // Funzione per caricare le statistiche
+      function loadStats() {
+        const statsBody = document.getElementById('statsBody');
+        if (!statsBody) return;
+        
+        statsBody.innerHTML = ''; // Clear existing stats
+        const processedTokens = new Set();
+
+        const gun = window.gunInstance;
+        if (!gun || !window.currentUser) return;
+
+        gun.get('tokens').map().once((data, tokenKey) => {
+          // Salta token già processati, non validi, o non appartenenti all'utente
+          if (!data || !data.creator || data.creator !== window.currentUser.username || processedTokens.has(tokenKey)) {
+            // Se il token era già processato ma ora i dati sono null (es. eliminato altrove),
+            // assicurati che venga rimosso dalla UI.
+            if (!data && processedTokens.has(tokenKey)) {
+              const existingRow = statsBody.querySelector(`tr[data-token="${tokenKey}"]`);
+              if (existingRow) {
+                existingRow.remove();
+              }
+              processedTokens.delete(tokenKey); // Rimuovi dal set se non più valido
+            }
+            return;
+          }
+          
+          processedTokens.add(tokenKey);
+
+          const downloadsMade = parseInt(data.initialCount || 0) - parseInt(data.downloadsLeft || 0);
+
+          const tr = document.createElement('tr');
+          tr.setAttribute('data-token', tokenKey); // Utile per selezionare la riga se necessario
+
+          // Cella 1: Token con link
+          const td1 = document.createElement('td');
+          const link = document.createElement('a');
+          link.href = `?token=${tokenKey}`;
+          link.textContent = `${tokenKey.substring(0, 8)}...`;
+          link.className = 'token-link';
+          link.title = tokenKey;
+          td1.appendChild(link);
+          tr.appendChild(td1);
+
+          // Cella 2: Nome File con tooltip
+          const td2 = document.createElement('td');
+          td2.className = 'file-name-cell';
+          td2.title = data.fileName || '';
+          td2.textContent = data.fileName || '—';
+          tr.appendChild(td2);
+
+          // Cella 3: Scaricati
+          const td3 = document.createElement('td');
+          td3.textContent = downloadsMade;
+          tr.appendChild(td3);
+
+          // Cella 4: Rimanenti
+          const td4 = document.createElement('td');
+          td4.textContent = data.downloadsLeft;
+          tr.appendChild(td4);
+          
+          // Cella 5: Azioni
+          const td5 = document.createElement('td');
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'table-actions';
+          
+          // Bottone Copia Link
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'copy-btn';
+          copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+          copyBtn.title = 'Copia link';
+          copyBtn.addEventListener('click', () => {
+            const fullUrl = window.location.origin + window.location.pathname + `?token=${tokenKey}`;
+            copyTextToClipboard(fullUrl);
+          });
+          actionsDiv.appendChild(copyBtn);
+          
+          // Bottone Elimina
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+          deleteBtn.title = 'Elimina';
+          deleteBtn.addEventListener('click', () => deleteDrop(tokenKey));
+          actionsDiv.appendChild(deleteBtn);
+          
+          td5.appendChild(actionsDiv);
+          tr.appendChild(td5);
+
+          statsBody.appendChild(tr);
+        });
+
+        // Aggiorna il contatore dei drop dopo che .once() ha avuto la possibilità di popolare la tabella.
+        if (window.updateDropCounter) {
+          window.updateDropCounter();
+        }
+      }
+
+      // Aggiungi loadStats come variabile globale
+      window.loadStats = loadStats;
+
+      // Funzione per ottenere l'icona appropriata per il tipo di file
+      function getFileIcon(type) {
+        const iconMap = {
+          'image': 'fa-file-image',
+          'video': 'fa-file-video',
+          'audio': 'fa-file-audio',
+          'application/pdf': 'fa-file-pdf',
+          'application/msword': 'fa-file-word',
+          'application/vnd.ms-excel': 'fa-file-excel',
+          'application/vnd.ms-powerpoint': 'fa-file-powerpoint',
+          'text/plain': 'fa-file-lines',
+          'text/html': 'fa-file-code',
+          'application/json': 'fa-file-code',
+          'application/zip': 'fa-file-zipper',
+          'default': 'fa-file'
         };
+        
+        if (!type) return iconMap.default;
+        
+        // Controllo generale per il tipo principale
+        for (const key in iconMap) {
+          if (type.startsWith(key)) {
+            return iconMap[key];
+          }
+        }
+        
+        return iconMap.default;
+      }
+
+      // Formatta la dimensione del file in KB o MB
+      function formatFileSize(size) {
+        if (!size || size < 0) return '0 B';
+        if (size < 1024) {
+          return size + ' B';
+        } else if (size < 1024 * 1024) {
+          return (size / 1024).toFixed(1) + ' KB';
+        } else {
+          return (size / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+      }
+
+      const params = new URLSearchParams(location.search);
+      if (params.has('token')) {
+        // Only hide creator section and show download section when a token is provided
+        document.getElementById('creatorSection').style.display = 'none';
+        document.getElementById('downloadSection').style.display = 'block';
+        document.getElementById('uploadSection').style.display = 'none';
+        document.getElementById('statsSection').style.display = 'none';
+        
+        (async () => {
+          const token = params.get('token');
+          const progressBar = document.getElementById('progressBar');
+          const downloadInfo = document.getElementById('downloadInfo');
+          const downloadIcon = document.querySelector('.download-icon');
+          
+          try {
+            // Inizializza Gun se non è già inizializzato
+            if (!gun) {
+              gun = Gun({ peers: ['http://localhost:8765/gun'] });
+              window.gunInstance = gun;
+            }
+            
+            updateProgress(10, 'Verifica token...');
+            
+            // Ottieni i dati del token
+            const tokenData = await new Promise(resolve => {
+              gun.get('tokens').get(token).once(data => resolve(data));
+            });
+            
+            if (!tokenData) {
+              updateProgress(0, 'Token non valido o scaduto');
+              return;
+            }
+            
+            // Aggiorna al 25% e mostra nome file
+            const fileName = tokenData.fileName || 'file';
+            
+            // Aggiorna l'icona in base al tipo di file
+            if (tokenData.fileType) {
+              downloadIcon.className = `fas ${getFileIcon(tokenData.fileType)} download-icon`;
+            }
+            
+            // Aggiorna informazioni file
+            updateProgress(25, `
+              <i class="fas fa-spinner fa-spin"></i> 
+              <div class="file-download-info">
+                <div class="file-name">${fileName}</div>
+                <div class="file-size">${formatFileSize(tokenData.fileSize || 0)}</div>
+              </div>
+            `);
+            
+            // Verifica se ci sono ancora download disponibili
+            if (tokenData.downloadsLeft <= 0) {
+              updateProgress(0, 'Link esaurito: download non più disponibile');
+              return;
+            }
+            
+            const ipfs = await ipfsPromise;
+            updateProgress(40, 'Scaricamento file...');
+            
+            // Scarica il file da IPFS
+            const chunks = [];
+            let downloadAttempts = 0;
+            const maxAttempts = 3;
+            
+            async function attemptDownload() {
+              downloadAttempts++;
+              try {
+                for await (const chunk of ipfs.cat(tokenData.cid)) {
+                  chunks.push(chunk);
+                  // Aggiorna la progress bar periodicamente durante il download
+                  const progress = Math.min(40 + Math.floor((chunks.length * 10) / 5), 60);
+                  updateProgress(progress, 'Scaricamento file...');
+                }
+                return true;
+              } catch (e) {
+                console.error(`Tentativo ${downloadAttempts} fallito:`, e);
+                
+                if (downloadAttempts < maxAttempts) {
+                  updateProgress(40, `Tentativo ${downloadAttempts} fallito. Nuovo tentativo in corso...`);
+                  await new Promise(resolve => setTimeout(resolve, 1000)); // Attendi 1 secondo
+                  return attemptDownload(); // Riprova
+                }
+                
+                throw e; // Rilancia l'errore se abbiamo esaurito i tentativi
+              }
+            }
+            
+            try {
+              await attemptDownload();
+            } catch (e) {
+              console.error('Errore IPFS dopo multipli tentativi:', e);
+              
+              // Determina un messaggio di errore più specifico in base al tipo di errore
+              let errorDetail;
+              if (e.message.includes('not found') || e.message.includes('404')) {
+                errorDetail = 'File non trovato sulla rete IPFS. Potrebbe essere stato rimosso.';
+              } else if (e.message.includes('timeout') || e.message.includes('timed out')) {
+                errorDetail = 'Timeout durante il download. La rete IPFS potrebbe essere lenta o congestionata.';
+              } else if (e.message.includes('connection')) {
+                errorDetail = 'Errore di connessione alla rete IPFS. Verifica la tua connessione Internet.';
+              } else {
+                errorDetail = e.message || 'Impossibile scaricare il file da IPFS';
+              }
+              
+              // Mostra un messaggio di errore più dettagliato e formattato meglio
+              let errorMessage = `<div class="error-container">
+                <i class="fas fa-exclamation-triangle" style="color: var(--error); font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
+                <h3 style="color: var(--error); margin-bottom: 0.5rem;">Errore durante il download</h3>
+                <p>${errorDetail}</p>
+                <div style="margin-top: 1rem;">
+                  <a href="index.html" class="btn btn-secondary" style="display: inline-block; margin-top: 10px;">
+                    <i class="fas fa-home"></i> Torna alla Home
+                  </a>
+                </div>
+              </div>`;
+              
+              updateProgress(0, errorMessage);
+              return;
+            }
+            
+            updateProgress(60, 'Decrittazione file...');
+            
+            // Decrittografa il file
+            try {
+              // Ottieni la chiave decrittata dal token
+              const rawB64 = await Gun.SEA.decrypt(tokenData.key, token);
+              if (!rawB64) {
+                updateProgress(0, 'Errore decrittazione chiave');
+                return;
+              }
+              
+              // Ricrea la chiave AES
+              const rawArr = new Uint8Array(atob(rawB64).split('').map(c => c.charCodeAt(0)));
+              const aesKey = await crypto.subtle.importKey('raw', rawArr, { name: 'AES-GCM' }, false, ['decrypt']);
+              
+              // Combina i chunks
+              let size = 0;
+              for (const chunk of chunks) {
+                size += chunk.length;
+              }
+              
+              const dataAll = new Uint8Array(size);
+              let offset = 0;
+              for (const chunk of chunks) {
+                dataAll.set(chunk, offset);
+                offset += chunk.length;
+              }
+              
+              updateProgress(75, 'Decrittazione completata...');
+              
+              // Estrai IV e dati crittografati
+              const iv = dataAll.slice(0, 12);
+              const ciphertext = dataAll.slice(12);
+              
+              // Decrittografa
+              const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ciphertext);
+              
+              updateProgress(90, 'Preparazione download...');
+              
+              // Decrementa il contatore di download
+              gun.get('tokens').get(token).put({
+                downloadsLeft: tokenData.downloadsLeft - 1,
+                lastDownloaded: Date.now()
+              });
+              
+              // Crea Blob e link per il download
+              const blob = new Blob([plaintext], { type: tokenData.fileType || 'application/octet-stream' });
+              const url = URL.createObjectURL(blob);
+              
+              // Crea e simula il click sul link di download
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = fileName;
+              document.body.appendChild(a);
+              
+              // Aggiorna stato completo prima di iniziare il download
+              updateProgress(100, `<i class="fas fa-check-circle" style="color: var(--success);"></i> Download completato con successo!`);
+              downloadIcon.className = 'fas fa-check-circle download-icon';
+              downloadIcon.style.color = 'var(--success)';
+              
+              // Aggiungi un pulsante per tornare alla home
+              downloadInfo.innerHTML += `
+                <div style="margin-top: 20px;">
+                  <a href="index.html" class="btn" style="display: inline-block; margin-top: 10px;">
+                    <i class="fas fa-home"></i> Torna alla Home
+                  </a>
+                </div>
+              `;
+              
+              // Avvia il download
+              a.click();
+              
+              // Rimuove il link dalla DOM
+              setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }, 100);
+              
+            } catch (e) {
+              console.error('Errore decrittografia:', e);
+              
+              // Mostra un messaggio di errore più dettagliato e formattato meglio
+              let errorMessage = `<div class="error-container">
+                <i class="fas fa-exclamation-triangle" style="color: var(--error); font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
+                <h3 style="color: var(--error); margin-bottom: 0.5rem;">Errore durante la decrittazione</h3>
+                <p>${e.message || 'Impossibile decifrare il file'}</p>
+                <div style="margin-top: 1rem;">
+                  <a href="index.html" class="btn btn-secondary" style="display: inline-block; margin-top: 10px;">
+                    <i class="fas fa-home"></i> Torna alla Home
+                  </a>
+                </div>
+              </div>`;
+              
+              updateProgress(0, errorMessage);
+            }
+            
+          } catch (e) {
+            console.error('Errore generale:', e);
+            
+            // Mostra un messaggio di errore più dettagliato e formattato meglio
+            let errorMessage = `<div class="error-container">
+              <i class="fas fa-exclamation-triangle" style="color: var(--error); font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
+              <h3 style="color: var(--error); margin-bottom: 0.5rem;">Si è verificato un errore</h3>
+              <p>${e.message || 'Errore sconosciuto durante l\'elaborazione del file'}</p>
+              <div style="margin-top: 1rem;">
+                <a href="index.html" class="btn btn-secondary" style="display: inline-block; margin-top: 10px;">
+                  <i class="fas fa-home"></i> Torna alla Home
+                </a>
+              </div>
+            </div>`;
+            
+            updateProgress(0, errorMessage);
+          }
+        })();
+      }
+      // Remove the else block that was showing upload directly
+      // Users without a token will see the normal authentication flow
+
+      // Function to update the progress bar and text
+      function updateProgress(percent, message) {
+        const progressBar = document.getElementById('progressBar');
+        const downloadInfo = document.getElementById('downloadInfo');
+        
+        if (progressBar) {
+          progressBar.style.width = `${percent}%`;
+          // Cambia colore della barra di progresso quando completa
+          if (percent === 100) {
+            progressBar.style.background = 'linear-gradient(90deg, var(--success), var(--accent))';
+          } else if (percent === 0) {
+            progressBar.style.background = 'linear-gradient(90deg, var(--error), #ff618a)';
+          }
+        }
+        
+        if (downloadInfo && message) {
+          downloadInfo.innerHTML = message;
+        }
+        
+        // Log per debug
+        console.log(`Progress update: ${percent}% - ${message}`);
+      }
+    });
+
+    // Funzione per contare i drop dell'utente
+    async function getUserDropCount(username) {
+      // Usa window.gunInstance invece di gun
+      const gun = window.gunInstance;
+      if (!gun) return 0;
+      
+      return new Promise(resolve => {
+        let count = 0;
+        const processedTokens = new Set();
+        
+        gun.get('tokens').map().once((data, token) => {
+          if (data && data.creator === username && !processedTokens.has(token)) {
+            processedTokens.add(token);
+            count++;
+          }
+        });
+        
+        // Attesa per dare tempo a Gun di recuperare i dati
+        setTimeout(() => resolve(count), 500);
+      });
+    }
+
+    // Array di immagini Unsplash (puoi aggiungere le tue preferite)
+    const bgImages = [
+      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=1200&q=80",
+      "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1200&q=80",
+    ];
+    // Scegli una immagine random
+    const randomBg = bgImages[Math.floor(Math.random() * bgImages.length)];
+    document.getElementById('dynamic-bg').style.backgroundImage = `url('${randomBg}')`;
+
+    // Add missing function implementations
+    async function getUserDropCount(username) {
+      try {
+        // In a full implementation, this would query from gun database
+        // For now, return 0 as a placeholder to avoid errors
+        return 0;
+      } catch (error) {
+        console.error('Error getting user drop count:', error);
+        return 0;
       }
     }
-
-    let currentDrop;
-    function selectDrop(id) {
-      currentDrop = id;
-      id('curId').textContent = id;
-      id('buyCard').style.display = 'block';
+    
+    function updateProgress(progress) {
+      const progressBar = document.getElementById('progress-bar');
+      const progressText = document.getElementById('progress-text');
+      
+      if (progressBar && progressText) {
+        progressBar.value = progress;
+        progressText.textContent = `${Math.round(progress)}%`;
+      }
     }
-
-    id('buyBtn').onclick = async () => {
-      const fee = await factory.dropDownloadFee(currentDrop);
-      const tx = await factory.purchaseDrop(currentDrop, { value: fee });
-      await tx.wait();
-      const rec = await new Promise(r => gun.get('drops').get(currentDrop).once(r));
-      const rawArr = Uint8Array.from(atob(rec.key), c => c.charCodeAt(0));
-      const aesKey = await crypto.subtle.importKey('raw', rawArr.buffer, { name:'AES-GCM' }, false, ['decrypt']);
-      const ipfs = await ipfsP;
-      const chunks = []; let size = 0;
-      for await (const c of ipfs.cat(rec.cid)) { chunks.push(c); size += c.length; id('downloadProgress').hidden = false; id('downloadProgress').value = Math.round(size/(rec.remaining+1)*100); }
-      const buff = new Uint8Array(size); let offset=0; chunks.forEach(c => { buff.set(c, offset); offset += c.length; });
-      const iv = buff.slice(0,12), ct = buff.slice(12);
-      const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, aesKey, ct);
-      const blob = new Blob([pt], { type: rec.fileType });
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = rec.fileName; a.click();
-      setMsg('Download completato','success'); loadStats();
-    };
+    
+    // Prevent page refresh on form submissions
+    document.querySelectorAll('form').forEach(form => {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+      });
+    });
   </script>
 </body>
 </html>

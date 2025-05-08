@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DROP - File Sharing Decentralizzato</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Configuration -->
+  <script src="config.js"></script>
+  <script src="configLoader.js"></script>
+  <style>
+    :root {
+      --primary: #0078ff;
+      --primary-light: #3d9bfd;
+      --primary-dark: #0058c3;
+      --accent: #00c16e;
+      --success: #00c16e;
+      --warning: #ffb801;
+      --error: #ff3d57;
+      --text-light: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.8);
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      background-color: #000;
+      color: var(--text-light);
+      overflow-x: hidden;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #dynamic-bg {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: -2;
+      background-size: cover;
+      background-position: center;
+      transition: background-image 1s cubic-bezier(.4,0,.2,1);
+      pointer-events: none;
+    }
+    
+    /* Add gradient overlay to image */
+    #dynamic-bg::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 100%);
+      z-index: -1;
+    }
+    
+    .center-container {
+      height: 100vh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      position: relative;
+      padding: 2rem;
+    }
+    
+    .content {
+      max-width: 800px;
+      text-align: center;
+      padding: 2rem;
+    }
+    
+    .logo {
+      font-size: 6rem;
+      font-weight: 900;
+      margin-bottom: 1.5rem;
+      letter-spacing: -2px;
+      background: linear-gradient(90deg, #0078ff, #00c16e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+      animation: fadeIn 1s forwards ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .subtitle {
+      font-size: 1.6rem;
+      color: var(--text-light);
+      margin-bottom: 1.5rem;
+      line-height: 1.8;
+      animation: fadeIn 1s forwards ease-out;
+      animation-delay: 0.2s;
+      opacity: 0;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .description {
+      font-size: 1.3rem;
+      color: var(--text-secondary);
+      margin-bottom: 3rem;
+      line-height: 1.6;
+      max-width: 90%;
+      margin-left: auto;
+      margin-right: auto;
+      animation: fadeIn 1s forwards ease-out;
+      animation-delay: 0.3s;
+      opacity: 0;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .highlight {
+      font-weight: 600;
+      color: #00c16e;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .btn-main {
+      background: linear-gradient(90deg, #0078ff 0%, #00c16e 100%);
+      color: #fff;
+      font-size: 1.3rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 50px;
+      padding: 1.2rem 3.5rem;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(0,120,255,0.25);
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+      margin-top: 2rem;
+      animation: fadeIn 1s forwards ease-out;
+      animation-delay: 0.6s;
+      opacity: 0;
+    }
+    
+    .btn-main::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transform: translateX(-100%);
+    }
+    
+    .btn-main:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 14px 40px rgba(0,120,255,0.3);
+      background: linear-gradient(90deg, #00c16e 0%, #0078ff 100%);
+    }
+    
+    .btn-main:hover::before {
+      animation: shineEffect 1.5s;
+    }
+    
+    @keyframes shineEffect {
+      100% {
+        transform: translateX(100%);
+      }
+    }
+    
+    .footer {
+      margin-top: 3rem;
+      color: rgba(255,255,255,0.9);
+      font-size: 1rem;
+      text-align: center;
+      animation: fadeIn 1s forwards ease-out;
+      animation-delay: 0.7s;
+      opacity: 0;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      position: fixed;
+      bottom: 20px;
+      width: 100%;
+      left: 0;
+    }
+    
+    .footer a {
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 500;
+      position: relative;
+    }
+    
+    .footer a::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background-color: #ffffff;
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
+    }
+    
+    .footer a:hover::after {
+      transform: scaleX(1);
+    }
+    
+    /* Features section */
+    .features {
+      display: flex;
+      justify-content: center;
+      margin: 3rem 0;
+      gap: 2rem;
+      animation: fadeIn 1s forwards ease-out;
+      animation-delay: 0.4s;
+      opacity: 0;
+    }
+    
+    .feature {
+      text-align: center;
+      padding: 0 1rem;
+      transition: all 0.3s ease;
+    }
+    
+    .feature:hover {
+      transform: translateY(-5px);
+    }
+    
+    .feature i {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: #fff;
+      background: linear-gradient(90deg, #0078ff, #00c16e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+    
+    .feature h3 {
+      font-size: 1.3rem;
+      margin-bottom: 0.8rem;
+      color: var(--text-light);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .feature p {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    
+    @media (max-width: 768px) {
+      .logo {
+        font-size: 4.5rem;
+      }
+      
+      .subtitle {
+        font-size: 1.4rem;
+      }
+      
+      .description {
+        font-size: 1.2rem;
+        max-width: 95%;
+      }
+      
+      .features {
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .content {
+        padding: 1rem;
+      }
+      
+      .logo {
+        font-size: 3.5rem;
+      }
+      
+      .subtitle {
+        font-size: 1.2rem;
+      }
+      
+      .description {
+        font-size: 1.1rem;
+      }
+      
+      .btn-main {
+        padding: 1rem 2.5rem;
+        font-size: 1.2rem;
+      }
+      
+      .feature i {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="dynamic-bg"></div>
+  <div class="center-container">
+    <div class="content">
+      <h1 class="logo" id="appName">DROP</h1>
+      <div class="subtitle">
+        Condividi file in modo <span class="highlight">decentralizzato</span>, privato e sicuro.
+      </div>
+      
+      <div class="description" id="appDescription">
+        <b>DROP</b> è un sistema di condivisione file basato su tecnologie <span class="highlight">P2P</span> e <span class="highlight">IPFS</span>.<br>
+        Nessuna registrazione, nessun tracciamento, massima privacy.
+      </div>
+      
+      <div class="features">
+        <div class="feature">
+          <i class="fas fa-upload"></i>
+          <h3>Carica</h3>
+          <p>Carica il tuo file e ricevi<br>un link univoco e sicuro</p>
+        </div>
+        <div class="feature">
+          <i class="fas fa-lock"></i>
+          <h3>Cripta</h3>
+          <p>Il file viene criptato<br>automaticamente end-to-end</p>
+        </div>
+        <div class="feature">
+          <i class="fas fa-share-alt"></i>
+          <h3>Condividi</h3>
+          <p>Invia il link a chi desideri,<br>solo loro potranno accedervi</p>
+        </div>
+      </div>
+      
+      <a href="drop.html">
+        <button class="btn-main">Inizia a condividere</button>
+      </a>
+    </div>
+    <div class="footer">
+      Made with ♥ · <a id="githubLink" href="https://github.com/your-repo" target="_blank">GitHub</a>
+      <br>
+      &copy; 2024 <span id="footerAppName">DROP</span> P2P
+    </div>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Apply configuration to the UI
+      if (window.DropConfig) {
+        // Set app name
+        const appNameElements = document.querySelectorAll('#appName, #footerAppName');
+        appNameElements.forEach(el => {
+          el.textContent = DropConfig.UI.APP_NAME;
+        });
+        
+        // Set app description
+        const appDescriptionEl = document.getElementById('appDescription');
+        if (appDescriptionEl) {
+          appDescriptionEl.innerHTML = `<b>${DropConfig.UI.APP_NAME}</b> è un sistema di condivisione file basato su tecnologie <span class="highlight">P2P</span> e <span class="highlight">IPFS</span>.<br>
+          Nessuna registrazione, nessun tracciamento, massima privacy.`;
+        }
+        
+        // Set GitHub repo link
+        const githubLinkEl = document.getElementById('githubLink');
+        if (githubLinkEl) {
+          githubLinkEl.href = DropConfig.UI.GITHUB_REPO;
+        }
+        
+        // Set document title
+        document.title = `${DropConfig.UI.APP_NAME} - File Sharing Decentralizzato`;
+        
+        // Set background images from config
+        const bgImages = DropConfig.UI.BACKGROUND_IMAGES;
+        
+        // Choose a random background image
+        const randomBg = bgImages[Math.floor(Math.random() * bgImages.length)];
+        document.getElementById('dynamic-bg').style.backgroundImage = `url('${randomBg}')`;
+      } else {
+        console.warn('DropConfig not found, using default values');
+        
+        // Default background images
+        const bgImages = [
+          "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1800&q=80",
+          "https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1800&q=80",
+          "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?auto=format&fit=crop&w=1800&q=80",
+          "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1800&q=80"
+        ];
+        
+        // Choose a random background image
+        const randomBg = bgImages[Math.floor(Math.random() * bgImages.length)];
+        document.getElementById('dynamic-bg').style.backgroundImage = `url('${randomBg}')`;
+      }
+    
+      // Animazione di fade-in degli elementi
+      const animatedElements = document.querySelectorAll('.subtitle, .description, .btn-main, .footer, .features');
+      animatedElements.forEach(element => {
+        setTimeout(() => {
+          element.style.opacity = 1;
+        }, 100);
+      });
+    });
+  </script>
+</body>
+</html>
