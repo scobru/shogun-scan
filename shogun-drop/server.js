@@ -42,7 +42,10 @@ const baseConfig = {
   GUNDB: {
     PEERS: process.env.GUNDB_PEERS ? process.env.GUNDB_PEERS.split(',') : ["http://localhost:8765/gun"],
     LOCAL_STORAGE: process.env.GUNDB_LOCAL_STORAGE === "true",
-    RADISK: process.env.GUNDB_RADISK === "true"
+    RADISK: process.env.GUNDB_RADISK === "true",
+    AXE: process.env.GUNDB_AXE === "true",
+    WEB: process.env.GUNDB_WEB === "false",
+    WIRE: process.env.GUNDB_WIRE === "true"
   },
   AUTH: {
     WEBAUTHN_NAME: process.env.WEBAUTHN_NAME || "Shogun DROP",

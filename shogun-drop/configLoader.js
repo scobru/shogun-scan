@@ -23,7 +23,10 @@
     GUNDB: {
       PEERS: ["http://localhost:8765/gun"],
       LOCAL_STORAGE: false,
-      RADISK: false
+      RADISK: false,
+      AXE: true,
+      WEB: true,
+      WIRE: false
     },
     AUTH: {
       WEBAUTHN_NAME: "Shogun DROP",

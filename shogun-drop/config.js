@@ -1,7 +1,7 @@
 /**
  * DROP Application Configuration
  * Generato automaticamente dal server basato su .env
- * 2025-05-07T23:01:43.020Z
+ * 2025-05-08T07:43:06.249Z
  */
 
 const AppConfig = {
@@ -26,7 +26,10 @@ const AppConfig = {
       "http://localhost:8765/gun"
     ],
     "LOCAL_STORAGE": false,
-    "RADISK": false
+    "RADISK": false,
+    "AXE": false,
+    "WEB": false,
+    "WIRE": false
   },
   "AUTH": {
     "WEBAUTHN_NAME": "Shogun DROP",
