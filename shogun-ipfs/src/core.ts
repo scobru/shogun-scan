@@ -8,6 +8,9 @@ import { IpfsService } from "./ipfs/services/ipfs-http-client";
 import type { IpfsServiceConfig, PinataServiceConfig } from "./ipfs/types";
 import { logger } from "./utils/logger";
 import { backupCache } from "./utils/cache";
+import path from "path";
+import os from "os";
+import fs from "fs";
 
 /**
  * ShogunIpfs - Modern Decentralized Backup System
@@ -259,7 +262,42 @@ export class ShogunIpfs {
   public async uploadJson(jsonData: Record<string, unknown>, options?: any) {
     return this.storage.uploadJson(jsonData, options);
   }
-  
+
+  /**
+   * Upload a buffer to storage
+   * @param {Buffer} buffer - The buffer to upload
+   * @param {any} options - Upload options
+   * @returns {Promise<{ id: string; metadata: Record<string, unknown> }>} Upload result
+   */
+  public async uploadBuffer(buffer: Buffer, options?: any) {
+    // Crea un file temporaneo
+    const tempFilePath = path.join(os.tmpdir(), `temp_${Date.now()}`);
+    fs.writeFileSync(tempFilePath, buffer);
+
+    try {
+      // Carica il file temporaneo
+      const result = await this.storage.uploadFile(tempFilePath, options);
+      return result;
+    } finally {
+      // Rimuovi il file temporaneo
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) {
+        /* ignora errori */
+      }
+    }
+  }
+
+  /**
+   * Upload a file to storage
+   * @param {string} filePath - The path to the file to upload
+   * @param {any} options - Upload options
+   * @returns {Promise<{ id: string; metadata: Record<string, unknown> }>} Upload result
+   */
+  public async uploadFile(filePath: string, options?: any) {
+    return this.storage.uploadFile(filePath, options);
+  }
+
   /**
    * Get data from storage by hash
    * @param {string} hash - The hash to retrieve
