@@ -1,20 +1,19 @@
 # Shogun IPFS
 
-🔐 shogun-ipfs is a modern backup system that solves data security and reliability challenges by combining end-to-end encryption with decentralized IPFS storage.
+🌐 shogun-ipfs is a lightweight wrapper for IPFS storage services that provides a simplified interface for interacting with IPFS networks.
 
-🌐 Unlike traditional cloud backup services, shogun-ipfs ensures your data remains under your control, encrypted before leaving your system, and securely distributed across the IPFS network.
+📦 With support for multiple storage providers, shogun-ipfs makes it easy to upload, retrieve, and manage content on IPFS without having to deal with the complexities of different API implementations.
 
-🚀 With advanced features like automatic versioning, smart caching, and detailed version comparison, shogun-ipfs is the perfect choice for developers and teams who need a robust, secure, and easy-to-integrate backup system.
+🚀 Perfect for developers who need an easy-to-use, reliable way to integrate IPFS storage into their applications.
 
 ## Features
 
-- 🚀 **Simple to Use**: Just a few lines of code to backup and restore
-- 🔒 **End-to-End Encryption**: Your data is always secure
-- 📦 **IPFS Storage**: Decentralized and reliable through Pinata
-- 🔄 **Automatic Versioning**: Track changes over time
-- 💾 **Smart Caching**: Fast operations with intelligent caching
+- 🚀 **Simple to Use**: Easy and consistent API for IPFS operations
+- 📦 **Multiple Storage Providers**: Support for Pinata and direct IPFS nodes
+- 🛡️ **Robust Error Handling**: Comprehensive error management
+- 🔄 **Rate Limiting**: Built-in protection against API throttling
 - 📝 **Structured Logging**: Detailed operation tracking
-- 🔍 **Version Comparison**: Compare backups with local files
+- 🧩 **Flexible Configuration**: Customizable settings for different environments
 
 ## Quick Start
 
@@ -32,18 +31,12 @@ npm install shogun-ipfs
 import { ShogunIpfs } from "shogun-ipfs";
 
 // Initialize shogun-ipfs
-const shogunipfs = new ShogunIpfs({
+const ipfs = new ShogunIpfs({
   storage: {
     service: "PINATA" as const,
     config: {
       pinataJwt: process.env.PINATA_JWT || "",
       pinataGateway: process.env.PINATA_GATEWAY || "",
-    },
-  },
-  features: {
-    encryption: {
-      enabled: true,
-      algorithm: "aes-256-gcm",
     },
   },
   performance: {
@@ -53,142 +46,57 @@ const shogunipfs = new ShogunIpfs({
   },
 });
 
-// Create a backup
-const backup = await shogunipfs.backup("./data");
-console.log("Backup created:", backup.hash);
+// Upload JSON data
+const result = await ipfs.uploadJson({ name: "test", value: "example data" });
+console.log("Content uploaded:", result.id);
 
-// Compare changes
-const comparison = await shogunipfs.compare(backup.hash, "./data");
-if (!comparison.isEqual) {
-  console.log("Changes detected!");
-  console.log(`Time since backup: ${comparison.formattedDiff}`);
-}
+// Upload a file
+const fileResult = await ipfs.uploadFile("./path/to/image.jpg");
+console.log("File uploaded:", fileResult.id);
 
-// Get detailed changes
-const details = await shogunipfs.compareDetailed(backup.hash, "./data");
-console.log(`Files added: ${details.totalChanges.added}`);
-console.log(`Files modified: ${details.totalChanges.modified}`);
-console.log(`Files deleted: ${details.totalChanges.deleted}`);
+// Retrieve data
+const data = await ipfs.getData(result.id);
+console.log("Retrieved data:", data);
 
-// Restore from backup
-await shogunipfs.restore(backup.hash, "./restored");
+// Check if content is pinned
+const isPinned = await ipfs.isPinned(result.id);
+console.log("Is pinned:", isPinned);
 
-// Delete a backup
-const deleted = await shogunipfs.delete(backup.hash);
-if (deleted) {
-  console.log("Backup deleted successfully");
+// Unpin when no longer needed
+const unpinned = await ipfs.unpin(result.id);
+if (unpinned) {
+  console.log("Content unpinned successfully");
 } else {
-  console.log("Backup not found or deletion failed");
+  console.log("Content not found or unpin failed");
 }
 ```
 
 ## Configuration
 
 ```typescript
-const baseConfig = {
+const config = {
   storage: {
-    service: "PINATA" as const,
+    service: "PINATA" as const, // or "IPFS-CLIENT"
     config: {
       pinataJwt: process.env.PINATA_JWT || "",
       pinataGateway: process.env.PINATA_GATEWAY || "",
+      // For IPFS-CLIENT: url: "http://localhost:5001"
     },
   },
   paths: {
-    backup: "./backup", // Source directory
-    restore: "./restore", // Restore directory
-    storage: "./storage", // Local storage
+    storage: "./storage", // Local storage path
     logs: path.join(process.cwd(), "logs"),
   },
-  features: {
-    encryption: {
-      enabled: true,
-      algorithm: "aes-256-gcm",
-    },
+  performance: {
+    maxConcurrent: 3,
+    chunkSize: 1024 * 1024,
+    cacheEnabled: true,
+    cacheSize: 100,
   },
 };
 
-const shogunipfs = new ShogunIpfs(baseConfig);
+const ipfs = new ShogunIpfs(config);
 ```
-
-## Version Comparison
-
-shogun-ipfs provides powerful comparison features to track changes between your local files and backups:
-
-```typescript
-// Basic comparison
-const comparison = await shogunipfs.compare(backup.hash, "./data");
-console.log("Files changed:", !comparison.isEqual);
-console.log("Local version is newer:", comparison.isNewer);
-console.log("Time difference:", comparison.formattedDiff);
-
-// Detailed comparison
-const details = await shogunipfs.compareDetailed(backup.hash, "./data");
-console.log("Added files:", details.totalChanges.added);
-console.log("Modified files:", details.totalChanges.modified);
-console.log("Deleted files:", details.totalChanges.deleted);
-
-// Inspect specific changes
-details.differences.forEach(diff => {
-  console.log(`File: ${diff.path}`);
-  console.log(`Change type: ${diff.type}`); // 'added', 'modified', or 'deleted'
-  if (diff.type === "modified") {
-    console.log(`Previous size: ${diff.size.old}`);
-    console.log(`New size: ${diff.size.new}`);
-    console.log(`Previous checksum: ${diff.oldChecksum}`);
-    console.log(`New checksum: ${diff.newChecksum}`);
-  }
-});
-```
-
-The comparison system:
-
-- Supports recursive directory structures
-- Compares actual file contents
-- Provides detailed change information
-- Calculates checksums for each file
-- Tracks file sizes
-
-## Testing Versioning
-
-The versioning tests verify shogun-ipfs's ability to handle different file versions and compare them accurately. The test suite includes:
-
-### Backup and Restore Testing
-
-- Verifies backup creation and restoration with automatic retries
-- Validates backup integrity through test restorations
-- Handles errors and multiple backup attempts
-
-### Version Testing
-
-1. **Version 1 (Initial)**
-
-   - Creates initial files with base content
-   - Verifies correct backup creation
-
-2. **Version 2 (Modifications)**
-
-   - Modifies existing files
-   - Verifies changes are tracked correctly
-
-3. **Version 3 (Additions and Deletions)**
-   - Adds new files
-   - Removes existing files
-   - Verifies all changes
-
-### Comparison Testing
-
-- Compares different versions to verify:
-  - Modified files
-  - Added files
-  - Deleted files
-  - Timestamps and time differences
-  - Checksums and data integrity
-
-### Restore Verification
-
-- Restores each version to separate directories
-- Verifies restored content against expected data
-- Validates restored file integrity
 
 ## Storage Providers
 
@@ -224,98 +132,89 @@ const config = {
 };
 ```
 
-## Advanced Usage
+## Main Operations
 
-### Encrypted Backup
-
-```typescript
-// Backup with encryption
-const backup = await shogunipfs.backup("./data", {
-  encryption: {
-    enabled: true,
-    key: "your-encryption-key",
-  },
-});
-
-// Restore encrypted backup
-await shogunipfs.restore(backup.hash, "./restore", {
-  encryption: {
-    enabled: true,
-    key: "your-encryption-key",
-  },
-});
-```
-
-### Direct Storage Operations
+### Upload Operations
 
 ```typescript
 // Upload JSON data directly
-const jsonResult = await shogunipfs.uploadJson({
+const jsonResult = await ipfs.uploadJson({
   name: "test",
   data: { key: "value" },
 });
 console.log("JSON uploaded:", jsonResult.id);
 
-// Upload a single file
-const fileResult = await shogunipfs.uploadFile("./path/to/file.txt");
-console.log("File uploaded:", fileResult.id);
+// Upload a buffer
+const buffer = Buffer.from("Hello, IPFS!");
+const bufferResult = await ipfs.uploadBuffer(buffer);
+console.log("Buffer uploaded:", bufferResult.id);
 
+// Upload a single file
+const fileResult = await ipfs.uploadFile("./path/to/file.txt");
+console.log("File uploaded:", fileResult.id);
+```
+
+### Retrieval Operations
+
+```typescript
 // Get data by hash
-const data = await shogunipfs.getData("QmHash...");
+const data = await ipfs.getData("QmHash...");
 console.log("Retrieved data:", data);
 
 // Get metadata
-const metadata = await shogunipfs.getMetadata("QmHash...");
+const metadata = await ipfs.getMetadata("QmHash...");
 console.log("Content metadata:", metadata);
+```
 
+### Pin Management
+
+```typescript
 // Check if content is pinned
-const isPinned = await shogunipfs.isPinned("QmHash...");
+const isPinned = await ipfs.isPinned("QmHash...");
 console.log("Is content pinned?", isPinned);
 
 // Unpin content
-const unpinned = await shogunipfs.unpin("QmHash...");
+const unpinned = await ipfs.unpin("QmHash...");
 if (unpinned) {
   console.log("Content unpinned successfully");
 }
 
-// Get storage service instance
-const storage = shogunipfs.getStorage();
+// Get storage service instance for advanced operations
+const storage = ipfs.getStorage();
 ```
 
-### Storage Service Methods
+## Error Handling
 
-shogun-ipfs fornisce accesso diretto ai metodi del servizio di storage sottostante:
-
-- `uploadJson(jsonData: Record<string, unknown>)`: Carica dati JSON direttamente su IPFS
-- `uploadFile(path: string)`: Carica un singolo file su IPFS
-- `getData(hash: string)`: Recupera dati da un hash IPFS
-- `getMetadata(hash: string)`: Recupera i metadati associati a un hash
-- `isPinned(hash: string)`: Verifica se un contenuto è pinnato
-- `unpin(hash: string)`: Rimuove il pin di un contenuto
-- `getStorage()`: Ottiene l'istanza del servizio di storage
-
-### Backup Options
+shogun-ipfs implements comprehensive error handling for all operations:
 
 ```typescript
-const backup = shogunipfs.backup("./data", {
-  // Exclude patterns
-  excludePatterns: ["*.log", ".DS_Store"],
-
-  // File size limits
-  maxFileSize: 100 * 1024 * 1024, // 100MB
-
-  // Recursive backup
-  recursive: true,
-
-  // Custom metadata
-  metadata: {
-    description: "Daily backup",
-    tags: ["prod", "db"],
-  },
-});
+try {
+  const result = await ipfs.uploadFile("./path/to/file.txt");
+  console.log("Uploaded to:", result.id);
+} catch (error) {
+  if (error.message.includes("INVALID_CREDENTIALS")) {
+    console.error("Authentication failed. Check your Pinata JWT token.");
+  } else if (error.message.includes("NOT_FOUND")) {
+    console.error("File not found or not accessible.");
+  } else {
+    console.error("Upload failed:", error.message);
+  }
+}
 ```
 
-### General Operations
+## Best Practices
+
+1. **Rate Limiting Awareness**
+   - The library implements rate limiting to avoid API throttling
+   - For bulk operations, consider adding additional delay between calls
+
+2. **Error Handling**
+   - Always wrap operations in try/catch blocks
+   - Check for specific error types to provide better user feedback
+
+3. **Content Management**
+   - Regularly check and unpin content that is no longer needed
+   - Monitor the pinned content size, especially with paid services
 
 ## Development
 

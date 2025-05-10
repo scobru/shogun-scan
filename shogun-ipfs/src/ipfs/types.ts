@@ -1,9 +1,5 @@
-export type Web3StashServices = "PINATA" | "IPFS-CLIENT";
 
-export interface BaseConfig {
-  pinataJwt?: string;
-  pinataGateway?: string;
-}
+export type ShogunIpfsServices = "PINATA" | "IPFS-CLIENT";
 
 export interface PinataServiceConfig {
   pinataJwt: string;
@@ -14,31 +10,17 @@ export interface IpfsServiceConfig {
   url: string;
 }
 
-export interface StorageService {
-  serviceBaseUrl: string;
-  serviceInstance: any;
-  get(hash: string): Promise<any>;
-  uploadJson(jsonData: Record<string, unknown>, options?: any): Promise<UploadOutput>;
-  uploadFile(path: string, options?: any): Promise<UploadOutput>;
-  uploadImage(path: string, options?: any): Promise<UploadOutput>;
-  uploadVideo(path: string, options?: any): Promise<UploadOutput>;
-  unpin(hash: string): Promise<boolean>;
-  getMetadata(hash: string): Promise<any>;
-  isPinned(hash: string): Promise<boolean>;
-}
+// Re-export the abstract service for backward compatibility
+export type { StorageService } from "./services/base-storage";
 
+// Extend the base StorageService with metadata capabilities
 export interface StorageServiceWithMetadata {
-  get(hash: string): Promise<any>;
-  uploadJson(jsonData: Record<string, unknown>, options?: any): Promise<UploadOutput>;
-  uploadFile(fileData: any, options?: any): Promise<UploadOutput>;
-  uploadImage(fileData: any, options?: any): Promise<UploadOutput>;
-  unpin(hash: string): Promise<boolean>;
+  get(hash: string): Promise<{ data: any; metadata: any }>;
   getMetadata(hash: string): Promise<any>;
-  isPinned(hash: string): Promise<boolean>;
 }
 
-export type Web3StashConfig = {
-  service: Web3StashServices;
+export type ShogunIpfsConfig = {
+  service: ShogunIpfsServices;
   config: PinataServiceConfig | IpfsServiceConfig;
 };
 
@@ -53,6 +35,3 @@ export interface UploadOptions {
   type?: string;
   metadata?: Record<string, any>;
 }
-
-// Re-export per retrocompatibilità
-export type { StorageService as BaseStorageService } from "./services/base-storage";

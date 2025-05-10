@@ -1,10 +1,12 @@
 import { StorageService } from "./base-storage";
 import type { UploadOutput, PinataServiceConfig } from "../types";
 import { PinataSDK } from "pinata-web3";
-import { BackupData } from "../../types/core";
 import fs from "fs";
-import { VersionInfo } from "../../versioning";
-import crypto from "crypto";
+import { logger } from "../../utils/logger";
+
+// CID validation - More permissive pattern for various IPFS CID formats
+// Supports both v0 (base58) and v1 (base32) CIDs
+const CID_PATTERN = /^(Qm[1-9A-HJ-NP-Za-km-z]{44,}|b[a-zA-Z0-9]{58,})/;
 
 interface PinataOptions {
   pinataMetadata?: {
@@ -17,11 +19,13 @@ export class PinataService extends StorageService {
   public serviceBaseUrl = "ipfs://";
   public readonly serviceInstance: PinataSDK;
   private readonly gateway: string;
+  private lastRequestTime = 0;
+  private rateLimitMs = 500; // 500ms between requests (2 requests per second)
 
   constructor(config: PinataServiceConfig) {
     super();
     if (!config.pinataJwt) {
-      throw new Error("JWT Pinata non valido o mancante");
+      throw new Error("Invalid or missing Pinata JWT token");
     }
 
     this.serviceInstance = new PinataSDK({
@@ -31,69 +35,68 @@ export class PinataService extends StorageService {
     this.gateway = config.pinataGateway || "gateway.pinata.cloud";
   }
 
-  private createVersionInfo(data: any): VersionInfo {
+  // Rate limiting utility for Pinata API calls
+  private async enforceRateLimit(): Promise<void> {
     const now = Date.now();
-    const dataBuffer = Buffer.from(JSON.stringify(data));
-    return {
-      hash: crypto.createHash("sha256").update(dataBuffer).digest("hex"),
-      timestamp: now,
-      size: dataBuffer.length,
-      metadata: {
-        createdAt: new Date(now).toISOString(),
-        modifiedAt: new Date(now).toISOString(),
-        checksum: crypto.createHash("md5").update(dataBuffer).digest("hex"),
-      },
-    };
+    const elapsed = now - this.lastRequestTime;
+    
+    if (elapsed < this.rateLimitMs) {
+      const delay = this.rateLimitMs - elapsed;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    this.lastRequestTime = Date.now();
   }
 
-  public async get(hash: string): Promise<BackupData> {
+
+  public async get(hash: string): Promise<{ data: any; metadata: any }> {
     try {
       if (!hash || typeof hash !== "string") {
-        throw new Error("Hash non valido");
+        throw new Error("Invalid hash");
       }
 
+      await this.enforceRateLimit();
       const response = await this.serviceInstance.gateways.get(hash);
 
       if (!response || typeof response !== "object") {
-        throw new Error("Risposta non valida da Pinata");
+        throw new Error("Invalid response from Pinata");
       }
 
-      // Se la risposta è una stringa JSON, proviamo a parsarla
+      // If the response is a JSON string, try to parse it
       let parsedResponse = response;
       if (typeof response === "string") {
         try {
           parsedResponse = JSON.parse(response);
         } catch (e) {
-          throw new Error("Dati non validi ricevuti da Pinata");
+          throw new Error("Invalid data received from Pinata");
         }
       }
 
-      // Verifichiamo che la risposta abbia la struttura corretta
+      // Verify that the response has the correct structure
       const responseData = parsedResponse as { data?: { data?: unknown; metadata?: unknown } };
 
       if (!responseData.data?.data) {
-        throw new Error("Struttura dati non valida nel backup");
+        throw new Error("Invalid data structure in backup");
       }
 
-      // Estraiamo i dati dalla struttura nidificata
-      const backupData = {
+      // Extract data from the nested structure
+      const resultData = {
         data: responseData.data.data,
         metadata: responseData.data.metadata || {
           timestamp: Date.now(),
           type: "json",
-          versionInfo: this.createVersionInfo(responseData.data.data),
         },
       };
 
-      // Verifichiamo che i dati dei file abbiano la struttura corretta
-      const fileData = backupData.data as Record<string, any>;
+      // Verify that file data has the correct structure
+      const fileData = resultData.data as Record<string, any>;
 
       for (const [path, data] of Object.entries(fileData)) {
         if (typeof data !== "object" || data === null) {
-          throw new Error(`Dati non validi per il file ${path}: i dati devono essere un oggetto`);
+          throw new Error(`Invalid data for file ${path}: data must be an object`);
         }
 
-        // Se i dati sono crittografati, hanno una struttura diversa
+        // If data is encrypted, it has a different structure
         if (data.iv && data.mimeType) {
           data.type = data.mimeType;
           data.content = data;
@@ -101,15 +104,16 @@ export class PinataService extends StorageService {
         }
 
         if (!data.type) {
-          throw new Error(`Dati non validi per il file ${path}: manca il campo 'type'`);
+          throw new Error(`Invalid data for file ${path}: missing 'type' field`);
         }
         if (!data.content) {
-          throw new Error(`Dati non validi per il file ${path}: manca il campo 'content'`);
+          throw new Error(`Invalid data for file ${path}: missing 'content' field`);
         }
       }
 
-      return backupData as BackupData;
+      return resultData;
     } catch (error) {
+      logger.error("Failed to fetch data from Pinata", error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -120,15 +124,18 @@ export class PinataService extends StorageService {
 
   public async unpin(hash: string): Promise<boolean> {
     try {
-      if (!hash || typeof hash !== "string" || !/^[a-zA-Z0-9]{46,59}$/.test(hash)) {
+      if (!hash || typeof hash !== "string" || !CID_PATTERN.test(hash)) {
+        logger.warn(`Invalid CID format: ${hash}`);
         return false;
       }
 
       const isPinnedBefore = await this.isPinned(hash);
       if (!isPinnedBefore) {
+        logger.info(`CID not pinned, nothing to unpin: ${hash}`);
         return false;
       }
 
+      await this.enforceRateLimit();
       await this.serviceInstance.unpin([hash]);
       return true;
     } catch (error) {
@@ -138,12 +145,16 @@ export class PinataService extends StorageService {
           error.message.includes("NOT_FOUND") ||
           error.message.includes("url does not contain CID")
         ) {
+          logger.warn(`Pin not found: ${hash}`, error);
           return false;
         }
         if (error.message.includes("INVALID_CREDENTIALS")) {
-          throw new Error("Errore di autenticazione con Pinata: verifica il JWT");
+          const authError = new Error("Authentication error with Pinata: verify your JWT token");
+          logger.error("Authentication error", authError);
+          throw authError;
         }
       }
+      logger.error(`Unpin operation failed for ${hash}`, error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -151,6 +162,7 @@ export class PinataService extends StorageService {
   public async uploadJson(jsonData: Record<string, unknown>, options?: PinataOptions): Promise<UploadOutput> {
     try {
       const content = JSON.stringify(jsonData);
+      await this.enforceRateLimit();
       const response = await this.serviceInstance.upload.json(jsonData, {
         metadata: options?.pinataMetadata,
       });
@@ -166,8 +178,11 @@ export class PinataService extends StorageService {
       };
     } catch (error) {
       if (error instanceof Error && error.message.includes("INVALID_CREDENTIALS")) {
-        throw new Error("Errore di autenticazione con Pinata: verifica il JWT");
+        const authError = new Error("Authentication error with Pinata: verify your JWT token");
+        logger.error("Authentication error", authError);
+        throw authError;
       }
+      logger.error("JSON upload failed", error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -178,6 +193,7 @@ export class PinataService extends StorageService {
       const fileName = path.split("/").pop() || "file";
       const file = new File([fileContent], fileName, { type: "application/octet-stream" });
 
+      await this.enforceRateLimit();
       const response = await this.serviceInstance.upload.file(file, {
         metadata: options?.pinataMetadata,
       });
@@ -191,6 +207,7 @@ export class PinataService extends StorageService {
         },
       };
     } catch (error) {
+      logger.error(`File upload failed for ${path}`, error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -198,22 +215,26 @@ export class PinataService extends StorageService {
   public async getMetadata(hash: string): Promise<any> {
     try {
       if (!hash || typeof hash !== "string") {
-        throw new Error("Hash non valido");
+        throw new Error("Invalid hash");
       }
+      await this.enforceRateLimit();
       const response = await this.serviceInstance.gateways.get(hash);
       return response;
     } catch (error) {
+      logger.error(`Failed to fetch metadata for ${hash}`, error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
 
   public async isPinned(hash: string): Promise<boolean> {
     try {
-      if (!hash || typeof hash !== "string" || !/^[a-zA-Z0-9]{46,59}$/.test(hash)) {
+      if (!hash || typeof hash !== "string" || !CID_PATTERN.test(hash)) {
+        logger.warn(`Invalid CID format: ${hash}`);
         return false;
       }
 
       try {
+        await this.enforceRateLimit();
         const response = await this.serviceInstance.gateways.get(hash);
         return !!response;
       } catch (error) {
@@ -227,18 +248,12 @@ export class PinataService extends StorageService {
       }
     } catch (error) {
       if (error instanceof Error && error.message.includes("INVALID_CREDENTIALS")) {
-        throw new Error("Errore di autenticazione con Pinata: verifica il JWT");
+        const authError = new Error("Authentication error with Pinata: verify your JWT token");
+        logger.error("Authentication error", authError);
+        throw authError;
       }
+      logger.warn(`isPinned check failed for ${hash}`, error);
       return false;
     }
-  }
-
-  // Metodi non utilizzati ma richiesti dall'interfaccia
-  public async uploadImage(path: string, options?: any): Promise<UploadOutput> {
-    return this.uploadFile(path, options);
-  }
-
-  public async uploadVideo(path: string, options?: any): Promise<UploadOutput> {
-    return this.uploadFile(path, options);
   }
 }

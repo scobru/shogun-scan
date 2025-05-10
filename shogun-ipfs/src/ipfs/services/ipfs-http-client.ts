@@ -1,45 +1,95 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { StorageService } from "./base-storage";
 import type { UploadOutput, IpfsServiceConfig } from "../types";
-import { BackupData } from "../../types/core";
-import { create as ipfsHttpClient } from "ipfs-http-client";
+import { create as createIpfsClient } from "ipfs-http-client";
+import { logger } from "../../utils/logger";
 import fs from "fs";
-import path from "path";
 
 export class IpfsService extends StorageService {
   public serviceBaseUrl = "ipfs://";
   public readonly serviceInstance: any;
+  private readonly gateway: string;
+  private lastRequestTime = 0;
+  private rateLimitMs = 200; // 5 requests per second maximum
 
   constructor(config: IpfsServiceConfig) {
     super();
     if (!config.url) {
-      throw new Error("URL IPFS richiesto");
+      throw new Error("Invalid or missing IPFS URL");
     }
-    this.serviceInstance = ipfsHttpClient({
-      url: config.url,
-    });
+
+    this.serviceInstance = createIpfsClient({ url: config.url });
+    this.gateway = config.url;
   }
 
-  public async get(hash: string): Promise<BackupData> {
-    const chunks = [];
-    for await (const chunk of this.serviceInstance.cat(hash)) {
-      chunks.push(chunk);
+  // Rate limiting utility for IPFS API calls
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const elapsed = now - this.lastRequestTime;
+    
+    if (elapsed < this.rateLimitMs) {
+      const delay = this.rateLimitMs - elapsed;
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    const content = Buffer.concat(chunks).toString();
-    return JSON.parse(content);
+    
+    this.lastRequestTime = Date.now();
+  }
+
+  public getEndpoint(): string {
+    return this.gateway;
+  }
+
+  public async get(hash: string): Promise<{ data: any; metadata: any }> {
+    try {
+      if (!hash || typeof hash !== "string") {
+        throw new Error("Invalid hash");
+      }
+
+      await this.enforceRateLimit();
+      const chunks = [];
+      for await (const chunk of this.serviceInstance.cat(hash)) {
+        chunks.push(chunk);
+      }
+      const data = Buffer.concat(chunks);
+      const str = data.toString();
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(str);
+      } catch (e) {
+        throw new Error("Invalid data format: cannot parse JSON");
+      }
+
+      if (!parsedData.data || !parsedData.metadata) {
+        throw new Error("Invalid backup data structure");
+      }
+
+      return parsedData;
+    } catch (error) {
+      logger.error(`Failed to retrieve data for CID ${hash}`, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   public async uploadJson(jsonData: Record<string, unknown>): Promise<UploadOutput> {
-    const content = JSON.stringify(jsonData);
-    const result = await this.serviceInstance.add(content);
-    return {
-      id: result.path,
-      metadata: {
-        size: result.size,
-        type: "json",
-      },
-    };
+    try {
+      const content = JSON.stringify(jsonData);
+      const buffer = Buffer.from(content);
+      
+      await this.enforceRateLimit();
+      const result = await this.serviceInstance.add(buffer);
+      
+      return {
+        id: result.cid.toString(),
+        metadata: {
+          timestamp: Date.now(),
+          size: buffer.length,
+          type: "json",
+        },
+      };
+    } catch (error) {
+      logger.error("JSON upload failed", error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   /**
@@ -48,89 +98,88 @@ export class IpfsService extends StorageService {
    * @param options - Opzioni aggiuntive (nome, metadati, ecc.)
    * @returns UploadOutput con l'ID del file caricato e i metadati
    */
-  public async uploadFile(filePath: string, options?: any): Promise<UploadOutput> {
-    // Verifica che il file esista
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Il file non esiste: ${filePath}`);
-    }
-
-    // Leggi il file
-    const fileContent = fs.readFileSync(filePath);
-    const fileName = options?.name || path.basename(filePath);
-    const fileSize = fs.statSync(filePath).size;
-
-    // Determina il tipo MIME
-    const mimeType = options?.metadata?.type || this.getMimeType(filePath);
-
-    // Carica il file su IPFS
-    const result = await this.serviceInstance.add(fileContent, {
-      pin: true,
-      progress: (prog: number) => {
-        if (options?.onProgress && typeof options.onProgress === "function") {
-          options.onProgress(prog);
-        }
-      },
-    });
-
-    // Restituisci il risultato
-    return {
-      id: result.path,
-      metadata: {
-        size: fileSize,
-        type: mimeType,
-        name: fileName,
-        ...options?.metadata,
-      },
-    };
-  }
-
-  /**
-   * Determina il tipo MIME in base all'estensione del file
-   * @param filePath - Percorso del file
-   * @returns Il tipo MIME o application/octet-stream se non determinabile
-   */
-  private getMimeType(filePath: string): string {
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".png": "image/png",
-      ".gif": "image/gif",
-      ".webp": "image/webp",
-      ".svg": "image/svg+xml",
-      ".pdf": "application/pdf",
-      ".txt": "text/plain",
-      ".json": "application/json",
-      ".mp3": "audio/mpeg",
-      ".mp4": "video/mp4",
-      ".webm": "video/webm",
-      ".zip": "application/zip",
-      ".doc": "application/msword",
-      ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    };
-
-    return mimeTypes[ext] || "application/octet-stream";
-  }
-
-  public async unpin(hash: string): Promise<boolean> {
+  public async uploadFile(filePath: string): Promise<UploadOutput> {
     try {
-      await this.serviceInstance.pin.rm(hash);
-      return true;
-    } catch {
-      return false;
+      const content = await fs.promises.readFile(filePath);
+      
+      await this.enforceRateLimit();
+      const result = await this.serviceInstance.add(content);
+      
+      return {
+        id: result.cid.toString(),
+        metadata: {
+          timestamp: Date.now(),
+          size: content.length,
+          type: "file",
+        },
+      };
+    } catch (error) {
+      logger.error(`File upload failed for ${filePath}`, error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
   }
+
 
   public async getMetadata(hash: string): Promise<any> {
-    const stat = await this.serviceInstance.files.stat(`/ipfs/${hash}`);
-    return stat;
+    try {
+      if (!hash || typeof hash !== "string") {
+        throw new Error("Invalid hash");
+      }
+      
+      await this.enforceRateLimit();
+      const stat = await this.serviceInstance.files.stat(`/ipfs/${hash}`);
+      
+      return {
+        size: stat.size,
+        cumulativeSize: stat.cumulativeSize,
+        blocks: stat.blocks,
+        type: stat.type,
+      };
+    } catch (error) {
+      logger.error(`Failed to fetch metadata for ${hash}`, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   public async isPinned(hash: string): Promise<boolean> {
     try {
+      if (!hash || typeof hash !== "string") {
+        return false;
+      }
+      
+      await this.enforceRateLimit();
       const pins = await this.serviceInstance.pin.ls({ paths: [hash] });
-      return pins.length > 0;
-    } catch {
+      
+      for await (const pin of pins) {
+        if (pin.cid.toString() === hash) {
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      logger.warn(`isPinned check failed for ${hash}`, error instanceof Error ? error : new Error(String(error)));
+      return false;
+    }
+  }
+
+  public async unpin(hash: string): Promise<boolean> {
+    try {
+      if (!hash || typeof hash !== "string") {
+        return false;
+      }
+      
+      const isPinnedBefore = await this.isPinned(hash);
+      if (!isPinnedBefore) {
+        return false;
+      }
+      
+      await this.enforceRateLimit();
+      await this.serviceInstance.pin.rm(hash);
+      
+      return true;
+    } catch (error) {
+      logger.error(`Failed to unpin ${hash}`, error instanceof Error ? error : new Error(String(error)));
       return false;
     }
   }

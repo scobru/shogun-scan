@@ -24,14 +24,14 @@ class Logger {
       transports: [
         // File per tutti i log
         new winston.transports.File({ 
-          filename: path.join(logDir, 'mogu.log'),
+          filename: path.join(logDir, 'shogun-ipfs.log'),
           maxsize: 5242880, // 5MB
           maxFiles: 5,
           tailable: true
         }),
         // File separato per gli errori
         new winston.transports.File({ 
-          filename: path.join(logDir, 'error.log'),
+          filename: path.join(logDir, 'shogun-ipfs-error.log'),
           level: 'error'
         }),
         // Console output in development

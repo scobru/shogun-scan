@@ -1,7 +1,7 @@
 # shogun-ipfs DOCUMENTATION FOR LLM
 
 ## SYSTEM OVERVIEW
-shogun-ipfs is a modern decentralized backup system that combines end-to-end encryption with IPFS storage. The system is designed to provide secure, versioned, and efficient data backups.
+shogun-ipfs is a lightweight wrapper for IPFS storage services. It provides a simplified interface for uploading and retrieving data from IPFS networks using different storage providers.
 
 ## CORE COMPONENTS
 
@@ -12,20 +12,6 @@ shogun-ipfs is a modern decentralized backup system that combines end-to-end enc
 - IPFS-CLIENT: Direct IPFS node connection
   - Requires: url
   - Provides: direct IPFS network access
-
-2. ENCRYPTION
-- Algorithm: aes-256-gcm
-- Features:
-  - End-to-end encryption
-  - Optional per-backup encryption
-  - Key management
-
-3. BACKUP SYSTEM
-- Features:
-  - File versioning
-  - Incremental backups
-  - Smart caching
-  - Detailed version comparison
 
 ## CONFIGURATION STRUCTURE
 ```typescript
@@ -38,16 +24,10 @@ interface ShogunIpfsConfig {
       url?: string;
     }
   };
-  features: {
-    encryption: {
-      enabled: boolean;
-      algorithm: string;
-    };
+  features?: {
     useIPFS?: boolean;
   };
   paths?: {
-    backup?: string;
-    restore?: string;
     storage?: string;
     logs?: string;
   };
@@ -62,49 +42,47 @@ interface ShogunIpfsConfig {
 
 ## MAIN OPERATIONS
 
-1. BACKUP
+1. UPLOAD
 ```typescript
-shogunipfs.backup(sourcePath: string, options?: BackupOptions): Promise<BackupResult>
-// Creates a backup of the specified directory
-// Options include encryption settings and metadata
+// Upload JSON data
+shogunipfs.uploadJson(data: Record<string, unknown>, options?: any): Promise<UploadOutput>
+
+// Upload a buffer
+shogunipfs.uploadBuffer(buffer: Buffer, options?: any): Promise<UploadOutput>
+
+// Upload a file
+shogunipfs.uploadFile(filePath: string, options?: any): Promise<UploadOutput>
 ```
 
-2. RESTORE
+2. RETRIEVE
 ```typescript
-shogunipfs.restore(hash: string, targetPath: string, options?: BackupOptions): Promise<boolean>
-// Restores a backup to the specified directory
-// Uses the same encryption settings as backup
+// Get data by CID/hash
+shogunipfs.getData(hash: string): Promise<any>
+
+// Get metadata for a CID/hash
+shogunipfs.getMetadata(hash: string): Promise<any>
 ```
 
-3. COMPARE
+3. PIN MANAGEMENT
 ```typescript
-shogunipfs.compare(hash: string, sourcePath: string): Promise<VersionComparison>
-// Compares a backup with local files
-// Returns basic comparison info
+// Check if a hash is pinned
+shogunipfs.isPinned(hash: string): Promise<boolean>
 
-shogunipfs.compareDetailed(hash: string, sourcePath: string): Promise<DetailedComparison>
-// Returns detailed file-by-file comparison
-```
-
-4. DELETE
-```typescript
-shogunipfs.delete(hash: string): Promise<boolean>
-// Deletes a backup from storage
-// Returns success status
+// Unpin a hash
+shogunipfs.unpin(hash: string): Promise<boolean>
 ```
 
 ## ERROR HANDLING
 The system implements comprehensive error handling:
 - Storage service errors (connection, authentication)
-- Encryption/decryption errors
 - File system errors
-- Version comparison errors
+- Rate limiting and throttling protection
 
 ## USAGE EXAMPLES
 
-1. Basic Backup with Pinata
+1. Basic Usage with Pinata
 ```typescript
-const shogunipfs = new ShogunIpfs({
+const ipfs = new ShogunIpfs({
   storage: {
     service: 'PINATA',
     config: {
@@ -112,42 +90,37 @@ const shogunipfs = new ShogunIpfs({
     }
   }
 });
-const backup = await shogunipfs.backup('./data');
+
+// Upload JSON data
+const result = await ipfs.uploadJson({ name: 'test', data: [1, 2, 3] });
+console.log('Uploaded to:', result.id);
+
+// Retrieve the data
+const data = await ipfs.getData(result.id);
 ```
 
-2. Encrypted Backup
+2. File Upload
 ```typescript
-const backup = await shogunipfs.backup('./data', {
-  encryption: {
-    enabled: true,
-    key: 'your-encryption-key'
-  }
-});
-```
+// Upload a file
+const fileResult = await ipfs.uploadFile('./path/to/image.jpg');
+console.log('File uploaded to:', fileResult.id);
 
-3. Version Comparison
-```typescript
-const comparison = await shogunipfs.compareDetailed(backup.hash, './data');
-console.log(`Modified files: ${comparison.totalChanges.modified}`);
+// Check pinned status
+const isPinned = await ipfs.isPinned(fileResult.id);
+console.log('Is pinned:', isPinned);
 ```
 
 ## BEST PRACTICES
 
-1. ENCRYPTION
-- Always use strong encryption keys
-- Store encryption keys securely
-- Enable encryption for sensitive data
-
-2. BACKUP STRATEGY
-- Regular backup schedule
-- Version comparison before backup
-- Proper error handling
-- Cache management for large datasets
-
-3. STORAGE
+1. STORAGE
 - Monitor IPFS pinning status
-- Regular cleanup of unused backups
-- Validate restored files
+- Regular cleanup of unused content (unpin)
+- Use rate limiting awareness for API services
+
+2. PERFORMANCE
+- Consider file sizes when uploading
+- Use appropriate performance settings
+- Implement caching for frequently accessed data
 
 ## LIMITATIONS AND CONSIDERATIONS
 
@@ -157,14 +130,14 @@ console.log(`Modified files: ${comparison.totalChanges.modified}`);
 - Cache size affects memory usage
 
 2. SECURITY
-- Encryption key management is user responsibility
-- IPFS content is public (though encrypted)
-- Pinata JWT token security
+- IPFS content is public by default
+- Pinata JWT token must be kept secure
+- No built-in encryption (implement separately if needed)
 
 3. COMPATIBILITY
 - Node.js environment required
 - IPFS network access needed
-- File system permissions required 
+- File system permissions required for file operations
 
 ## LLM INTEGRATION
 
@@ -172,21 +145,18 @@ console.log(`Modified files: ${comparison.totalChanges.modified}`);
 ```bash
 # Fetch the LLM documentation
 curl -L https://raw.githubusercontent.com/scobru/shogun-ipfs/main/DOCS_LLM.txt
-
-# Using with jq to parse specific sections
-curl -L https://raw.githubusercontent.com/scobru/shogun-ipfs/main/DOCS_LLM.txt | grep -A 10 "## MAIN OPERATIONS"
 ```
 
 2. LLM PROMPT EXAMPLES
 ```text
 # For configuration help
-"Using the shogun-ipfs backup system, show me the configuration for encrypted backup with Pinata storage"
+"Show me how to configure shogun-ipfs with Pinata storage"
 
 # For operation guidance
-"How do I compare two versions of a backup in shogun-ipfs?"
+"How do I upload and retrieve JSON data using shogun-ipfs?"
 
 # For error handling
-"What are the best practices for handling encryption errors in shogun-ipfs?"
+"What are the best practices for handling connection errors in shogun-ipfs?"
 ```
 
 3. STRUCTURED QUERIES
@@ -202,7 +172,7 @@ The documentation is organized in sections that can be queried independently:
 When working with shogun-ipfs through an LLM, follow these patterns:
 ```typescript
 // Pattern 1: Basic initialization
-const shogun-ipfs = new shogun-ipfs({
+const ipfs = new ShogunIpfs({
   storage: {
     service: 'PINATA',
     config: {
@@ -213,23 +183,22 @@ const shogun-ipfs = new shogun-ipfs({
 
 // Pattern 2: Error handling wrapper
 try {
-  const result = await shogunipfs.operation();
-  if (!result) handleError();
+  const result = await ipfs.uploadJson(data);
+  console.log('Uploaded to:', result.id);
 } catch (error) {
-  handleError(error);
+  console.error('Upload failed:', error.message);
 }
 
-// Pattern 3: Version comparison
-const comparison = await shogunipfs.compareDetailed(hash, path);
-if (comparison.totalChanges.modified > 0) {
-  // Handle changes
+// Pattern 3: Checking operation success
+const unpinned = await ipfs.unpin(hash);
+if (!unpinned) {
+  console.warn('Failed to unpin or hash not found');
 }
 ```
 
 5. COMMON LLM TASKS
 - Configuration validation
 - Error message interpretation
-- Best practices application
-- Security assessment
+- IPFS operation patterns
 - Performance optimization
 - Integration patterns
