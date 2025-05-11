@@ -12,22 +12,15 @@
     "test": "ts-node src/tests/test.ts"
   },
   "dependencies": {
-    "@types/jsonwebtoken": "^9.0.7",
-    "@types/mime-types": "^2.1.1",
     "axios": "^1.6.2",
     "dayjs": "^1.11.13",
     "dotenv": "^16.3.1",
     "fs-extra": "^11.2.0",
     "ipfs-http-client": "56.0.3",
-    "js-sha3": "^0.9.3",
-    "jsonwebtoken": "^9.0.2",
     "lru-cache": "^11.0.2",
-    "mime-types": "^2.1.35",
     "morgan": "^1.10.0",
-    "multiformats": "^13.0.0",
     "pinata-web3": "^0.5.2",
-    "winston": "^3.17.0",
-    "zod": "^3.23.8"
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

@@ -1,0 +1,29 @@
+"use client";
+
+import { ReactNode } from 'react';
+import { ShogunGunProvider } from './ShogunGunProvider';
+
+interface ShogunProvidersProps {
+  children: ReactNode;
+}
+
+export function ShogunProviders({ children }: ShogunProvidersProps) {
+  // Puoi configurare qui i peers di Gun e le opzioni di Shogun
+  const gunPeers = [
+    'http://localhost:8765/gun',
+    // Aggiungi qui altri peer se necessario
+  ];
+
+  const shogunOptions = {
+    appName: 'Shogun App',
+    showMetamask: true,
+    showWebauthn: true,
+    darkMode: true
+  };
+
+  return (
+    <ShogunGunProvider peers={gunPeers} options={shogunOptions}>
+      {children}
+    </ShogunGunProvider>
+  );
+} 

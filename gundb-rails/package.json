@@ -1,0 +1,33 @@
+{
+  "name": "shogun-on-rails",
+  "version": "0.0.1",
+  "description": "Scaffolding generator for GunDB with Rails-like functionality and Shogun integration",
+  "main": "index.ts",
+  "bin": {
+    "gundb-rails": "./index.ts"
+  },
+  "scripts": {
+    "start": "ts-node index.ts",
+    "build": "tsc",
+    "generate": "ts-node index.ts generate",
+    "shogun-init": "ts-node index.ts shogun-init"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^9.4.0",
+    "fs-extra": "^10.1.0",
+    "inquirer": "^8.2.4",
+    "shogun-core": "latest",
+    "ts-node": "^10.9.1"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^9.0.13",
+    "@types/inquirer": "^8.2.5",
+    "@types/node": "^18.11.9",
+    "typescript": "^4.8.4"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,59 @@
+import { useState, useEffect } from 'react';
+import { useShogunGun } from '../../components/shogun/ShogunGunProvider';
+import { ${ModelName} } from '../../models/${ModelName}';
+
+export function use${ModelName}s() {
+  const { gun } = useShogunGun();
+  const [${modelNameLower}s, set${ModelName}s] = useState<${ModelName}[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!gun) return;
+
+    ${ModelName}.setGunInstance(gun);
+    
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const items = await ${ModelName}.findAll();
+        set${ModelName}s(items);
+      } catch (error) {
+        console.error(`Error loading ${ModelName}s:`, error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [gun]);
+
+  return { ${modelNameLower}s, loading };
+}
+
+export function use${ModelName}(id: string) {
+  const { gun } = useShogunGun();
+  const [${modelNameLower}, set${ModelName}] = useState<${ModelName} | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!gun || !id) return;
+
+    ${ModelName}.setGunInstance(gun);
+    
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const item = await ${ModelName}.findById(id);
+        set${ModelName}(item);
+      } catch (error) {
+        console.error(`Error loading ${ModelName}:`, error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [gun, id]);
+
+  return { ${modelNameLower}, loading };
+} 

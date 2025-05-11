@@ -1,0 +1,43 @@
+const express = require('express');
+const Gun = require('gun');
+const cors = require('cors');
+const path = require('path');
+
+const app = express();
+const port = process.env.PORT || 8765;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// GunDB
+const server = app.listen(port, () => {
+  console.log(`GunDB relay server running on port ${port}!`);
+  console.log(`Access Gun directly at http://localhost:${port}/gun`);
+});
+
+// Create the Gun instance
+const gun = Gun({
+  web: server,
+  file: 'radata', // Storage location for data
+  radisk: true,  // Enable RAD (Radisk storage adapter)
+  multicast: false,
+  localStorage: false
+});
+
+// Make Gun available to the server
+app.gun = gun;
+
+// Basic routes for status check
+app.get('/', (req, res) => {
+  res.send('GunDB Relay Server is running');
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+}); 

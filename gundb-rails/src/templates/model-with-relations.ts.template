@@ -1,0 +1,25 @@
+import { Model } from '../core/Model';
+
+export class ${ModelName} extends Model {
+${attributes}
+
+  // Registra il modello al caricamento della classe
+  static {
+    this.modelName = '${ModelName}';
+    this.tableName = '${modelNameLower}s';
+    this.register();
+  }
+}
+
+// Esempio di definizione di relazioni
+// Per abilitare le relazioni, decommentare e modificare i seguenti esempi:
+/* 
+// Relazione uno-a-molti (hasMany)
+${ModelName}.hasMany('OtherModel', { as: 'otherModels' });
+
+// Relazione uno-a-uno (hasOne)
+${ModelName}.hasOne('OtherModel', { as: 'otherModel' });
+
+// Relazione di appartenenza (belongsTo)
+${ModelName}.belongsTo('OtherModel', { as: 'parent' });
+*/ 

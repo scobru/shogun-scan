@@ -1,15 +1,16 @@
 import { StorageService } from "./base-storage";
 import type { UploadOutput, IpfsServiceConfig } from "../types";
-import { create as createIpfsClient } from "ipfs-http-client";
+import { create as createIpfsClient, IPFSHTTPClient } from "ipfs-http-client";
 import { logger } from "../../utils/logger";
 import fs from "fs";
 
 export class IpfsService extends StorageService {
   public serviceBaseUrl = "ipfs://";
-  public readonly serviceInstance: any;
+  public readonly serviceInstance: IPFSHTTPClient;
   private readonly gateway: string;
   private lastRequestTime = 0;
   private rateLimitMs = 200; // 5 requests per second maximum
+  private apiKey: string;
 
   constructor(config: IpfsServiceConfig) {
     super();
@@ -19,6 +20,7 @@ export class IpfsService extends StorageService {
 
     this.serviceInstance = createIpfsClient({ url: config.url });
     this.gateway = config.url;
+    this.apiKey = config.apiKey || "";
   }
 
   // Rate limiting utility for IPFS API calls
@@ -183,4 +185,25 @@ export class IpfsService extends StorageService {
       return false;
     }
   }
+
+  public async pin(hash: string): Promise<boolean> {
+    try {
+      if (!hash || typeof hash !== "string") {
+        return false;
+      } 
+
+      await this.enforceRateLimit();
+      const pinned = await this.serviceInstance.pin.add(hash , {
+        headers: {
+          "Authorization": `Bearer ${this.apiKey}`
+        }
+      });
+      console.log(pinned);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to pin ${hash}`, error instanceof Error ? error : new Error(String(error)));
+      return false;
+    }
+  }
+
 }

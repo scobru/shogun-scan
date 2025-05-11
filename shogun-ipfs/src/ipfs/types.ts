@@ -4,10 +4,12 @@ export type ShogunIpfsServices = "PINATA" | "IPFS-CLIENT";
 export interface PinataServiceConfig {
   pinataJwt: string;
   pinataGateway?: string;
+  apiKey?: string;
 }
 
 export interface IpfsServiceConfig {
   url: string;
+  apiKey?: string;
 }
 
 // Re-export the abstract service for backward compatibility

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Joy Lite Example</title>
+
+    <!-- SOLO gun.js -->
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+
+    <script type="module">
+      import { init, auth, h, setSignal } from "../nodom.js";
+
+      window.addEventListener("DOMContentLoaded", async () => {
+        const gunInstance = Gun();
+        init(gunInstance);
+
+        await auth("myusername", "mypassword"); // login automatico o creazione
+
+        const [message, setMessage] = setSignal("", { key: "message" });
+
+        document.body.appendChild(
+          h(
+            "div",
+            { class: "app" },
+            h("h1", {}, () => message()),
+            h("input", { name: "message", placeholder: "Type a message" })
+          )
+        );
+      });
+    </script>
+  </head>
+  <body></body>
+</html>

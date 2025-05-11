@@ -76,22 +76,12 @@ if (unpinned) {
 ```typescript
 const config = {
   storage: {
-    service: "PINATA" as const, // or "IPFS-CLIENT"
+    service: "IPFS-CLIENT" as const, // or "IPFS-CLIENT"
     config: {
       pinataJwt: process.env.PINATA_JWT || "",
       pinataGateway: process.env.PINATA_GATEWAY || "",
       // For IPFS-CLIENT: url: "http://localhost:5001"
     },
-  },
-  paths: {
-    storage: "./storage", // Local storage path
-    logs: path.join(process.cwd(), "logs"),
-  },
-  performance: {
-    maxConcurrent: 3,
-    chunkSize: 1024 * 1024,
-    cacheEnabled: true,
-    cacheSize: 100,
   },
 };
 
