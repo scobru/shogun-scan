@@ -18,42 +18,51 @@ export function init(gunInstance) {
  */
 function resolveKey(key, element) {
   if (!key) return key;
-  
+
   // Se la chiave inizia già con ~, è già un namespace completo
   if (key.startsWith("~")) return key;
-  
+
   // 1. Prima priorità: controllo se l'elemento ha un attributo namespace
   if (element) {
     try {
       let currentElement = element;
-      
+
       // Risaliamo l'albero DOM cercando l'attributo namespace
       while (currentElement) {
-        if (currentElement.getAttribute && currentElement.getAttribute('namespace')) {
-          const elementNamespace = currentElement.getAttribute('namespace');
+        if (
+          currentElement.getAttribute &&
+          currentElement.getAttribute("namespace")
+        ) {
+          const elementNamespace = currentElement.getAttribute("namespace");
           // Debug: console.log(`[resolveKey] Trovato attributo namespace: ${elementNamespace} per chiave: ${key}`);
           return `${elementNamespace}.${key}`;
         }
         currentElement = currentElement.parentNode;
       }
     } catch (err) {
-      console.warn(`[resolveKey] Errore nella ricerca dell'attributo namespace:`, err);
+      console.warn(
+        `[resolveKey] Errore nella ricerca dell'attributo namespace:`,
+        err
+      );
     }
   }
-  
+
   // 2. Seconda priorità: utilizziamo il namespace di contesto se disponibile
-  const nsToUse = namespaceContext.length > 0 ? namespaceContext[namespaceContext.length - 1] : null;
+  const nsToUse =
+    namespaceContext.length > 0
+      ? namespaceContext[namespaceContext.length - 1]
+      : null;
   if (nsToUse) {
     // Debug: console.log(`[resolveKey] Usando namespace di contesto: ${nsToUse} per chiave: ${key}`);
     return `${nsToUse}.${key}`;
   }
-  
+
   // 3. Terza priorità: utilizziamo il namespace globale se disponibile
   if (currentNamespace) {
     // Debug: console.log(`[resolveKey] Usando namespace globale: ${currentNamespace} per chiave: ${key}`);
     return `${currentNamespace}.${key}`;
   }
-  
+
   // Nessun namespace trovato, ritorniamo la chiave originale
   return key;
 }
@@ -65,7 +74,7 @@ export function setSignal(initialValue, options = {}) {
 
   // Risolviamo la chiave con il namespace se necessario
   const resolvedKey = key ? resolveKey(key, element) : null;
-  
+
   // Debug: console.log(`[setSignal] Chiave originale: ${key}, Chiave risolta: ${resolvedKey}, Elemento:`, element);
 
   if (resolvedKey && gun) {
@@ -73,16 +82,16 @@ export function setSignal(initialValue, options = {}) {
     if (!window._nodomSignalStore) {
       window._nodomSignalStore = new Map();
     }
-    
+
     // Verifichiamo se esiste già un signal con questa chiave
     if (window._nodomSignalStore.has(resolvedKey)) {
       const existingSignal = window._nodomSignalStore.get(resolvedKey);
       // Aggiungiamo gli observer all'istanza esistente
       return existingSignal;
     }
-    
+
     const node = gun.get(resolvedKey);
-    
+
     // Recuperiamo il valore iniziale
     let initializing = true;
     node.once((data) => {
@@ -94,7 +103,7 @@ export function setSignal(initialValue, options = {}) {
       }
     });
     initializing = false;
-    
+
     // Ascoltiamo i cambiamenti
     node.on((data) => {
       if (data && data.value !== undefined) {
@@ -119,12 +128,12 @@ export function setSignal(initialValue, options = {}) {
   };
 
   const signal = [read, write];
-  
+
   // Memorizziamo il signal per riutilizzarlo
   if (resolvedKey && gun) {
     window._nodomSignalStore.set(resolvedKey, signal);
   }
-  
+
   return signal;
 }
 
@@ -204,26 +213,26 @@ export function jsx(type, props = {}) {
   if (type === Fragment) {
     const fragment = document.createDocumentFragment();
     insertChildren(fragment, props.children);
-    
+
     // Ripristina il contesto del namespace
     if (oldNamespaceContext !== null) {
       namespaceContext = oldNamespaceContext;
     }
-    
+
     return fragment;
   }
-  
+
   if (typeof type === "function") {
     const result = type(props);
-    
+
     // Ripristina il contesto del namespace
     if (oldNamespaceContext !== null) {
       namespaceContext = oldNamespaceContext;
     }
-    
+
     return result;
   }
-  
+
   const el = isSvg(type)
     ? document.createElementNS(SVG_NS, type)
     : document.createElement(type);
@@ -245,14 +254,17 @@ export function jsx(type, props = {}) {
   if (props.name && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) {
     // Utilizziamo la chiave risolta con il namespace di contesto o attributo
     const resolvedKey = resolveKey(props.name, el);
-    
+
     // Creiamo un signal con il valore attuale dell'input
     const initialValue = el.value || "";
-    const [get, set] = setSignal(initialValue, { key: resolvedKey, element: el });
-    
+    const [get, set] = setSignal(initialValue, {
+      key: resolvedKey,
+      element: el,
+    });
+
     // Sincronizziamo l'input col valore dal DB
     el.value = get();
-    
+
     // Aggiorniamo l'input quando cambia il valore in Gun
     setEffect(() => {
       const currentValue = get();
@@ -260,7 +272,7 @@ export function jsx(type, props = {}) {
         el.value = currentValue;
       }
     });
-    
+
     // Aggiorniamo Gun quando cambia l'input
     el.addEventListener("input", (e) => {
       set(e.target.value);
@@ -272,12 +284,12 @@ export function jsx(type, props = {}) {
   }
 
   insertChildren(el, props.children);
-  
+
   // Ripristina il contesto del namespace
   if (oldNamespaceContext !== null) {
     namespaceContext = oldNamespaceContext;
   }
-  
+
   return el;
 }
 
@@ -296,7 +308,10 @@ export function h(type, props, ...children) {
  * @returns {Promise<object>} - Risultato dell'autenticazione
  */
 export async function auth(username, password, createIfNeeded = true) {
-  if (!gun) throw new Error("joy-lite: Gun instance not initialized. Call init(gun) first.");
+  if (!gun)
+    throw new Error(
+      "joy-lite: Gun instance not initialized. Call init(gun) first."
+    );
 
   return new Promise((resolve, reject) => {
     gun.user().auth(username, password, (ack) => {
@@ -316,7 +331,9 @@ export async function auth(username, password, createIfNeeded = true) {
                 currentUser = gun.user();
                 updateNamespace();
                 console.log("User logged in successfully!");
-                console.log(`Your namespace is publicly available at ${currentNamespace}`);
+                console.log(
+                  `Your namespace is publicly available at ${currentNamespace}`
+                );
                 resolve({ success: true, namespace: currentNamespace });
               }
             });
@@ -330,7 +347,9 @@ export async function auth(username, password, createIfNeeded = true) {
         currentUser = gun.user();
         updateNamespace();
         console.log("User logged in successfully!");
-        console.log(`Your namespace is publicly available at ${currentNamespace}`);
+        console.log(
+          `Your namespace is publicly available at ${currentNamespace}`
+        );
         resolve({ success: true, namespace: currentNamespace });
       }
     });
@@ -345,14 +364,14 @@ function updateNamespace() {
     currentNamespace = null;
     return;
   }
-  
+
   // Formato del namespace: ~[pubKey].[pubKey-hash]
   const pubKey = currentUser.is.pub;
   if (!pubKey) {
     currentNamespace = null;
     return;
   }
-  
+
   // In JOY, usa un hash del pub key come seconda parte del namespace
   // Per semplicità, utilizzeremo solo il pub key direttamente
   currentNamespace = `~${pubKey}`;
@@ -371,7 +390,7 @@ export function getNamespace() {
  */
 export function logout() {
   if (!gun) return;
-  
+
   gun.user().leave();
   currentUser = null;
   currentNamespace = null;
@@ -387,13 +406,13 @@ export function setNamespace(namespace) {
     currentNamespace = null;
     return;
   }
-  
+
   // Verifichiamo che il namespace abbia il formato corretto
   if (!namespace.startsWith("~")) {
     console.warn("Namespace should start with ~");
     namespace = `~${namespace}`;
   }
-  
+
   currentNamespace = namespace;
   console.log(`Namespace set to: ${currentNamespace}`);
 }
@@ -408,15 +427,27 @@ export function withNamespace(namespace, component) {
   return (props = {}) => {
     // Se component è già un nodo DOM, lo avvolgiamo in un div con namespace
     if (component instanceof Node) {
-      const wrapper = document.createElement('div');
-      wrapper.setAttribute('namespace', namespace);
+      const wrapper = document.createElement("div");
+      wrapper.setAttribute("namespace", namespace);
       wrapper.appendChild(component);
       return wrapper;
     }
-    
+
     // Altrimenti, creiamo un nuovo componente con il namespace applicato
-    return jsx('div', { namespace, ...props }, component);
+    return jsx("div", { namespace, ...props }, component);
   };
 }
 
-export default { setSignal, setEffect, setMemo, jsx, h, Fragment, auth, getNamespace, logout, setNamespace, withNamespace };
+export default {
+  setSignal,
+  setEffect,
+  setMemo,
+  jsx,
+  h,
+  Fragment,
+  auth,
+  getNamespace,
+  logout,
+  setNamespace,
+  withNamespace,
+};
