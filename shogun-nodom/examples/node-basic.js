@@ -1,44 +1,44 @@
-// Esempio base di nodom-node.js
-// Mostra l'inizializzazione, i segnali e gli effetti
-// Esegui con: node node-basic.js
+// Basic example of nodom-node.js
+// Shows initialization, signals and effects
+// Run with: node node-basic.js
 
 import Gun from 'gun';
 import { init, setSignal, setEffect } from '../nodom-node.js';
 
 const server = Gun.serve()
 
-// Inizializzazione di Gun
+// Gun initialization
 const gun = Gun({
   web: server
 });
 
-// Inizializzazione di Shogun NoDom
+// Shogun NoDom initialization
 init(gun);
 
-console.log('🔫 Shogun NoDom - Esempio Base');
+console.log('🔫 Shogun NoDom - Basic Example');
 console.log('==============================');
 
-// Creare un segnale con un valore iniziale
-// La chiave 'counter' sarà usata per salvare il valore in GunDB
+// Create a signal with an initial value
+// The key 'counter' will be used to save the value in GunDB
 const [getCount, setCount] = setSignal(0, { key: 'counter' });
-const [effectCount] = setEffect)
-// Creare un effetto che reagisce ai cambiamenti del segnale
+
+// Create an effect that reacts to signal changes
 setEffect(() => {
-  console.log(`Il contatore è: ${getCount()}`);
+  console.log(`The counter is: ${getCount()}`);
 });
 
-// Modificare il valore del segnale (questo farà scattare l'effetto)
-console.log('Incremento il contatore...');
+// Modify the signal value (this will trigger the effect)
+console.log('Incrementing the counter...');
 setCount(1);
 
-// Attendere un po' e poi incrementare di nuovo
+// Wait a bit and then increment again
 setTimeout(() => {
-  console.log('Incremento di nuovo il contatore...');
+  console.log('Incrementing the counter again...');
   setCount(prev => prev + 1);
 }, 1000);
 
-// Chiudere Gun dopo altri 2 secondi
+// Close Gun after another 2 seconds
 setTimeout(() => {
-  console.log('Esempio completato!');
+  console.log('Example completed!');
   process.exit(0);
 }, 3000); 

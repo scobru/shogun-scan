@@ -1,44 +1,44 @@
 # 🔫 **Shogun NoDom** beta
 
-Una libreria reattiva ultraleggera basata su segnali per costruire interfacce utente dinamiche con GunDB.
+An ultra-lightweight reactive library based on signals for building dynamic user interfaces with GunDB.
 
-## 📖 **Introduzione**
+## 📖 **Introduction**
 
-**Shogun NoDom** è una libreria JavaScript reattiva basata su segnali per costruire interfacce utente dinamiche con GunDB. Offre reattività potente con un overhead minimo.
+**Shogun NoDom** is a signal-based reactive JavaScript library for building dynamic user interfaces with GunDB. It offers powerful reactivity with minimal overhead.
 
-> ⚡️ _Shogun NoDom si concentra sulla **semplicità**, **reattività** e **persistenza dei dati** senza sacrificare l'esperienza dello sviluppatore._
+> ⚡️ _Shogun NoDom focuses on **simplicity**, **reactivity**, and **data persistence** without sacrificing developer experience._
 
-_Confronto con altre librerie reattive_
+_Comparison with other reactive libraries_
 
-| Libreria | Dimensione | Backend Integrato | Punti di Forza |
+| Library | Size | Integrated Backend | Strengths |
 |----------|------------|-------------------|----------------|
-| Shogun NoDom | Leggera | GunDB (P2P) | Reattività + Storage Distribuito |
-| React | ~40kb | No | Ecosistema ricco, Virtual DOM |
-| Alpine.js | ~7.1kb | No | Minimalista, funziona con HTML esistente |
-| Solid.js | ~7kb | No | Reattività fine, alte prestazioni |
+| Shogun NoDom | Lightweight | GunDB (P2P) | Reactivity + Distributed Storage |
+| React | ~40kb | No | Rich ecosystem, Virtual DOM |
+| Alpine.js | ~7.1kb | No | Minimalist, works with existing HTML |
+| Solid.js | ~7kb | No | Fine-grained reactivity, high performance |
 
-## ⚙️ **Concetti Principali**
+## ⚙️ **Core Concepts**
 
-### 🔄 **Reattività basata su Segnali**
+### 🔄 **Signal-based Reactivity**
 
-Shogun NoDom utilizza un sistema reattivo basato su segnali con backup persistente:
+Shogun NoDom uses a reactive system based on signals with persistent backup:
 
-* 🧠 **Segnali** - Valori reattivi che notificano gli abbonati quando cambiano e persistono su GunDB.
-* 🌀 **Effetti** - Funzioni che si eseguono automaticamente quando cambiano i segnali.
-* 🧭 **Memo** - Helper per memorizzare risultati di calcoli basati su dipendenze reattive.
-* 🔑 **Namespace** - Spazi di nomi automatici per isolare i dati utente.
+* 🧠 **Signals** - Reactive values that notify subscribers when they change and persist on GunDB.
+* 🌀 **Effects** - Functions that automatically execute when signals change.
+* 🧭 **Memo** - Helpers for storing the results of calculations based on reactive dependencies.
+* 🔑 **Namespace** - Automatic namespaces to isolate user data.
 
-## 🚀 **Installazione**
+## 🚀 **Installation**
 
 ```bash
-# Con npm
+# With npm
 npm install shogun-nodom gun
 
-# Con yarn
+# With yarn
 yarn add shogun-nodom gun
 ```
 
-Oppure includi direttamente da CDN:
+Or include directly from CDN:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
@@ -49,41 +49,41 @@ Oppure includi direttamente da CDN:
 </script>
 ```
 
-## 📚 **API Principali**
+## 📚 **Core API**
 
-### Inizializzazione
+### Initialization
 
 ```js
 import { init } from 'shogun-nodom';
 import Gun from 'gun';
-import 'gun/sea'; // Per l'autenticazione
+import 'gun/sea'; // For authentication
 
 const gun = Gun(['http://localhost:8765/gun']);
 init(gun);
 ```
 
-### Reattività
+### Reactivity
 
 ```js
 import { setSignal, setEffect, setMemo } from 'shogun-nodom';
 
-// Crea un segnale
+// Create a signal
 const [getCount, setCount] = setSignal(0, { key: 'counter' });
 
-// Reagisci ai cambiamenti
+// React to changes
 setEffect(() => {
-  console.log(`Il contatore è: ${getCount()}`);
+  console.log(`The counter is: ${getCount()}`);
 });
 
-// Memorizza calcoli derivati
+// Memorize derived calculations
 const getDoubleCount = setMemo(() => getCount() * 2);
 
-// Modifica il valore
+// Modify the value
 setCount(1);
 setCount(prev => prev + 1);
 ```
 
-### Rendering DOM
+### DOM Rendering
 
 ```js
 import { h, Fragment } from 'shogun-nodom';
@@ -92,145 +92,145 @@ function Counter() {
   const [count, setCount] = setSignal(0, { key: 'counter' });
   
   return h('div', {},
-    h('h1', {}, () => `Contatore: ${count()}`),
+    h('h1', {}, () => `Counter: ${count()}`),
     h('button', { 
       onclick: () => setCount(count() + 1) 
-    }, 'Incrementa')
+    }, 'Increment')
   );
 }
 
 document.body.appendChild(Counter());
 ```
 
-### Autenticazione
+### Authentication
 
 ```js
 import { auth, logout, getNamespace } from 'shogun-nodom';
 
-// Login o registrazione
+// Login or registration
 async function login() {
   try {
-    // Il terzo parametro (true) crea l'utente se non esiste
+    // The third parameter (true) creates the user if it doesn't exist
     await auth('username', 'password', true);
     console.log(`Namespace: ${getNamespace()}`);
   } catch (err) {
-    console.error('Errore di autenticazione:', err);
+    console.error('Authentication error:', err);
   }
 }
 
 // Logout
 function handleLogout() {
   logout();
-  console.log('Utente disconnesso');
+  console.log('User logged out');
 }
 ```
 
-## 🔑 **Sistema di Namespace**
+## 🔑 **Namespace System**
 
-Shogun NoDom include un potente sistema di namespace che fornisce isolamento automatico dei dati per gli utenti autenticati.
+Shogun NoDom includes a powerful namespace system that provides automatic data isolation for authenticated users.
 
-### Come funzionano i Namespace
+### How Namespaces Work
 
-1. **Generazione automatica**: Quando un utente si autentica, viene generato un namespace univoco basato sulla sua chiave pubblica.
-2. **Isolamento dei dati**: I dati vengono automaticamente salvati sotto il namespace dell'utente, creando un "spazio privato" per i dati dell'utente.
-3. **Propagazione contestuale**: I namespace vengono propagati automaticamente agli elementi figli, permettendo di creare interi rami UI con dati isolati.
+1. **Automatic generation**: When a user authenticates, a unique namespace is generated based on their public key.
+2. **Data isolation**: Data is automatically saved under the user's namespace, creating a "private space" for user data.
+3. **Contextual propagation**: Namespaces are automatically propagated to child elements, allowing entire UI branches with isolated data.
 
-### Utilizzo dei Namespace
+### Using Namespaces
 
 ```js
 import { h, auth, getNamespace, setSignal } from 'shogun-nodom';
 
-// Dopo l'autenticazione
+// After authentication
 await auth('username', 'password');
-const namespace = getNamespace(); // es: ~ABCDEF1234567890
+const namespace = getNamespace(); // e.g.: ~ABCDEF1234567890
 
-// Metodo 1: Namespace a livello di elemento (propagato ai figli)
+// Method 1: Element-level namespace (propagated to children)
 function PrivateForm() {
   return h('div', { namespace },
-    h('input', { name: 'private-note' }), // Usa automaticamente il namespace
+    h('input', { name: 'private-note' }), // Automatically uses the namespace
     h('div', {}, () => {
-      // Questo segnale legge/scrive automaticamente in ~ABCDEF1234567890.private-note
+      // This signal automatically reads/writes to ~ABCDEF1234567890.private-note
       const [getNote] = setSignal('', { key: 'private-note' });
-      return `Nota: ${getNote()}`;
+      return `Note: ${getNote()}`;
     })
   );
 }
 
-// Metodo 2: Namespace a livello di segnale
+// Method 2: Signal-level namespace
 function MixedForm() {
-  // Dati privati (con namespace)
-  const [getPrivate] = setSignal('', { key: 'user-data' }); // Usa namespace
+  // Private data (with namespace)
+  const [getPrivate] = setSignal('', { key: 'user-data' }); // Uses namespace
   
-  // Dati pubblici (senza namespace)
+  // Public data (without namespace)
   const [getPublic] = setSignal('', { key: 'public-data', element: document.createElement('div') });
   
   return h('div', {},
-    h('h3', {}, 'Form Misto'),
-    h('div', {}, () => `Dati privati: ${getPrivate()}`),
-    h('div', {}, () => `Dati pubblici: ${getPublic()}`)
+    h('h3', {}, 'Mixed Form'),
+    h('div', {}, () => `Private data: ${getPrivate()}`),
+    h('div', {}, () => `Public data: ${getPublic()}`)
   );
 }
 ```
 
-### Gestione Avanzata dei Namespace
+### Advanced Namespace Management
 
 ```js
 import { setNamespace, withNamespace } from 'shogun-nodom';
 
-// Impostare manualmente un namespace
+// Manually set a namespace
 setNamespace('~customnamespace');
 
-// Creare un componente con namespace specifico
+// Create a component with a specific namespace
 const PrivateComponent = withNamespace('~customnamespace', 
   h('div', {}, 
     h('input', { name: 'special-input' })
   )
 );
 
-// Nidificazione di namespace
+// Nested namespaces
 function NestedNamespaces() {
   return h('div', { namespace: '~user1' },
-    h('div', {}, 'Area Utente 1'),
+    h('div', {}, 'User 1 Area'),
     h('div', { namespace: '~user2' },
-      h('input', { name: 'shared-note' }) // Usa namespace ~user2
+      h('input', { name: 'shared-note' }) // Uses namespace ~user2
     )
   );
 }
 ```
 
-### Contesto dei Namespace
+### Namespace Context
 
-I namespace in Shogun NoDom funzionano attraverso un sistema di contesto:
+Namespaces in Shogun NoDom work through a context system:
 
-1. **Risalita nel DOM**: Quando si accede a un segnale, il sistema cerca l'attributo namespace risalendo nell'albero DOM.
-2. **Stack di contesto**: Durante il rendering, viene mantenuto uno stack di namespace attivi per gestire la nidificazione.
-3. **Priorità**: Il namespace viene selezionato con questa priorità:
-   - Attributo namespace nell'elemento o nei suoi antenati
-   - Contesto corrente di rendering
-   - Namespace globale dell'utente autenticato
+1. **DOM traversal**: When accessing a signal, the system searches for the namespace attribute by traversing up the DOM tree.
+2. **Context stack**: During rendering, a stack of active namespaces is maintained to handle nesting.
+3. **Priority**: The namespace is selected with this priority:
+   - Namespace attribute in the element or its ancestors
+   - Current rendering context
+   - Global namespace of the authenticated user
 
-## 🌐 **Versione Node.js**
+## 🌐 **Node.js Version**
 
-Shogun NoDom include anche una versione per Node.js che supporta la reattività e l'autenticazione in ambienti server.
+Shogun NoDom also includes a Node.js version that supports reactivity and authentication in server environments.
 
 ```js
-// Server Node.js
+// Node.js Server
 import Gun from 'gun';
 import { init, setSignal, auth } from 'shogun-nodom/nodom-node.js';
 
 const gun = new Gun();
 init(gun);
 
-// Utilizzabile per reattività lato server
+// Usable for server-side reactivity
 const [getConfig, setConfig] = setSignal({ port: 8080 }, { key: 'server-config' });
 
-// Autenticazione disponibile anche lato server
+// Authentication also available server-side
 await auth('server', 'password');
 ```
 
-## 🔍 **Esempi Completi**
+## 🔍 **Complete Examples**
 
-### Contatore Semplice
+### Simple Counter
 
 ```html
 <!DOCTYPE html>
@@ -253,10 +253,10 @@ await auth('server', 'password');
       const [count, setCount] = setSignal(0, { key: 'counter' });
       
       return h('div', {},
-        h('h1', {}, () => `Contatore: ${count()}`),
+        h('h1', {}, () => `Counter: ${count()}`),
         h('button', { 
           onclick: () => setCount(count() + 1) 
-        }, 'Incrementa')
+        }, 'Increment')
       );
     }
     
@@ -266,13 +266,13 @@ await auth('server', 'password');
 </html>
 ```
 
-### App con Autenticazione e Namespace
+### App with Authentication and Namespace
 
 ```html
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Shogun NoDom - Note Private</title>
+  <title>Shogun NoDom - Private Notes</title>
 </head>
 <body>
   <div id="auth">
@@ -298,7 +298,7 @@ await auth('server', 'password');
         await auth(username, password, true);
         renderApp();
       } catch (err) {
-        alert(`Errore: ${err}`);
+        alert(`Error: ${err}`);
       }
     });
     
@@ -307,11 +307,11 @@ await auth('server', 'password');
       
       function Notes() {
         return h('div', { namespace },
-          h('h2', {}, `Note di ${document.getElementById('username').value}`),
-          h('textarea', { name: 'notes', placeholder: 'Scrivi qui...' }),
+          h('h2', {}, `Notes by ${document.getElementById('username').value}`),
+          h('textarea', { name: 'notes', placeholder: 'Write here...' }),
           h('div', {}, () => {
             const [getNotes] = setSignal('', { key: 'notes' });
-            return `Contenuto salvato: ${getNotes()}`;
+            return `Saved content: ${getNotes()}`;
           })
         );
       }
@@ -325,14 +325,14 @@ await auth('server', 'password');
 </html>
 ```
 
-## 🤝 **Contribuire**
+## 🤝 **Contributing**
 
-Le contribuzioni sono benvenute! Sentiti libero di:
+Contributions are welcome! Feel free to:
 
-1. Segnalare bug o problemi
-2. Proporre nuove funzionalità
-3. Inviare pull request
+1. Report bugs or issues
+2. Propose new features
+3. Submit pull requests
 
-## 📄 **Licenza**
+## �� **License**
 
 MIT

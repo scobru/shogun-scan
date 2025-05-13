@@ -2,37 +2,37 @@
 
 let currentObserver = null;
 let gun = null;
-let currentUser = null; // riferimento all'utente attualmente autenticato
-let currentNamespace = null; // namespace corrente
-let namespaceContext = []; // stack di namespace per gestire il contesto nidificato
+let currentUser = null; // reference to the currently authenticated user
+let currentNamespace = null; // current namespace
+let namespaceContext = []; // namespace stack to manage nested context
 
 export function init(gunInstance) {
   gun = gunInstance;
 }
 
 /**
- * Risolve una chiave in base al namespace corrente o al contesto
- * @param {string} key - La chiave originale
- * @returns {string} - La chiave con il namespace applicato se necessario
+ * Resolves a key based on the current namespace or context
+ * @param {string} key - The original key
+ * @returns {string} - The key with namespace applied if necessary
  */
 function resolveKey(key) {
   if (!key) return key;
   
-  // Se la chiave inizia già con ~, è già un namespace completo
+  // If the key already starts with ~, it's already a complete namespace
   if (key.startsWith("~")) return key;
   
-  // 1. Prima priorità: utilizziamo il namespace di contesto se disponibile
+  // 1. First priority: use context namespace if available
   const nsToUse = namespaceContext.length > 0 ? namespaceContext[namespaceContext.length - 1] : null;
   if (nsToUse) {
     return `${nsToUse}.${key}`;
   }
   
-  // 2. Seconda priorità: utilizziamo il namespace globale se disponibile
+  // 2. Second priority: use global namespace if available
   if (currentNamespace) {
     return `${currentNamespace}.${key}`;
   }
   
-  // Nessun namespace trovato, ritorniamo la chiave originale
+  // No namespace found, return the original key
   return key;
 }
 
@@ -41,25 +41,25 @@ export function setSignal(initialValue, options = {}) {
   const subscribers = new Set();
   let value = initialValue;
 
-  // Risolviamo la chiave con il namespace se necessario
+  // Resolve the key with namespace if necessary
   const resolvedKey = key ? resolveKey(key) : null;
 
   if (resolvedKey && gun) {
-    // Store per chiave risolta, per recuperare le istanze esistenti di signal con la stessa chiave
+    // Store for resolved key, to retrieve existing signal instances with the same key
     if (!global._nodomSignalStore) {
       global._nodomSignalStore = new Map();
     }
     
-    // Verifichiamo se esiste già un signal con questa chiave
+    // Check if a signal with this key already exists
     if (global._nodomSignalStore.has(resolvedKey)) {
       const existingSignal = global._nodomSignalStore.get(resolvedKey);
-      // Aggiungiamo gli observer all'istanza esistente
+      // Add observers to the existing instance
       return existingSignal;
     }
     
     const node = gun.get(resolvedKey);
     
-    // Recuperiamo il valore iniziale
+    // Retrieve the initial value
     let initializing = true;
     node.once((data) => {
       if (data && data.value !== undefined) {
@@ -71,7 +71,7 @@ export function setSignal(initialValue, options = {}) {
     });
     initializing = false;
     
-    // Ascoltiamo i cambiamenti
+    // Listen for changes
     node.on((data) => {
       if (data && data.value !== undefined) {
         value = data.value;
@@ -95,7 +95,7 @@ export function setSignal(initialValue, options = {}) {
 
   const signal = [read, write];
   
-  // Memorizziamo il signal per riutilizzarlo
+  // Store the signal for reuse
   if (resolvedKey && gun) {
     global._nodomSignalStore.set(resolvedKey, signal);
   }
@@ -119,11 +119,11 @@ export function setMemo(fn) {
 }
 
 /**
- * Autentica un utente con Gun e imposta il namespace corrente
+ * Authenticates a user with Gun and sets the current namespace
  * @param {string} username - Username
  * @param {string} password - Password
- * @param {boolean} createIfNeeded - Se true, crea l'utente se non esiste
- * @returns {Promise<object>} - Risultato dell'autenticazione
+ * @param {boolean} createIfNeeded - If true, creates the user if it doesn't exist
+ * @returns {Promise<object>} - Authentication result
  */
 export async function auth(username, password, createIfNeeded = true) {
   if (!gun) throw new Error("nodom: Gun instance not initialized. Call init(gun) first.");
@@ -142,7 +142,7 @@ export async function auth(username, password, createIfNeeded = true) {
                 console.error("Failed to login after create:", loginAck.err);
                 reject(loginAck.err);
               } else {
-                // Imposta l'utente corrente e ottieni il namespace
+                // Set current user and get namespace
                 currentUser = gun.user();
                 updateNamespace();
                 console.log("User logged in successfully!");
@@ -156,7 +156,7 @@ export async function auth(username, password, createIfNeeded = true) {
         console.error("Authentication error:", ack.err);
         reject(ack.err);
       } else {
-        // Imposta l'utente corrente e ottieni il namespace
+        // Set current user and get namespace
         currentUser = gun.user();
         updateNamespace();
         console.log("User logged in successfully!");
@@ -168,7 +168,7 @@ export async function auth(username, password, createIfNeeded = true) {
 }
 
 /**
- * Aggiorna il namespace corrente in base all'utente autenticato
+ * Updates the current namespace based on the authenticated user
  */
 function updateNamespace() {
   if (!currentUser || !currentUser.is) {
@@ -176,7 +176,7 @@ function updateNamespace() {
     return;
   }
   
-  // Formato del namespace: ~[pubKey]
+  // Namespace format: ~[pubKey]
   const pubKey = currentUser.is.pub;
   if (!pubKey) {
     currentNamespace = null;
@@ -187,15 +187,15 @@ function updateNamespace() {
 }
 
 /**
- * Ottieni il namespace corrente dell'utente autenticato
- * @returns {string|null} - Il namespace corrente o null se non autenticato
+ * Gets the current namespace of the authenticated user
+ * @returns {string|null} - The current namespace or null if not authenticated
  */
 export function getNamespace() {
   return currentNamespace;
 }
 
 /**
- * Logout dell'utente corrente
+ * Logs out the current user
  */
 export function logout() {
   if (!gun) return;
@@ -207,8 +207,8 @@ export function logout() {
 }
 
 /**
- * Imposta manualmente un namespace specifico
- * @param {string} namespace - Il namespace da utilizzare
+ * Manually sets a specific namespace
+ * @param {string} namespace - The namespace to use
  */
 export function setNamespace(namespace) {
   if (!namespace) {
@@ -216,7 +216,7 @@ export function setNamespace(namespace) {
     return;
   }
   
-  // Verifichiamo che il namespace abbia il formato corretto
+  // Verify that the namespace has the correct format
   if (!namespace.startsWith("~")) {
     console.warn("Namespace should start with ~");
     namespace = `~${namespace}`;
@@ -227,22 +227,22 @@ export function setNamespace(namespace) {
 }
 
 /**
- * Crea un contesto con namespace
- * @param {string} namespace - Il namespace da applicare
- * @param {Function} callback - La funzione da eseguire nel contesto
- * @returns {*} - Il risultato della callback
+ * Creates a context with namespace
+ * @param {string} namespace - The namespace to apply
+ * @param {Function} callback - The function to execute in the context
+ * @returns {*} - The result of the callback
  */
 export function withNamespaceContext(namespace, callback) {
-  // Salviamo il contesto attuale
+  // Save the current context
   const oldContext = [...namespaceContext];
   
-  // Aggiungiamo il nuovo namespace al contesto
+  // Add the new namespace to the context
   namespaceContext.push(namespace);
   
-  // Eseguiamo la callback nel nuovo contesto
+  // Execute the callback in the new context
   const result = callback();
   
-  // Ripristiniamo il contesto precedente
+  // Restore the previous context
   namespaceContext = oldContext;
   
   return result;

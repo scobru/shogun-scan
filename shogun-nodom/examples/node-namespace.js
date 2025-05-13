@@ -1,6 +1,6 @@
-// Esempio di namespace in nodom-node.js
-// Mostra autenticazione, gestione namespace e persistenza dei dati
-// Esegui con: node node-namespace.js <username> <password>
+// Example of namespace in nodom-node.js
+// Shows authentication, namespace management and data persistence
+// Run with: node node-namespace.js <username> <password>
 
 import Gun from 'gun';
 import { 
@@ -11,84 +11,84 @@ import {
   withNamespaceContext 
 } from '../nodom-node.js';
 
-// Gestione argomenti della riga di comando
+// Command line arguments handling
 const username = process.argv[2] || 'testuser';
 const password = process.argv[3] || 'password123';
 
-// Inizializzazione del server Gun
+// Gun server initialization
 const server = Gun.serve(8765);
-console.log('Server Gun avviato sulla porta 8765');
+console.log('Gun server started on port 8765');
 
-// Inizializzazione di Gun
+// Gun initialization
 const gun = Gun({
   web: server
 });
 
-// Inizializzazione di Shogun NoDom
+// Shogun NoDom initialization
 init(gun);
 
-console.log('🔫 Shogun NoDom - Esempio Namespace');
+console.log('🔫 Shogun NoDom - Namespace Example');
 console.log('==================================');
 
 async function run() {
   try {
-    // Autenticazione dell'utente
-    console.log(`Autenticazione come ${username}...`);
+    // User authentication
+    console.log(`Authenticating as ${username}...`);
     await auth(username, password, true);
     
-    // Ottenere il namespace dell'utente
+    // Get the user's namespace
     const namespace = getNamespace();
-    console.log(`Autenticato! Namespace: ${namespace}`);
+    console.log(`Authenticated! Namespace: ${namespace}`);
     
-    // Creare un segnale con namespace utente (automatico)
-    console.log('\n--- Dati Privati (Namespace Utente) ---');
+    // Create a signal with user namespace (automatic)
+    console.log('\n--- Private Data (User Namespace) ---');
     const [getUserNote, setUserNote] = setSignal('', { key: 'private-note' });
     
-    // Impostare un valore privato
-    setUserNote(`Nota privata di ${username}: ${new Date().toISOString()}`);
-    console.log(`Nota salvata: ${getUserNote()}`);
-    console.log(`Chiave effettiva: ${namespace}.private-note`);
+    // Set a private value
+    setUserNote(`Private note from ${username}: ${new Date().toISOString()}`);
+    console.log(`Note saved: ${getUserNote()}`);
+    console.log(`Effective key: ${namespace}.private-note`);
     
-    // Utilizzo di withNamespaceContext per creare un contesto di namespace diverso
-    // NOTA: In GunDB con SEA, non puoi scrivere direttamente in un namespace personalizzato
-    // a meno che non possiedi quel namespace (hai creato un utente con quelle credenziali)
-    console.log('\n--- Contesto Namespace Personalizzato ---');
+    // Using withNamespaceContext to create a different namespace context
+    // NOTE: In GunDB with SEA, you can't write directly to a custom namespace
+    // unless you own that namespace (you created a user with those credentials)
+    console.log('\n--- Custom Namespace Context ---');
     withNamespaceContext('~customNS', () => {
-      // Questo segnale userà il namespace ~customNS
+      // This signal will use the ~customNS namespace
       const [getSharedNote, setSharedNote] = setSignal('', { key: 'shared-note' });
       
-      // Impostare un valore in un namespace condiviso
-      // NOTA: Questa operazione potrebbe generare un errore "Signature did not match"
-      // quando Gun tenta di verificare la firma dei dati
-      setSharedNote(`Nota condivisa da ${username}: ${new Date().toISOString()}`);
-      console.log(`Nota condivisa (valore locale): ${getSharedNote()}`);
-      console.log('Chiave effettiva: ~customNS.shared-note');
+      // Set a value in a shared namespace
+      // NOTE: This operation might generate a "Signature did not match" error
+      // when Gun tries to verify the data signature
+      setSharedNote(`Shared note from ${username}: ${new Date().toISOString()}`);
+      console.log(`Shared note (local value): ${getSharedNote()}`);
+      console.log('Effective key: ~customNS.shared-note');
     });
     
-    // Dimostrare la persistenza leggendo i dati salvati
-    console.log('\n--- Lettura Dati Salvati ---');
+    // Demonstrate persistence by reading saved data
+    console.log('\n--- Reading Saved Data ---');
     
-    // Leggiamo la nota privata
-    console.log(`Nota privata: ${getUserNote()}`);
+    // Read the private note
+    console.log(`Private note: ${getUserNote()}`);
     
-    // Leggiamo la nota condivisa con un nuovo segnale
+    // Read the shared note with a new signal
     withNamespaceContext('~customNS', () => {
       const [getSharedAgain] = setSignal('', { key: 'shared-note' });
-      console.log(`Nota condivisa (lettura): ${getSharedAgain()}`);
+      console.log(`Shared note (reading): ${getSharedAgain()}`);
     });
     
-    console.log('\nEsempio completato!');
-    console.log('\nNOTA: È normale vedere un errore "Signature did not match" o "Unverified data"');
-    console.log('quando si tenta di scrivere in un namespace non posseduto dall\'utente corrente.');
-    console.log('Per condividere dati correttamente tra utenti, usa le funzionalità di condivisione di Gun/SEA.');
+    console.log('\nExample completed!');
+    console.log('\nNOTE: It\'s normal to see a "Signature did not match" or "Unverified data" error');
+    console.log('when trying to write to a namespace not owned by the current user.');
+    console.log('To properly share data between users, use Gun/SEA\'s sharing features.');
     
-    // Termina l'applicazione dopo 1 secondo
+    // Terminate the application after 1 second
     setTimeout(() => {
-      console.log('Terminazione applicazione...');
+      console.log('Terminating application...');
       process.exit(0)
     }, 1000);
   } catch (err) {
-    console.error('Errore:', err);
+    console.error('Error:', err);
     process.exit(1);
   }
 }

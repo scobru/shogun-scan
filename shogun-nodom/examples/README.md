@@ -1,70 +1,85 @@
-# Esempi di Shogun NoDom
+# Shogun NoDom Examples
 
-Questa cartella contiene esempi pratici per imparare a usare Shogun NoDom nelle sue diverse versioni e scenari.
+This folder contains practical examples to learn how to use Shogun NoDom in its different versions and scenarios.
 
-## Esempi Browser
+## Browser Examples
 
 ### 1. [basic.html](./basic.html)
-Un esempio minimo di Shogun NoDom che mostra come funzionano i segnali e gli effetti in un'applicazione web semplice.
+A minimal example of Shogun NoDom that shows how signals and effects work in a simple web application.
 
-**Caratteristiche:**
-- Inizializzazione base di Gun
-- Creazione di segnali reattivi
-- Aggiornamenti UI automatici
+**Features:**
+- Basic Gun initialization
+- Creation of reactive signals
+- Automatic UI updates
 
 ### 2. [namespace.html](./namespace.html)
-Un esempio più complesso che dimostra l'uso dei namespace per isolare i dati utente.
+A more complex example that demonstrates the use of namespaces to isolate user data.
 
-**Caratteristiche:**
-- Autenticazione utente
-- Namespace automatico
-- Form con campi dati isolati
-- Persistenza dei dati tra sessioni
+**Features:**
+- User authentication
+- Automatic namespace
+- Forms with isolated data fields
+- Data persistence between sessions
 
-## Esempi Node.js
+## Node.js Examples
 
 ### 1. [node-basic.js](./node-basic.js)
-Esempio base di utilizzo di nodom-node.js che dimostra la reattività lato server.
+Basic example of using nodom-node.js that demonstrates server-side reactivity.
 
-**Caratteristiche:**
-- Inizializzazione di Gun in Node.js
-- Creazione di segnali reattivi
-- Effetti che rispondono ai cambiamenti
+**Features:**
+- Gun initialization in Node.js
+- Creation of reactive signals
+- Effects that respond to changes
 
-**Esecuzione:**
+**Execution:**
 ```bash
 node node-basic.js
 ```
 
 ### 2. [node-namespace.js](./node-namespace.js)
-Esempio che mostra l'autenticazione e la gestione dei namespace in un ambiente Node.js.
+Example showing authentication and namespace management in a Node.js environment.
 
-**Caratteristiche:**
-- Autenticazione utente
-- Gestione namespace automatico
-- Contesti namespace personalizzati
-- Persistenza dei dati
+**Features:**
+- User authentication
+- Automatic namespace management
+- Custom namespace contexts
+- Data persistence
 
-**Nota importante:**
-L'esempio mostra anche i limiti di sicurezza di Gun/SEA quando si tenta di scrivere in un namespace personalizzato senza possedere le credenziali appropriate. Un errore "Signature did not match" è atteso e viene spiegato nei commenti.
+**Important note:**
+The example also shows the security limitations of Gun/SEA when trying to write to a custom namespace without having the appropriate credentials. A "Signature did not match" error is expected and is explained in the comments.
 
-**Esecuzione:**
+**Execution:**
 ```bash
 node node-namespace.js <username> <password>
 ```
 
-## Struttura generale
+### 3. [nodom-standalone.js](./nodom-standalone.js)
+Example that demonstrates using Shogun NoDom as a standalone reactive library, without GunDB integration.
 
-Tutti gli esempi seguono questi passi comuni:
+**Features:**
+- Using signals without persistence
+- Pure reactive effects
+- Derived values with setMemo
+- Dynamic creation of reactive objects
+- No dependency on Gun or authentication
 
-1. **Inizializzazione**: Configurazione di Gun e Shogun NoDom
-2. **Creazione di segnali**: Definizione di dati reattivi
-3. **Creazione di effetti**: Risposta automatica ai cambiamenti
-4. **Manipolazione dei dati**: Aggiornamento dei valori dei segnali
+**Execution:**
+```bash
+node nodom-standalone.js
+```
 
-## Suggerimenti
+## General Structure
 
-- Assicurati di avere Gun installato: `npm install gun`
-- Per gli esempi browser, puoi usare un server statico come `serve` o `http-server`
-- Per gli esempi Node.js, puoi eseguirli direttamente con Node.js
-- Gli esempi avviano automaticamente un server Gun locale per la sincronizzazione dei dati 
+All examples follow these common steps:
+
+1. **Initialization**: Gun and Shogun NoDom configuration (except nodom-standalone)
+2. **Signal Creation**: Definition of reactive data
+3. **Effect Creation**: Automatic response to changes
+4. **Data Manipulation**: Updating signal values
+
+## Tips
+
+- Make sure you have Gun installed: `npm install gun` (not needed for nodom-standalone)
+- For browser examples, you can use a static server like `serve` or `http-server`
+- For Node.js examples, you can run them directly with Node.js
+- Examples with Gun automatically start a local server for data synchronization 

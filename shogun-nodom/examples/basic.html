@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <title>Joy Lite Example</title>
 
-    <!-- SOLO gun.js -->
+    <!-- ONLY gun.js -->
     <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
 
@@ -15,7 +15,7 @@
         const gunInstance = Gun();
         init(gunInstance);
 
-        await auth("myusername", "mypassword"); // login automatico o creazione
+        await auth("myusername", "mypassword"); // automatic login or creation
 
         const [message, setMessage] = setSignal("", { key: "message" });
 
