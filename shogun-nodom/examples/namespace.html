@@ -1,39 +1,39 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shogun Nodom - Automatic Namespace</title>
+  <title>Shogun Nodom - Namespace Automatico</title>
 </head>
 <body>
-  <h1>Shogun Nodom with Automatic Namespace</h1>
+  <h1>Shogun Nodom con Namespace Automatico</h1>
   
   <div class="auth-container">
-    <h2>Authentication</h2>
+    <h2>Autenticazione</h2>
     <div>
       <input id="username" type="text" placeholder="Username" />
       <input id="password" type="password" placeholder="Password" />
       <button id="loginBtn">Login</button>
-      <button id="signupBtn">Register</button>
+      <button id="signupBtn">Registrati</button>
       <button id="logoutBtn">Logout</button>
     </div>
     <div class="message" id="authMessage"></div>
   </div>
   
   <div>
-    <h2>Current Namespace:</h2>
-    <div class="namespace-display" id="namespaceDisplay">Not authenticated</div>
+    <h2>Namespace Corrente:</h2>
+    <div class="namespace-display" id="namespaceDisplay">Non autenticato</div>
   </div>
   
   <div class="container">
-    <h2>Public Form (global)</h2>
-    <p>This form saves data in a public space accessible to everyone</p>
+    <h2>Form Pubblico (globale)</h2>
+    <p>Questo form salva i dati in uno spazio pubblico accessibile a tutti</p>
     <div id="publicFormContainer"></div>
   </div>
   
   <div class="container">
-    <h2>Form with Automatic Namespace</h2>
-    <p>This form uses the automatic namespace for all fields within it</p>
+    <h2>Form con Namespace Automatico</h2>
+    <p>Questo form utilizza il namespace automatico per tutti i campi al suo interno</p>
     <div id="privateFormContainer"></div>
   </div>
   
@@ -42,11 +42,11 @@
   <script type="module">
     import { init, setSignal, setEffect, auth, getNamespace, logout, setNamespace, h, jsx } from '../nodom.js';
     
-    // Initialize Gun with a local peer
+    // Inizializza Gun con un peer locale
     const gun = Gun(['http://localhost:8765/gun']);
     init(gun);
     
-    // DOM Elements
+    // Elementi DOM
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
     const loginBtn = document.getElementById('loginBtn');
@@ -57,101 +57,101 @@
     const publicFormContainer = document.getElementById('publicFormContainer');
     const privateFormContainer = document.getElementById('privateFormContainer');
     
-    // Function to update the namespace display
+    // Funzione per aggiornare la visualizzazione del namespace
     function updateNamespaceDisplay() {
       const namespace = getNamespace();
-      namespaceDisplay.textContent = namespace || 'Not authenticated';
+      namespaceDisplay.textContent = namespace || 'Non autenticato';
       
-      // Update forms when the namespace changes
+      // Aggiorniamo i form quando cambia il namespace
       renderPublicForm();
       renderPrivateForm();
     }
     
-    // Function to create the public form (without namespace)
+    // Funzione per creare il form pubblico (senza namespace)
     function renderPublicForm() {
-      // Empty the container
+      // Svuotiamo il container
       publicFormContainer.innerHTML = '';
       
-      // Create a simple form
+      // Creiamo un form semplice
       const form = h('div', {},
-        h('input', { name: 'public-name', placeholder: 'Your public name' }),
+        h('input', { name: 'public-name', placeholder: 'Il tuo nome pubblico' }),
         h('br', {}),
-        h('input', { name: 'public-message', placeholder: 'Public message' }),
+        h('input', { name: 'public-message', placeholder: 'Messaggio pubblico' }),
         h('br', {}),
-        h('div', {}, 'Public data:'),
+        h('div', {}, 'Dati pubblici:'),
         h('div', {}, () => {
           const [getName] = setSignal('', { key: 'public-name' });
           const [getMessage] = setSignal('', { key: 'public-message' });
-          return `Name: ${getName()}, Message: ${getMessage()}`;
+          return `Nome: ${getName()}, Messaggio: ${getMessage()}`;
         })
       );
       
       publicFormContainer.appendChild(form);
     }
     
-    // Function to create the private form with automatic namespace
+    // Funzione per creare il form privato con namespace automatico
     function renderPrivateForm() {
-      // Empty the container
+      // Svuotiamo il container
       privateFormContainer.innerHTML = '';
       
       const namespace = getNamespace();
       
       if (!namespace) {
-        privateFormContainer.textContent = 'Login to access the private form';
+        privateFormContainer.textContent = 'Effettua il login per accedere al form privato';
         return;
       }
       
-      // Create the form with two different approaches: JSX with namespace and DOM Elements
+      // Creiamo il form con due approcci diversi: JSX con namespace e DOM Elements
 
-      // APPROACH 1: JSX with namespace property 
-      // (this might not work if there are issues with the context system)
+      // APPROCCIO 1: JSX con proprietà namespace 
+      // (questo potrebbe non funzionare se ci sono problemi con il sistema di contesto)
       const privateForm = h('div', { namespace },
         h('div', { class: 'user-section' },
-          h('h3', {}, 'Your private data (JSX)'),
-          h('p', {}, `All fields here automatically use the namespace: ${namespace}`),
-          h('input', { name: 'name-jsx', placeholder: 'Name (JSX)' }),
+          h('h3', {}, 'I tuoi dati privati (JSX)'),
+          h('p', {}, `Tutti i campi qui utilizzano automaticamente il namespace: ${namespace}`),
+          h('input', { name: 'name-jsx', placeholder: 'Nome (JSX)' }),
           h('br', {}),
           h('input', { name: 'bio-jsx', placeholder: 'Bio (JSX)' }),
           h('br', {}),
-          h('div', {}, 'Saved data:'),
+          h('div', {}, 'Dati salvati:'),
           h('div', { id: 'jxsDataDisplay' }, '')
         )
       );
       
-      // Add the form to the container
+      // Aggiungiamo il form al container
       privateFormContainer.appendChild(privateForm);
       
-      // Display data for both approaches
+      // Visualizziamo i dati per entrambi gli approcci
       const jxsDataDisplay = document.getElementById('jxsDataDisplay');
       
-      // Effect for JSX data
+      // Effect per i dati da JSX
       setEffect(() => {
         const [getNameJsx] = setSignal('', { key: 'name-jsx', element: document.querySelector('input[name="name-jsx"]') });
         const [getBioJsx] = setSignal('', { key: 'bio-jsx', element: document.querySelector('input[name="bio-jsx"]') });
         
         if (jxsDataDisplay) {
-          jxsDataDisplay.textContent = `Name: ${getNameJsx() || '(not set)'}, Bio: ${getBioJsx() || '(not set)'}`;
+          jxsDataDisplay.textContent = `Nome: ${getNameJsx() || '(non impostato)'}, Bio: ${getBioJsx() || '(non impostata)'}`;
         }
       });
     }
     
-    // Event listeners for authentication buttons
+    // Event listeners per i pulsanti di autenticazione
     loginBtn.addEventListener('click', async () => {
       const username = usernameInput.value;
       const password = passwordInput.value;
       
       if (!username || !password) {
-        authMessage.textContent = 'Username and password required';
+        authMessage.textContent = 'Username e password richiesti';
         return;
       }
       
       try {
-        authMessage.textContent = 'Login in progress...';
+        authMessage.textContent = 'Login in corso...';
         const result = await auth(username, password, false);
-        authMessage.textContent = 'Login completed successfully!';
+        authMessage.textContent = 'Login completato con successo!';
         updateNamespaceDisplay();
       } catch (err) {
-        authMessage.textContent = `Login error: ${err}`;
+        authMessage.textContent = `Errore di login: ${err}`;
       }
     });
     
@@ -160,27 +160,27 @@
       const password = passwordInput.value;
       
       if (!username || !password) {
-        authMessage.textContent = 'Username and password required';
+        authMessage.textContent = 'Username e password richiesti';
         return;
       }
       
       try {
-        authMessage.textContent = 'Registration in progress...';
+        authMessage.textContent = 'Registrazione in corso...';
         const result = await auth(username, password, true);
-        authMessage.textContent = 'Registration and login completed successfully!';
+        authMessage.textContent = 'Registrazione e login completati con successo!';
         updateNamespaceDisplay();
       } catch (err) {
-        authMessage.textContent = `Registration error: ${err}`;
+        authMessage.textContent = `Errore di registrazione: ${err}`;
       }
     });
     
     logoutBtn.addEventListener('click', () => {
       logout();
-      authMessage.textContent = 'Logout completed';
+      authMessage.textContent = 'Logout completato';
       updateNamespaceDisplay();
     });
     
-    // Initialization
+    // Inizializzazione
     updateNamespaceDisplay();
   </script>
 </body>
