@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shogun Mini Relay</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      input,
+      button {
+        padding: 8px;
+        margin: 5px 0;
+      }
+      input {
+        width: 80%;
+      }
+      button {
+        cursor: pointer;
+      }
+      #messages {
+        margin-top: 20px;
+        border-top: 1px solid #ccc;
+        padding-top: 10px;
+      }
+      .message {
+        padding: 10px;
+        margin: 5px 0;
+        background-color: #f1f1f1;
+        border-radius: 5px;
+      }
+      #loginArea {
+        margin-bottom: 20px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      #messageArea {
+        /* Initially visible */
+        display: block;
+      }
+      .user-name {
+        font-weight: bold;
+        color: #0066cc;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Shogun Mini Relay</h1>
+
+    <div id="loginArea">
+      <h2>Login</h2>
+      <div id="loginForm">
+        <input type="text" id="usernameInput" placeholder="Username" required />
+        <input
+          type="password"
+          id="passwordInput"
+          placeholder="Password"
+          required
+        />
+        <button id="loginButton">Login</button>
+        <button id="createUserButton">Create User</button>
+      </div>
+      <div id="loggedInStatus" style="display: none">
+        Logged in as: <span id="currentUser"></span>
+        <button id="logoutButton">Logout</button>
+      </div>
+    </div>
+
+    <div id="messageArea">
+      <form id="messageForm">
+        <input
+          type="text"
+          id="messageInput"
+          placeholder="Type a message..."
+          required
+        />
+        <button type="submit">Send</button>
+      </form>
+
+      <div id="messages">
+        <h2>Messages <small>(newest at top)</small></h2>
+        <!-- Messages will be displayed here -->
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+    <script>
+      // Connect to the Gun relay server
+      const gun = new Gun({
+        peers: ["http://localhost:8765/gun"],
+        localStorage: false, // Disable localStorage for client-side persistence
+        radisk: false,      // No need for radisk on the client
+        wire: true,
+        axe: true,
+        multicast: false    // Disable multicast for more reliable networking
+      });
+
+      // Debug info
+      console.log("Gun initialized with peers:", gun._.opt.peers);
+      
+      // Make gun available globally for debugging
+      window.gun = gun;
+
+      // Reference to the shogun_message node
+      const messages = gun.get("shogun_message");
+      const user = gun.user().recall({ sessionStorage: true });
+
+      console.log("User:", user);
+
+      let currentUsername = "";
+
+      // Check if user is already logged in (from session)
+      window.onload = function () {
+        if (user && user.is) {
+          console.log("User is logged in:", user.is);
+          // Get user alias
+          user.get('alias').once(function(alias) {
+            console.log("User alias retrieved:", alias);
+            currentUsername = alias || user.is.alias || "User-" + Math.floor(Math.random()*1000);
+            document.getElementById("currentUser").textContent = currentUsername;
+            document.getElementById("loginForm").style.display = "none";
+            document.getElementById("loggedInStatus").style.display = "block";
+            document.getElementById("messageArea").style.display = "block";
+          });
+        } else {
+          console.log("No user session found");
+        }
+      };
+
+      // Login
+      document
+        .getElementById("loginButton")
+        .addEventListener("click", function () {
+          const username = document
+            .getElementById("usernameInput")
+            .value.trim();
+          const password = document
+            .getElementById("passwordInput")
+            .value.trim();
+
+          if (username && password) {
+            user.auth(username, password, function (ack) {
+              if (ack.err) {
+                alert("Login failed: " + ack.err);
+                return;
+              }
+
+              currentUsername = username;
+              document.getElementById("currentUser").textContent = username;
+              document.getElementById("loginForm").style.display = "none";
+              document.getElementById("loggedInStatus").style.display = "block";
+              document.getElementById("messageArea").style.display = "block";
+
+              // Clear the inputs
+              document.getElementById("usernameInput").value = "";
+              document.getElementById("passwordInput").value = "";
+            });
+          }
+        });
+
+      // Create User
+      document
+        .getElementById("createUserButton")
+        .addEventListener("click", function () {
+          const username = document
+            .getElementById("usernameInput")
+            .value.trim();
+          const password = document
+            .getElementById("passwordInput")
+            .value.trim();
+
+          if (username && password) {
+            user.create(username, password, function (ack) {
+              if (ack.err) {
+                alert("User creation failed: " + ack.err);
+                return;
+              }
+
+              // Auto login after creation
+              user.auth(username, password, function (auth) {
+                if (auth.err) {
+                  alert("Auto-login failed after creation");
+                  return;
+                }
+
+                currentUsername = username;
+                document.getElementById("currentUser").textContent = username;
+                document.getElementById("loginForm").style.display = "none";
+                document.getElementById("loggedInStatus").style.display =
+                  "block";
+                document.getElementById("messageArea").style.display = "block";
+
+                // Clear the inputs
+                document.getElementById("usernameInput").value = "";
+                document.getElementById("passwordInput").value = "";
+              });
+            });
+          }
+        });
+
+      // Logout
+      document
+        .getElementById("logoutButton")
+        .addEventListener("click", function () {
+          user.leave();
+          currentUsername = "";
+          document.getElementById("loginForm").style.display = "block";
+          document.getElementById("loggedInStatus").style.display = "none";
+          document.getElementById("messageArea").style.display = "none";
+        });
+
+      // Handle form submission
+      document
+        .getElementById("messageForm")
+        .addEventListener("submit", function (e) {
+          e.preventDefault();
+
+          const input = document.getElementById("messageInput");
+          const messageText = input.value.trim();
+
+          if (messageText && currentUsername) {
+            // Add message to the shogun_message node with timestamp as key
+            const timestamp = Date.now();
+            messages.get(timestamp).put({
+              text: messageText,
+              user: currentUsername,
+              timestamp: timestamp,
+            });
+
+            console.log("Message sent:", timestamp, messageText);
+            input.value = "";
+          }
+        });
+      
+      // Clear the messages container
+      const messagesContainer = document.getElementById("messages");
+      
+      // Track the latest message timestamp to avoid duplicates
+      let lastProcessedTimestamp = 0;
+      
+      // Improved message handler - more efficient
+      messages.map().on(function(message, id) {
+        // Ensure we don't process if missing key data
+        if (!message || typeof message.text !== 'string' || typeof message.timestamp !== 'number') return;
+        
+        // Don't add duplicates - check if this message already exists
+        if (document.querySelector(`.message[data-id="${id}"]`)) return;
+        
+        // Only process newer messages than what we've already seen
+        if (message.timestamp > lastProcessedTimestamp) {
+          lastProcessedTimestamp = message.timestamp;
+          console.log("New message:", id, message);
+          
+          // Create message element
+          const msgElement = document.createElement("div");
+          msgElement.className = "message";
+          msgElement.setAttribute("data-id", id);
+          
+          // Add timestamp data to sort later if needed
+          msgElement.setAttribute("data-timestamp", message.timestamp);
+          
+          // Format the date
+          const date = new Date(message.timestamp).toLocaleString();
+          
+          // Create the username span
+          const userSpan = document.createElement("span");
+          userSpan.className = "user-name";
+          userSpan.textContent = message.user || "Anonymous";
+          
+          // Assemble the message
+          msgElement.appendChild(userSpan);
+          msgElement.appendChild(document.createTextNode(": " + message.text + " (" + date + ")"));
+          
+          // Insert newest messages at the top (after the heading)
+          const heading = messagesContainer.querySelector("h2");
+          if (heading) {
+            messagesContainer.insertBefore(msgElement, heading.nextSibling);
+          } else {
+            messagesContainer.prepend(msgElement);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

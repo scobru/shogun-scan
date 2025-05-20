@@ -1,0 +1,20 @@
+{
+  "name": "shogun-cluster",
+  "version": "1.0.0",
+  "description": "Shogun cluster messaging with IPFS integration",
+  "main": "index.js",
+  "scripts": {
+    "start:pub": "node pub.js",
+    "start:sub": "node sub.js",
+    "start:sub2": "node sub2.js",
+    "start:all": "concurrently \"npm run start:pub\" \"npm run start:sub\" \"npm run start:sub2\""
+  },
+  "dependencies": {
+    "gun": "^0.2020.1239",
+    "ipfs-http-client": "^56.0.1",
+    "shogun-ipfs": "^1.0.2"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  }
+}

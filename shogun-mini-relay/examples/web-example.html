@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shogun Mini Relay - Web Client Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    input, button {
+      padding: 8px;
+      margin: 5px 0;
+    }
+    input {
+      width: 80%;
+    }
+    button {
+      cursor: pointer;
+    }
+    #messages {
+      margin-top: 20px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .message {
+      padding: 10px;
+      margin: 5px 0;
+      background-color: #f1f1f1;
+      border-radius: 5px;
+    }
+    #loginArea {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    #messageArea {
+      display: block;
+    }
+    .user-name {
+      font-weight: bold;
+      color: #0066cc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Shogun Mini Relay - Web Client</h1>
+
+  <div id="loginArea">
+    <h2>Login</h2>
+    <div id="loginForm">
+      <input type="text" id="usernameInput" placeholder="Username" required />
+      <input type="password" id="passwordInput" placeholder="Password" required />
+      <button id="loginButton">Login</button>
+      <button id="createUserButton">Create User</button>
+    </div>
+    <div id="loggedInStatus" style="display: none">
+      Logged in as: <span id="currentUser"></span>
+      <button id="logoutButton">Logout</button>
+    </div>
+  </div>
+
+  <div id="messageArea">
+    <form id="messageForm">
+      <input type="text" id="messageInput" placeholder="Type a message..." required />
+      <button type="submit">Send</button>
+    </form>
+
+    <div id="messages">
+      <h2>Messages <small>(newest at top)</small></h2>
+      <!-- Messages will be displayed here -->
+    </div>
+  </div>
+
+  <!-- Load Gun dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+  
+  <!-- Load ShogunMiniRelay class -->
+  <script src="../ShogunMiniRelay.js"></script>
+  
+  <script>
+    // Initialize the Shogun Mini Relay client
+    const client = new ShogunMiniRelay({
+      peers: ["http://localhost:8765/gun"],
+      username: "web-user-" + Math.floor(Math.random() * 1000)
+    });
+    
+    // Get DOM elements
+    const messagesContainer = document.getElementById("messages");
+    const messageForm = document.getElementById("messageForm");
+    const messageInput = document.getElementById("messageInput");
+    const loginButton = document.getElementById("loginButton");
+    const createUserButton = document.getElementById("createUserButton");
+    const logoutButton = document.getElementById("logoutButton");
+    const usernameInput = document.getElementById("usernameInput");
+    const passwordInput = document.getElementById("passwordInput");
+    const loginForm = document.getElementById("loginForm");
+    const loggedInStatus = document.getElementById("loggedInStatus");
+    const currentUserSpan = document.getElementById("currentUser");
+    
+    // Check if user is already logged in (from session)
+    window.onload = function() {
+      const currentUser = client.getCurrentUser();
+      if (currentUser) {
+        client.user.get('alias').once(function(alias) {
+          client.username = alias || client.user.is.alias;
+          currentUserSpan.textContent = client.username;
+          loginForm.style.display = "none";
+          loggedInStatus.style.display = "block";
+        });
+      }
+    };
+
+    // Listen for messages and display them
+    client.onMessage(function(message) {
+      // Create message element
+      const msgElement = document.createElement("div");
+      msgElement.className = "message";
+      
+      // Add timestamp data attribute
+      msgElement.setAttribute("data-timestamp", message.timestamp);
+      
+      // Format the date
+      const date = new Date(message.timestamp).toLocaleString();
+      
+      // Create the username span
+      const userSpan = document.createElement("span");
+      userSpan.className = "user-name";
+      userSpan.textContent = message.user || "Anonymous";
+      
+      // Assemble the message
+      msgElement.appendChild(userSpan);
+      msgElement.appendChild(document.createTextNode(": " + message.text + " (" + date + ")"));
+      
+      // Insert newest messages at the top
+      const heading = messagesContainer.querySelector("h2");
+      if (heading) {
+        messagesContainer.insertBefore(msgElement, heading.nextSibling);
+      } else {
+        messagesContainer.prepend(msgElement);
+      }
+    });
+
+    // Handle message form submission
+    messageForm.addEventListener("submit", function(e) {
+      e.preventDefault();
+      
+      const messageText = messageInput.value.trim();
+      if (messageText) {
+        client.sendMessage(messageText);
+        messageInput.value = "";
+      }
+    });
+
+    // Login
+    loginButton.addEventListener("click", function() {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value.trim();
+      
+      if (username && password) {
+        client.login(username, password)
+          .then(user => {
+            client.username = username;
+            currentUserSpan.textContent = username;
+            loginForm.style.display = "none";
+            loggedInStatus.style.display = "block";
+            
+            // Clear the inputs
+            usernameInput.value = "";
+            passwordInput.value = "";
+          })
+          .catch(err => {
+            alert("Login failed: " + err.message);
+          });
+      }
+    });
+
+    // Create User
+    createUserButton.addEventListener("click", function() {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value.trim();
+      
+      if (username && password) {
+        client.createUser(username, password)
+          .then(user => {
+            client.username = username;
+            currentUserSpan.textContent = username;
+            loginForm.style.display = "none";
+            loggedInStatus.style.display = "block";
+            
+            // Clear the inputs
+            usernameInput.value = "";
+            passwordInput.value = "";
+          })
+          .catch(err => {
+            alert("User creation failed: " + err.message);
+          });
+      }
+    });
+
+    // Logout
+    logoutButton.addEventListener("click", function() {
+      client.logout();
+      loginForm.style.display = "block";
+      loggedInStatus.style.display = "none";
+    });
+  </script>
+</body>
+</html> 

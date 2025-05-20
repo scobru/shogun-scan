@@ -1,0 +1,17 @@
+{
+  "name": "shogun-mini-relay",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "gun": "^0.2020.1240",
+    "http": "^0.0.1-security",
+    "ipfs-core": "^0.18.1"
+  }
+}
