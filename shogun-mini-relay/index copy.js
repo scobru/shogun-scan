@@ -1,16 +1,14 @@
 // Function to send a message
 const SEA = require('gun/sea');
 
-
 function sendMessage(gun, text) {
-  
   if(!gun.user().is) {
     console.log('User not authenticated');
     return;
   }
 
   gun.get('shogun_message').set({
-    gun.user().is,
+    user: gun.user().is,
     text,
     timestamp: Date.now()
   });
