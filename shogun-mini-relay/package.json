@@ -12,6 +12,7 @@
   "dependencies": {
     "gun": "^0.2020.1240",
     "http": "^0.0.1-security",
-    "ipfs-core": "^0.18.1"
+    "ipfs-core": "^0.18.1",
+    "shogun-create": "^1.0.2"
   }
 }

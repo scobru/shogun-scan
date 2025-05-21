@@ -26,6 +26,8 @@
         margin-top: 20px;
         border-top: 1px solid #ccc;
         padding-top: 10px;
+        max-height: 400px;
+        overflow-y: auto;
       }
       .message {
         padding: 10px;
@@ -47,6 +49,43 @@
         font-weight: bold;
         color: #0066cc;
       }
+      .error-message {
+        color: #e53935;
+        background-color: #ffebee;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        display: none;
+      }
+      .status-message {
+        color: #33691e;
+        background-color: #f1f8e9;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        display: none;
+      }
+      .debug-info {
+        font-size: 0.8em;
+        color: #888;
+        margin-top: 2px;
+      }
+      #activityArea {
+        margin-top: 20px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .activity-item {
+        padding: 5px;
+        margin: 3px 0;
+        font-size: 0.9em;
+        color: #555;
+      }
+      .activity-time {
+        font-weight: bold;
+        color: #777;
+      }
     </style>
   </head>
   <body>
@@ -54,6 +93,8 @@
 
     <div id="loginArea">
       <h2>Login</h2>
+      <div id="errorMsg" class="error-message"></div>
+      <div id="statusMsg" class="status-message"></div>
       <div id="loginForm">
         <input type="text" id="usernameInput" placeholder="Username" required />
         <input
@@ -62,229 +103,623 @@
           placeholder="Password"
           required
         />
-        <button id="loginButton">Login</button>
-        <button id="createUserButton">Create User</button>
+        <button id="loginButton" type="button">Login</button>
+        <button id="createUserButton" type="button">Create User</button>
       </div>
       <div id="loggedInStatus" style="display: none">
         Logged in as: <span id="currentUser"></span>
-        <button id="logoutButton">Logout</button>
+        <button id="logoutButton" type="button">Logout</button>
       </div>
     </div>
 
     <div id="messageArea">
-      <form id="messageForm">
+      <div id="messageFormWrapper">
         <input
           type="text"
           id="messageInput"
           placeholder="Type a message..."
           required
         />
-        <button type="submit">Send</button>
-      </form>
+        <button id="sendButton" type="button">Send</button>
+      </div>
 
       <div id="messages">
         <h2>Messages <small>(newest at top)</small></h2>
         <!-- Messages will be displayed here -->
       </div>
     </div>
+    
+    <div id="activityArea">
+      <h3>Recent Activity</h3>
+      <div id="activityList">
+        <!-- Activity will be displayed here -->
+      </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
-    <script>
+    <script type="module">
+      import { init as nodomInit } from "../shogun-nodom/nodom.js";
+
+      // Get Sea library exported from GUN
+      const SEA = window.SEA;
+
+      // Prevent page refreshes by catching unhandled form submissions
+      document.addEventListener("submit", function (e) {
+        e.preventDefault();
+        console.warn("Form submission prevented:", e.target);
+        return false;
+      });
+
       // Connect to the Gun relay server
       const gun = new Gun({
         peers: ["http://localhost:8765/gun"],
         localStorage: false, // Disable localStorage for client-side persistence
-        radisk: false,      // No need for radisk on the client
-        wire: true,
-        axe: true,
-        multicast: false    // Disable multicast for more reliable networking
+        radisk: false, // No need for radisk on the client
       });
+
+      nodomInit(gun);
 
       // Debug info
       console.log("Gun initialized with peers:", gun._.opt.peers);
+
+      // Channel to use for messages (consistent with index.js)
+      const messageChannel = "shogun_message";
       
-      // Make gun available globally for debugging
-      window.gun = gun;
-
-      // Reference to the shogun_message node
-      const messages = gun.get("shogun_message");
-      const user = gun.user().recall({ sessionStorage: true });
-
-      console.log("User:", user);
+      // Reference to the message node - using the channel pattern from index.js
+      const messagesNode = gun.get("#" + messageChannel);
+      let user = gun.user().recall({ sessionStorage: true });
 
       let currentUsername = "";
+      let messagesMap = new Map(); // Use a Map to track displayed messages
+      let isProcessingMessages = false; // Flag to prevent concurrent processing
+      let isPageLoaded = false; // Flag to ensure we're fully loaded before processing messages
+      let activityMap = new Map(); // Track user activity
+
+      // Set page loaded flag when window is fully loaded
+      window.addEventListener("load", function () {
+        isPageLoaded = true;
+        console.log("Page fully loaded");
+        checkLoginStatus(); // Check login status after page is fully loaded
+        setupMessageListener(); // Setup message listener after page is fully loaded
+      });
+
+      // Display error or status messages
+      function showError(message) {
+        const errorEl = document.getElementById("errorMsg");
+        errorEl.textContent = message;
+        errorEl.style.display = "block";
+        setTimeout(() => {
+          errorEl.style.display = "none";
+        }, 5000);
+      }
+
+      function showStatus(message) {
+        const statusEl = document.getElementById("statusMsg");
+        statusEl.textContent = message;
+        statusEl.style.display = "block";
+        setTimeout(() => {
+          statusEl.style.display = "none";
+        }, 3000);
+      }
 
       // Check if user is already logged in (from session)
-      window.onload = function () {
-        if (user && user.is) {
-          console.log("User is logged in:", user.is);
-          // Get user alias
-          user.get('alias').once(function(alias) {
-            console.log("User alias retrieved:", alias);
-            currentUsername = alias || user.is.alias || "User-" + Math.floor(Math.random()*1000);
-            document.getElementById("currentUser").textContent = currentUsername;
-            document.getElementById("loginForm").style.display = "none";
-            document.getElementById("loggedInStatus").style.display = "block";
-            document.getElementById("messageArea").style.display = "block";
-          });
-        } else {
-          console.log("No user session found");
-        }
-      };
-
-      // Login
-      document
-        .getElementById("loginButton")
-        .addEventListener("click", function () {
-          const username = document
-            .getElementById("usernameInput")
-            .value.trim();
-          const password = document
-            .getElementById("passwordInput")
-            .value.trim();
-
-          if (username && password) {
-            user.auth(username, password, function (ack) {
-              if (ack.err) {
-                alert("Login failed: " + ack.err);
-                return;
-              }
-
-              currentUsername = username;
-              document.getElementById("currentUser").textContent = username;
+      function checkLoginStatus() {
+        try {
+          user = gun.user().recall({ sessionStorage: true }); // Re-check recall
+          if (user && user.is) {
+            console.log("User is logged in:", user.is);
+            // Get user alias
+            if (user.is.alias) {
+              currentUsername = user.is.alias;
+              document.getElementById("currentUser").textContent =
+                currentUsername;
               document.getElementById("loginForm").style.display = "none";
               document.getElementById("loggedInStatus").style.display = "block";
               document.getElementById("messageArea").style.display = "block";
-
-              // Clear the inputs
-              document.getElementById("usernameInput").value = "";
-              document.getElementById("passwordInput").value = "";
-            });
+              showStatus("Logged in successfully as " + currentUsername);
+            } else {
+              console.warn("User is logged in but alias is missing");
+              // If alias is missing, force logout to avoid issues
+              handleLogout(true); // Pass true to prevent showing logout message
+              showError("Session data incomplete. Please log in again.");
+            }
+          } else {
+            console.log("No user session found");
+            document.getElementById("loginForm").style.display = "block";
+            document.getElementById("loggedInStatus").style.display = "none";
           }
-        });
+        } catch (err) {
+          console.error("Error checking login status:", err);
+          showError("Error checking login status: " + err.message);
+        }
+      }
 
-      // Create User
-      document
-        .getElementById("createUserButton")
-        .addEventListener("click", function () {
-          const username = document
-            .getElementById("usernameInput")
-            .value.trim();
-          const password = document
-            .getElementById("passwordInput")
-            .value.trim();
+      // Safe document ready function
+      function documentReady(fn) {
+        if (document.readyState !== "loading") {
+          fn();
+        } else {
+          document.addEventListener("DOMContentLoaded", fn);
+        }
+      }
 
-          if (username && password) {
-            user.create(username, password, function (ack) {
-              if (ack.err) {
-                alert("User creation failed: " + ack.err);
+      // Login handler
+      function handleLogin() {
+        const usernameInput = document.getElementById("usernameInput");
+        const passwordInput = document.getElementById("passwordInput");
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        if (!username || !password) {
+          showError("Please enter both username and password");
+          return;
+        }
+
+        try {
+          console.log("Attempting login for:", username);
+          gun.user().auth(username, password, function (ack) {
+            console.log("Login response:", ack);
+            if (ack.err) {
+              console.error("Login failed:", ack.err);
+              showError("Login failed: " + ack.err);
+              return;
+            }
+            // Login successful, update UI
+            currentUsername = ack.put.alias; // Use alias from ack
+            document.getElementById("currentUser").textContent =
+              currentUsername;
+            document.getElementById("loginForm").style.display = "none";
+            document.getElementById("loggedInStatus").style.display = "block";
+            document.getElementById("messageArea").style.display = "block";
+            showStatus("Logged in successfully!");
+
+            // Clear the inputs
+            usernameInput.value = "";
+            passwordInput.value = "";
+            // Re-initialize user object for the new session
+            user = gun.user();
+          });
+        } catch (err) {
+          console.error("Error during login:", err);
+          showError("Error during login: " + err.message);
+        }
+      }
+
+      // Create user handler
+      function handleCreateUser() {
+        const usernameInput = document.getElementById("usernameInput");
+        const passwordInput = document.getElementById("passwordInput");
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+
+        if (!username || !password) {
+          showError("Please enter both username and password");
+          return;
+        }
+
+        try {
+          console.log("Creating user:", username);
+          gun.user().create(username, password, function (ack) {
+            console.log("Create user response:", ack);
+            if (ack.err) {
+              console.error("User creation failed:", ack.err);
+              showError("User creation failed: " + ack.err);
+              return;
+            }
+
+            showStatus("User created successfully! Logging in...");
+
+            // Auto login after creation
+            gun.user().auth(username, password, function (authAck) {
+              console.log("Auto-login response:", authAck);
+              if (authAck.err) {
+                console.error("Auto-login failed after creation:", authAck.err);
+                showError("Auto-login failed after creation: " + authAck.err);
                 return;
               }
 
-              // Auto login after creation
-              user.auth(username, password, function (auth) {
-                if (auth.err) {
-                  alert("Auto-login failed after creation");
-                  return;
-                }
+              currentUsername = authAck.put.alias; // Use alias from ack
+              document.getElementById("currentUser").textContent =
+                currentUsername;
+              document.getElementById("loginForm").style.display = "none";
+              document.getElementById("loggedInStatus").style.display = "block";
+              document.getElementById("messageArea").style.display = "block";
+              showStatus("Logged in as new user!");
 
-                currentUsername = username;
-                document.getElementById("currentUser").textContent = username;
-                document.getElementById("loginForm").style.display = "none";
-                document.getElementById("loggedInStatus").style.display =
-                  "block";
-                document.getElementById("messageArea").style.display = "block";
-
-                // Clear the inputs
-                document.getElementById("usernameInput").value = "";
-                document.getElementById("passwordInput").value = "";
-              });
+              // Clear the inputs
+              usernameInput.value = "";
+              passwordInput.value = "";
+              // Re-initialize user object for the new session
+              user = gun.user();
             });
-          }
-        });
+          });
+        } catch (err) {
+          console.error("Error creating user:", err);
+          showError("Error creating user: " + err.message);
+        }
+      }
 
-      // Logout
-      document
-        .getElementById("logoutButton")
-        .addEventListener("click", function () {
-          user.leave();
+      // Logout handler
+      function handleLogout(silent = false) {
+        try {
+          gun.user().leave();
           currentUsername = "";
           document.getElementById("loginForm").style.display = "block";
           document.getElementById("loggedInStatus").style.display = "none";
-          document.getElementById("messageArea").style.display = "none";
-        });
-
-      // Handle form submission
-      document
-        .getElementById("messageForm")
-        .addEventListener("submit", function (e) {
-          e.preventDefault();
-
-          const input = document.getElementById("messageInput");
-          const messageText = input.value.trim();
-
-          if (messageText && currentUsername) {
-            // Add message to the shogun_message node with timestamp as key
-            const timestamp = Date.now();
-            messages.get(timestamp).put({
-              text: messageText,
-              user: currentUsername,
-              timestamp: timestamp,
-            });
-
-            console.log("Message sent:", timestamp, messageText);
-            input.value = "";
+          user = gun.user(); // Reset user object
+          if (!silent) {
+            showStatus("Logged out successfully");
           }
-        });
-      
-      // Clear the messages container
-      const messagesContainer = document.getElementById("messages");
-      
-      // Track the latest message timestamp to avoid duplicates
-      let lastProcessedTimestamp = 0;
-      
-      // Improved message handler - more efficient
-      messages.map().on(function(message, id) {
-        // Ensure we don't process if missing key data
-        if (!message || typeof message.text !== 'string' || typeof message.timestamp !== 'number') return;
-        
-        // Don't add duplicates - check if this message already exists
-        if (document.querySelector(`.message[data-id="${id}"]`)) return;
-        
-        // Only process newer messages than what we've already seen
-        if (message.timestamp > lastProcessedTimestamp) {
-          lastProcessedTimestamp = message.timestamp;
-          console.log("New message:", id, message);
+        } catch (err) {
+          console.error("Error during logout:", err);
+          showError("Error during logout: " + err.message);
+        }
+      }
+
+      // Send message handler
+      function handleSendMessage() {
+        const input = document.getElementById("messageInput");
+        const messageText = input.value.trim();
+
+        if (!messageText) {
+          showError("Please enter a message");
+          return;
+        }
+
+        try {
+          if (user && user.is && user.is.alias) {
+            // Create message data object with user info
+            const messageData = {
+              text: messageText,
+              timestamp: Date.now(),
+              user: user.is.alias, // Include the username 
+              userPub: user.is.pub // Include the user's public key
+            };
+            
+            // Store message with a specific ID to be more reliable
+            const msgId = `msg_${messageData.timestamp}`;
+            
+            console.log("[Inbox.html] Sending message:", messageData);
+            
+            // Store in user space first
+            user.get(messageChannel).get(msgId).put(messageData, (ack) => {
+              if (ack.err) {
+                console.error("Error storing message:", ack.err);
+                showError("Error sending message: " + ack.err);
+                return;
+              }
+              
+              console.log("Message stored in user space:", messageData);
+              input.value = "";
+              
+              // Create a reference in the channel index
+              const userPub = user.is.pub;
+              const soul = `~${userPub}/${messageChannel}/${msgId}`;
+              
+              // Add a small delay to ensure the message is stored first
+              setTimeout(() => {
+                SEA.work(soul, null, null, { name: "SHA-256" }).then(hash => {
+                  gun.get('#' + messageChannel).get(hash).put(soul, ack => {
+                    console.log("Message indexed in channel:", ack);
+                    
+                    // Optionally display the message locally for immediate feedback
+                    // This helps show the message before it comes back through the listener
+                    processMessage(messageData, soul);
+                  });
+                });
+              }, 100);
+            });
+          } else {
+            // Not authenticated
+            showError("You must be logged in to send messages");
+          }
+        } catch (err) {
+          console.error("Error sending message:", err);
+          showError("Error sending message: " + err.message);
+        }
+      }
+
+      // Process message data and add to UI
+      function processMessage(messageData, id) {
+        try {
+           console.log("[Inbox.html] processMessage called with:", {
+             messageData,
+             id,
+             isPageLoaded,
+             isProcessingMessages,
+           });
+
+          // Skip if page isn't fully loaded
+          if (!isPageLoaded) return;
           
+          // Skip if we're already handling messages
+          if (isProcessingMessages) return;
+          
+          // Basic validation of message data
+          if (
+            !messageData ||
+            typeof messageData.text !== "string" || 
+            !messageData.timestamp
+          ) {
+            console.warn(
+              "[Inbox.html] Invalid message structure or type mismatch:",
+              messageData
+            );
+            return;
+          }
+          
+          // Set processing flag (and clear after a short delay)
+          isProcessingMessages = true;
+          setTimeout(() => {
+            isProcessingMessages = false;
+          }, 50);
+
+          // Skip if message is already in our Map
+          if (messagesMap.has(id)) {
+            console.log("[Inbox.html] Message already displayed (id):", id);
+            return;
+          }
+          
+          // Add to our tracking Map
+          messagesMap.set(id, messageData);
+          console.log(
+            "[Inbox.html] Message added to map, attempting to render:",
+            { id, messageData }
+          );
+
           // Create message element
           const msgElement = document.createElement("div");
           msgElement.className = "message";
           msgElement.setAttribute("data-id", id);
-          
-          // Add timestamp data to sort later if needed
-          msgElement.setAttribute("data-timestamp", message.timestamp);
-          
+          msgElement.setAttribute("data-timestamp", messageData.timestamp);
+
           // Format the date
-          const date = new Date(message.timestamp).toLocaleString();
-          
+          const date = new Date(messageData.timestamp).toLocaleString();
+
           // Create the username span
           const userSpan = document.createElement("span");
           userSpan.className = "user-name";
-          userSpan.textContent = message.user || "Anonymous";
-          
+          userSpan.textContent = messageData.user || "Anonymous";
+
           // Assemble the message
           msgElement.appendChild(userSpan);
-          msgElement.appendChild(document.createTextNode(": " + message.text + " (" + date + ")"));
+          msgElement.appendChild(
+            document.createTextNode(": " + messageData.text + " (" + date + ")")
+          );
           
-          // Insert newest messages at the top (after the heading)
-          const heading = messagesContainer.querySelector("h2");
-          if (heading) {
-            messagesContainer.insertBefore(msgElement, heading.nextSibling);
+          // Add debug info to help troubleshoot
+          const debugInfo = document.createElement("div");
+          debugInfo.className = "debug-info";
+          debugInfo.textContent = `MessageID: ${id.substring(0, 8)}...`; // Add more debug info
+          msgElement.appendChild(debugInfo);
+
+          // Insert in the messages container (correctly)
+          const messagesContainer = document.getElementById("messages");
+          
+          // Get all existing message elements
+          const existingMessages = messagesContainer.querySelectorAll(".message");
+          
+          // If there are existing messages, insert before the first one
+          // to show newest at top
+          if (existingMessages.length > 0) {
+            messagesContainer.insertBefore(msgElement, existingMessages[0]);
           } else {
-            messagesContainer.prepend(msgElement);
+            // Otherwise just append to the container
+            messagesContainer.appendChild(msgElement);
           }
+          
+          console.log("[Inbox.html] Message rendered successfully:", messageData.text);
+        } catch (err) {
+          console.error("Error processing message:", err);
         }
+      }
+
+      // Set up event listeners when document is ready
+      documentReady(function () {
+        // Login button
+        document
+          .getElementById("loginButton")
+          .addEventListener("click", handleLogin);
+        
+        // Create user button
+        document
+          .getElementById("createUserButton")
+          .addEventListener("click", handleCreateUser);
+        
+        // Logout button
+        document
+          .getElementById("logoutButton")
+          .addEventListener("click", function () {
+            handleLogout(false);
+          });
+        
+        // Send message button
+        document
+          .getElementById("sendButton")
+          .addEventListener("click", handleSendMessage);
+        
+        // Enter key in message input
+        document
+          .getElementById("messageInput")
+          .addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          });
+
+        // Setup activity listener
+        setupActivityListener();
+      });
+
+      // Set up Gun message listener with retry mechanism
+      function setupMessageListener() {
+        try {
+          // Track seen messages to prevent duplicates
+          const seenMessages = new Set();
+          
+          console.log("[Inbox.html] Setting up message listener for #" + messageChannel);
+          
+          gun
+            .get("#" + messageChannel)
+            .map()
+            .on((soul) => {
+              if (!soul) return;
+              
+              console.log("[Inbox.html] Message reference received:", soul);
+              
+              // Skip if we've already seen this soul
+              if (seenMessages.has(soul)) {
+                console.log("[Inbox.html] Skipping already seen message:", soul);
+                return;
+              }
+              
+              // Mark this soul as seen
+              seenMessages.add(soul);
+              
+              gun.get(soul).on((msgData) => {
+                try {
+                  if (!msgData || typeof msgData !== 'object') return;
+                  
+                  console.log("[Inbox.html] Processing message data:", msgData);
+                  
+                  // Extract the message contents
+                  let message = {};
+                  let messageId = soul;
+                  
+                  // Case 1: Direct object with text/timestamp
+                  if (msgData.text && msgData.timestamp) {
+                    message = {
+                      text: msgData.text,
+                      timestamp: parseInt(msgData.timestamp),
+                    };
+                  } 
+                  // Case 2: GunDB metadata format
+                  else if (msgData._ && msgData._[">"]) {
+                    if (msgData._[">"].text) {
+                      message.text = msgData.text;
+                    }
+                    
+                    if (msgData._[">"].timestamp) {
+                      message.timestamp = parseInt(msgData.timestamp);
+                    }
+                  }
+                  
+                  // Skip invalid messages
+                  if (!message.text || !message.timestamp) {
+                    console.log("[Inbox.html] Skipping invalid message:", msgData);
+                    return;
+                  }
+                  
+                  // Get user from soul (path format: ~[user-pub]/channel/[message-id])
+                  let userPub = null;
+                  if (typeof soul === 'string' && soul.startsWith('~')) {
+                    const parts = soul.split('/');
+                    if (parts.length >= 1) {
+                      userPub = parts[0].substring(1); // Remove the ~ prefix
+                    }
+                  }
+                  
+                  if (userPub) {
+                    gun.user(userPub).once((userProfile) => {
+                      // Set user info in the message
+                      message.user = userProfile?.alias || userPub.substring(0, 8) + "...";
+                      
+                      // Add debug data to help troubleshoot
+                      message.userPub = userPub;
+                      message.soul = soul;
+                      
+                      // Process the message with UI updates
+                      console.log("[Inbox.html] Message with user ready to process:", message);
+                      processMessage(message, messageId);
+                    });
+                  } else {
+                    // Fallback if we can't extract user
+                    message.user = "unknown-user";
+                    console.log("[Inbox.html] Message with unknown user:", message);
+                    processMessage(message, messageId);
+                  }
+                } catch (err) {
+                  console.error("[Inbox.html] Error processing message data:", err);
+                }
+              });
+            });
+          
+          console.log(
+            "[Inbox.html] Message listener set up successfully on #" + messageChannel
+          );
+        } catch (err) {
+          console.error("[Inbox.html] Error setting up message listener:", err);
+          // Retry after a delay
+          setTimeout(setupMessageListener, 1000);
+        }
+      }
+
+      // Setup activity tracking
+      function setupActivityListener() {
+        try {
+          gun.get('#last_activity').map().on((data) => {
+            if (!data || typeof data !== 'object') return;
+            
+            // Skip if missing essential fields
+            if (!data.timestamp || !data.userPub) return;
+            
+            // Use userPub as key to avoid duplicate entries from same user
+            const activityKey = data.userPub;
+            
+            // Skip if we already have a more recent activity for this user
+            if (activityMap.has(activityKey) && 
+                activityMap.get(activityKey).timestamp >= data.timestamp) {
+              return;
+            }
+            
+            // Store the activity
+            activityMap.set(activityKey, data);
+            
+            // Update the UI
+            updateActivityUI();
+          });
+          
+          console.log("[Inbox.html] Activity listener set up");
+        } catch (err) {
+          console.error("[Inbox.html] Error setting up activity listener:", err);
+        }
+      }
+      
+      // Update the activity UI
+      function updateActivityUI() {
+        const activityList = document.getElementById("activityList");
+        
+        // Clear existing items
+        activityList.innerHTML = "";
+        
+        // Sort by timestamp (newest first)
+        const activities = Array.from(activityMap.values())
+          .sort((a, b) => b.timestamp - a.timestamp);
+        
+        // Show up to 10 most recent activities
+        activities.slice(0, 10).forEach(activity => {
+          const activityItem = document.createElement("div");
+          activityItem.className = "activity-item";
+          
+          const time = new Date(activity.timestamp).toLocaleTimeString();
+          const username = activity.user || "Unknown user";
+          
+          activityItem.innerHTML = `
+            <span class="activity-time">[${time}]</span> 
+            <span class="user-name">${username}</span> was active
+            ${activity.channel ? `in ${activity.channel}` : ""}
+          `;
+          
+          activityList.appendChild(activityItem);
+        });
+      }
+
+      // Add error handling for Gun.js itself
+      gun.on("error", function (err) {
+        console.error("Gun error:", err);
+        showError("Connection error: " + err.message);
       });
     </script>
   </body>
