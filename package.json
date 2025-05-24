@@ -1,6 +1,21 @@
 {
+  "name": "gundb-key-extractor",
+  "version": "1.0.0",
+  "description": "Extract public keys from GunDB format and update Merkle tree",
+  "main": "extract-keys.js",
+  "scripts": {
+    "extract": "node extract-keys.js",
+    "update": "node update-merkle-tree.js"
+  },
+  "keywords": [
+    "gundb",
+    "merkle-tree",
+    "public-key"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
-    "express-basic-auth": "^1.2.1",
-    "ipfs-core": "^0.18.1"
+    "keccak": "^3.0.3",
+    "merkletreejs": "^0.3.10"
   }
 }
