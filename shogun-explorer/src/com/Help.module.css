@@ -1,0 +1,11 @@
+.container {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  border: thick double gray;
+  border-radius: 1rem;
+  padding: 1rem;
+  background-color: #222;
+  z-index: 1;
+}

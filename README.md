@@ -1,87 +1,167 @@
-# GunDB Public Key Extractor and Merkle Tree Updater
+# 🥷 Shogun Core Examples
 
-This project provides utilities to extract public keys from GunDB format and update the Merkle tree in the test-env application.
+Practical examples to test and demonstrate Shogun Core functionality with NoDom reactive library.
 
-## Files
+## 🚀 Quick Start
 
-- `extract-keys.js`: Extracts public keys from GunDB format and converts them to hex format
-- `update-merkle-tree.js`: Updates the Merkle tree in the test-env application with the extracted keys
-- `extract-keys.bat`: Windows batch file to run the extract-keys.js script
-- `update-merkle-tree.bat`: Windows batch file to run the update-merkle-tree.js script
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
 
-## Installation
-
-Make sure you have Node.js installed, then install the required dependencies:
+### Installation
 
 ```bash
-npm install keccak merkletreejs
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
 ```
 
-## Usage
+The development server will start on `http://localhost:8080` and automatically open in your browser.
 
-### Extract Public Keys
-
-To extract public keys from GunDB format:
+## 📋 Available Scripts
 
 ```bash
-node extract-keys.js "~3JzCo5CwXFFARxwQqcvcDLUyZamResDCKv6qjTMd6bc.ILGaoRoGMfXBu4ISfTaJKfz4p_c-qxnlALCED8Gt_ds"
+# Development
+npm run dev          # Start Vite dev server with HMR
+npm run start        # Alias for dev (port 8080)
+
+# Build & Preview
+npm run build        # Build for production
+npm run preview      # Preview built files
+npm run serve        # Serve built files on port 8080
+
+# Quick Access
+npm run auth         # Show auth interface URL
+npm run legacy       # Show legacy interface URL
+npm run help         # Show available scripts
 ```
 
-You can also provide multiple keys:
+## 🔗 Available Examples
 
+### 🔐 Shogun Auth (Main Interface)
+- **URL**: `/auth-nodom.html`
+- **Features**: Complete authentication with reactive UI
+- **Technologies**: Shogun Core + NoDom + WebAuthn + Wallets
+
+### 🏛️ Shogun Auth Legacy
+- **URL**: `/auth.html` 
+- **Features**: Traditional authentication interface
+- **Technologies**: Shogun Core (without NoDom)
+
+## 🛠️ Development Features
+
+### Vite Benefits
+- ⚡ **Lightning Fast**: Instant server start and HMR
+- 🔥 **Hot Module Replacement**: Real-time updates without page refresh
+- 📦 **Optimized Builds**: Tree-shaking and code splitting
+- 🔧 **Modern Tooling**: ES modules, TypeScript support
+- 🌐 **CORS Handling**: Proper headers for WebAuthn and wallets
+
+### Development Tools
+- **Source Maps**: Full debugging support
+- **Legacy Support**: Automatic polyfills for older browsers
+- **Asset Optimization**: Automatic compression and optimization
+- **Multi-page Support**: Optimized builds for all examples
+
+## 🔧 Configuration
+
+### Vite Configuration
+The project includes a comprehensive `vite.config.js` with:
+- Development server on port 8080
+- CORS headers for WebAuthn
+- Legacy browser support
+- Optimized builds with code splitting
+- Source map generation
+
+### Environment Variables
 ```bash
-node extract-keys.js "~key1.data" "~key2.data" "~key3.data"
+NODE_ENV=development  # Development mode
+NODE_ENV=production   # Production mode
 ```
 
-Or read keys from a file (one key per line):
+## 📁 Project Structure
 
+```
+shogun-core/src/examples/
+├── index.html              # Main examples page
+├── auth-nodom.html         # Modern auth interface
+├── auth.html              # Legacy auth interface
+├── shogun-core.js         # Shogun Core library
+├── nodom.js              # NoDom reactive library
+├── package.json          # Dependencies and scripts
+├── vite.config.js        # Vite configuration
+└── README.md             # This file
+```
+
+## 🌐 Browser Support
+
+- **Modern Browsers**: Full ES2020+ support
+- **Legacy Browsers**: Automatic polyfills via Vite Legacy plugin
+- **WebAuthn**: Chrome 67+, Firefox 60+, Safari 14+
+- **Crypto Wallets**: MetaMask, Nostr extensions
+
+## 🔒 Security Features
+
+### WebAuthn Support
+- Biometric authentication (Touch ID, Face ID, fingerprint)
+- Hardware security keys (YubiKey, etc.)
+- Platform authenticators
+- Cross-platform authenticators
+
+### Wallet Integration
+- **Ethereum**: MetaMask integration
+- **Bitcoin**: Nostr protocol support
+- **Secure**: Private key never exposed
+- **Standards**: Following EIP and BIP standards
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Port already in use:**
 ```bash
-node extract-keys.js --file=keys.txt
+# Kill process on port 8080
+npx kill-port 8080
+npm run dev
 ```
 
-On Windows, you can also use the batch file:
+**CORS errors:**
+- Vite configuration includes proper CORS headers
+- WebAuthn requires HTTPS in production
 
-```
-extract-keys.bat "~3JzCo5CwXFFARxwQqcvcDLUyZamResDCKv6qjTMd6bc.ILGaoRoGMfXBu4ISfTaJKfz4p_c-qxnlALCED8Gt_ds"
-```
+**WebAuthn not working:**
+- Ensure HTTPS in production
+- Check browser compatibility
+- Verify domain configuration
 
-### Update Merkle Tree
-
-To update the Merkle tree in the test-env application:
-
+### Debug Mode
 ```bash
-node update-merkle-tree.js "~3JzCo5CwXFFARxwQqcvcDLUyZamResDCKv6qjTMd6bc.ILGaoRoGMfXBu4ISfTaJKfz4p_c-qxnlALCED8Gt_ds"
+# Enable debug logging
+DEBUG=vite:* npm run dev
 ```
 
-You can also provide multiple keys:
+## 📚 Documentation
 
-```bash
-node update-merkle-tree.js "~key1.data" "~key2.data" "~key3.data"
-```
+- [Shogun Core](https://github.com/scobru/shogun-core)
+- [NoDom Library](./nodom.js)
+- [Vite Documentation](https://vitejs.dev/)
+- [WebAuthn Guide](https://webauthn.guide/)
 
-Or read keys from a file (one key per line):
+## 🤝 Contributing
 
-```bash
-node update-merkle-tree.js --file=keys.txt
-```
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test with `npm run dev`
+5. Build with `npm run build`
+6. Submit a pull request
 
-On Windows, you can also use the batch file:
+## 📄 License
 
-```
-update-merkle-tree.bat "~3JzCo5CwXFFARxwQqcvcDLUyZamResDCKv6qjTMd6bc.ILGaoRoGMfXBu4ISfTaJKfz4p_c-qxnlALCED8Gt_ds"
-```
+MIT License - see LICENSE file for details.
 
-## Key Format
+---
 
-The GunDB public keys are in the format:
-
-```
-~3JzCo5CwXFFARxwQqcvcDLUyZamResDCKv6qjTMd6bc.ILGaoRoGMfXBu4ISfTaJKfz4p_c-qxnlALCED8Gt_ds
-```
-
-Where:
-- `~` is the prefix
-- The first part before the dot is the main public key
-- The part after the dot is additional data
-
-The scripts extract the main public key and convert it to hex format for use in the Merkle tree. 
+**Built with ❤️ for the Shogun community** 
