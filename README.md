@@ -1,4 +1,4 @@
-# Shogun Scan
+# Shogun Scan 🔍
 
 [https://shogun-scan.vercel.app/](Website)
 
