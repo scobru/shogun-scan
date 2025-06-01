@@ -5,7 +5,7 @@ import DataEditor from './com/DataEditor'
 import Help from './com/Help'
 import RelayDiscovery from './com/RelayDiscovery'
 import { GunProvider, useGun } from './api/gunContext'
-import { getNode } from 'api/gunHelpers'
+import { getNode } from './api/gunHelpers'
 
 function AppBody({ peers, setPeers, rootPath, setRootPath }) {
   const gun = useGun()
@@ -70,8 +70,8 @@ function AppBody({ peers, setPeers, rootPath, setRootPath }) {
       {/* Header */}
       <header className="app-header">
         <div className="app-header-content">
-          <h1 className="app-title">GunDB Explorer</h1>
-          <p className="app-subtitle">Real-time decentralized database explorer</p>
+          <h1 className="app-title"> Shogun Scan</h1>
+          <p className="app-subtitle">Real-time decentralized database scan</p>
         </div>
       </header>
 

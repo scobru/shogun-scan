@@ -1,6 +1,6 @@
-# Shogun Explorer
+# Shogun Scan
 
-**Shogun Explorer** is a modern web application for exploring and managing GunDB databases in real-time. Built with React and Vite, it provides an intuitive interface for navigating, viewing, and modifying decentralized data.
+**Shogun Scan** is a modern web application for exploring and managing GunDB databases in real-time. Built with React and Vite, it provides an intuitive interface for navigating, viewing, and modifying decentralized data.
 
 ## 🚀 Key Features
 
@@ -39,7 +39,7 @@
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd shogun-explorer
+cd shogun-Scan
 
 # Install dependencies
 npm install
@@ -73,7 +73,7 @@ yarn preview
 ### Project Structure
 
 ```
-shogun-explorer/
+shogun-Scan/
 ├── src/
 │   ├── api/                    # API management and GunDB context
 │   │   ├── gunContext.jsx      # React provider for GunDB
@@ -372,4 +372,4 @@ For support and questions:
 
 ---
 
-**Shogun Explorer** - Explore the future of decentralized databases 🚀
+**Shogun Scan** - Explore the future of decentralized databases 🚀
