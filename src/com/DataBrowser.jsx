@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { useGun } from 'api/GunContext'
-import { getNode } from 'api/gunHelpers'
+import { useGun } from '../api/gunContext'
+import { getNode } from '../api/gunHelpers'
 
-export default function DataBrowser({ setSelection, path = 'data', onNavigate }) {
+export default function DataBrowser({ setSelection, path = 'data', onNavigate, basePath = 'data' }) {
   const gun = useGun()
   const [data, setData] = useState({})
   const [loading, setLoading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [deleting, setDeleting] = useState(null)
-  const [pathHistory, setPathHistory] = useState(['data'])
+  const [pathHistory, setPathHistory] = useState([basePath])
 
   useEffect(() => {
     if (!gun) return
@@ -53,13 +53,13 @@ export default function DataBrowser({ setSelection, path = 'data', onNavigate })
     const pathParts = path.split('/')
     if (pathParts.length > 1) {
       pathParts.pop()
-      const parentPath = pathParts.join('/') || 'data'
+      const parentPath = pathParts.join('/') || basePath
       navigateToPath(parentPath)
     }
   }
 
   const goToRoot = () => {
-    navigateToPath('data')
+    navigateToPath(basePath)
   }
 
   const renderBreadcrumb = () => {
@@ -78,7 +78,7 @@ export default function DataBrowser({ setSelection, path = 'data', onNavigate })
         flexWrap: 'wrap'
       }}>
         {/* Back Button */}
-        {path !== 'data' && (
+        {path !== basePath && (
           <button
             onClick={goBack}
             className="btn-secondary"
@@ -97,8 +97,8 @@ export default function DataBrowser({ setSelection, path = 'data', onNavigate })
         <button
           onClick={goToRoot}
           style={{
-            background: path === 'data' ? 'var(--primary)' : 'transparent',
-            color: path === 'data' ? 'var(--text-inverse)' : 'var(--primary)',
+            background: path === basePath ? 'var(--primary)' : 'transparent',
+            color: path === basePath ? 'var(--text-inverse)' : 'var(--primary)',
             border: '1px solid var(--primary)',
             borderRadius: 'var(--radius-sm)',
             padding: 'var(--space-1) var(--space-2)',
@@ -109,7 +109,7 @@ export default function DataBrowser({ setSelection, path = 'data', onNavigate })
           }}
           title="Go to root"
         >
-          🏠 data
+          🏠 {basePath}
         </button>
 
         {/* Breadcrumb Path */}
@@ -351,7 +351,7 @@ export default function DataBrowser({ setSelection, path = 'data', onNavigate })
           <span>📊 {Object.keys(data).filter(key => key !== '_' && key !== '#').length} items found</span>
           
           {/* Quick Navigation */}
-          {path !== 'data' && (
+          {path !== basePath && (
             <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
               <button
                 onClick={goBack}

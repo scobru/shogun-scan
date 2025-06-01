@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { useGun } from 'api/GunContext'
-import { getNode } from 'api/gunHelpers'
+import { useGun } from '../api/gunContext'
+import { getNode } from '../api/gunHelpers'
 import JSONItem from './JSONItem'
 
 export default function DataEditor({ data, path, basePath = 'data', onPathDeleted }) {

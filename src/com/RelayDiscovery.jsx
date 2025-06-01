@@ -11,16 +11,6 @@ export default function RelayDiscovery({ onRelayFound, currentPeers = [] }) {
   const commonRelays = [
     'https://gun-manhattan.herokuapp.com/gun',
     'https://peer.wallie.io/gun',
-    'https://gun.defucc.me/gun',
-    'https://talkflow.team/gun',
-    'https://plankton-app-6qfp3.ondigitalocean.app/',
-    'https://gundb-relay-mlccl.ondigitalocean.app/gun',
-    'wss://gun-manhattan.herokuapp.com/gun',
-    'wss://gunjs.herokuapp.com/gun',
-    'http://localhost:8765/gun',
-    'ws://localhost:8765/gun',
-    'https://relay.gun.eco/gun',
-    'wss://relay.gun.eco/gun'
   ]
 
   useEffect(() => {
