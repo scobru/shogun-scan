@@ -70,7 +70,7 @@ function AppBody({ peers, setPeers, rootPath, setRootPath }) {
       {/* Header */}
       <header className="app-header">
         <div className="app-header-content">
-          <h1 className="app-title"> Shogun Scan</h1>
+          <h1 className="app-title">🥷 Shogun Scan</h1>
           <p className="app-subtitle">Real-time decentralized database scan</p>
         </div>
       </header>
