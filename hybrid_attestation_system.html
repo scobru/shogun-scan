@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GunEAS - Attestation System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gun/0.2020.1235/gun.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #1e293b;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #3b82f6;
+            margin-bottom: 8px;
+        }
+        .tagline {
+            color: #94a3b8;
+            font-size: 1em;
+        }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 600;
+            color: #3b82f6;
+        }
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.85em;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #4a5568;
+        }
+        .section-title {
+            color: #f1f5f9;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #cbd5e1;
+            font-size: 0.85em;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            background: #2d3748;
+            border: 1px solid #64748b;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 0.95em;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #2a303c;
+        }
+        button {
+            background: #3b82f6;
+            color: #ffffff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 500;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        .btn-secondary {
+            background: #64748b;
+        }
+        .btn-danger {
+            background: #ef4444;
+        }
+        button:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #22c55e;
+            color: #ffffff;
+        }
+        .status.error {
+            background: #ef4444;
+            color: #ffffff;
+        }
+        .status.info {
+            background: #0ea5e9;
+            color: #ffffff;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .schema-item, .attestation-item {
+            background: #2d3748;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #64748b;
+        }
+        .schema-item h4, .attestation-item h4 {
+            color: #f1f5f9;
+            margin-bottom: 8px;
+            font-size: 1em;
+        }
+        .schema-item p, .attestation-item p {
+            color: #cbd5e1;
+            font-size: 0.85em;
+            margin-bottom: 6px;
+        }
+        .hash {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8em;
+            background: #1e293b;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #3b82f6;
+            word-break: break-all;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #94a3b8;
+        }
+        .tab.active {
+            color: #f1f5f9;
+            border-color: #3b82f6;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">GunEAS</div>
+            <div class="tagline">Decentralized Attestation System on GunDB</div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="totalSchemas">0</div>
+                    <div class="stat-label">Schemas</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="totalAttestations">0</div>
+                    <div class="stat-label">Attestazioni</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="onlinePeers">0</div>
+                    <div class="stat-label">Peers Online</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">🌐 Stato Sistema</div>
+            <div id="systemStatus" class="status info">Inizializzazione GunDB...</div>
+            <button onclick="initSystem()">🚀 Inizializza Sistema</button>
+            <button onclick="refreshStats()" class="btn-secondary">📊 Aggiorna Stats</button>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('schemas')">📋 Schemas</div>
+            <div class="tab" onclick="switchTab('attestations')">✅ Attestazioni</div>
+            <div class="tab" onclick="switchTab('explorer')">🔍 Explorer</div>
+        </div>
+
+        <!-- SCHEMAS TAB -->
+        <div id="schemas" class="tab-content active">
+            <div class="grid">
+                <div class="section">
+                    <div class="section-title">📝 Crea Schema</div>
+                    <div class="form-group">
+                        <label>Nome Schema:</label>
+                        <input type="text" id="schemaName" placeholder="es: Identity Verification">
+                    </div>
+                    <div class="form-group">
+                        <label>Descrizione:</label>
+                        <textarea id="schemaDescription" rows="3" placeholder="Descrizione del tipo di attestazione..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Campi (JSON):</label>
+                        <textarea id="schemaFields" rows="4" placeholder='{"name": "string", "age": "number", "verified": "boolean"}'></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Categoria:</label>
+                        <select id="schemaCategory">
+                            <option value="identity">Identità</option>
+                            <option value="education">Educazione</option>
+                            <option value="skill">Competenze</option>
+                            <option value="reputation">Reputazione</option>
+                            <option value="certification">Certificazione</option>
+                            <option value="custom">Personalizzato</option>
+                        </select>
+                    </div>
+                    <button onclick="createSchema()">📋 Crea Schema</button>
+                    <div id="schemaStatus"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">📚 Schemas Disponibili</div>
+                    <div id="schemasList" class="list-container"></div>
+                    <button onclick="loadSchemas()" class="btn-secondary">🔄 Ricarica Schemas</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ATTESTATIONS TAB -->
+        <div id="attestations" class="tab-content">
+            <div class="grid">
+                <div class="section">
+                    <div class="section-title">✍️ Crea Attestazione</div>
+                    <div class="form-group">
+                        <label>Schema:</label>
+                        <select id="attestationSchema">
+                            <option value="">Seleziona schema...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Destinatario:</label>
+                        <input type="text" id="recipient" placeholder="Indirizzo o nome utente">
+                    </div>
+                    <div class="form-group">
+                        <label>Dati (JSON):</label>
+                        <textarea id="attestationData" rows="4" placeholder='{"name": "Mario Rossi", "age": 30, "verified": true}'></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Scadenza (giorni):</label>
+                        <input type="number" id="expiryDays" value="365" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Revocabile:</label>
+                        <select id="revocable">
+                            <option value="true">Sì</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                    <button onclick="createAttestation()">✅ Crea Attestazione</button>
+                    <div id="attestationStatus"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">📜 Le Mie Attestazioni</div>
+                    <div id="myAttestationsList" class="list-container"></div>
+                    <button onclick="loadMyAttestations()" class="btn-secondary">🔄 Ricarica</button>
+                    <button onclick="exportAttestations()" class="btn-secondary">📤 Esporta</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- EXPLORER TAB -->
+        <div id="explorer" class="tab-content">
+            <div class="section">
+                <div class="section-title">🔍 Verifica Attestazione</div>
+                <div class="form-group">
+                    <label>UID Attestazione:</label>
+                    <input type="text" id="verifyUID" placeholder="UID dell'attestazione da verificare">
+                </div>
+                <button onclick="verifyAttestation()">🔍 Verifica</button>
+                <button onclick="revokeAttestation()" class="btn-danger">❌ Revoca</button>
+                <div id="verifyStatus"></div>
+                <div id="verifyResult"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">🌐 Explorer Globale</div>
+                <div class="form-group">
+                    <label>Filtra per:</label>
+                    <select id="explorerFilter">
+                        <option value="all">Tutte le attestazioni</option>
+                        <option value="schema">Per schema</option>
+                        <option value="recipient">Per destinatario</option>
+                        <option value="issuer">Per emittente</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="filterValue" placeholder="Valore filtro...">
+                </div>
+                <button onclick="exploreAttestations()" class="btn-secondary">🔍 Esplora</button>
+                <div id="explorerResults" class="list-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sistema GunEAS
+        let gun;
+        let myPeerId;
+        let stats = { schemas: 0, attestations: 0, peers: 0 };
+        
+        // Inizializzazione sistema
+        async function initSystem() {
+            try {
+                updateStatus('systemStatus', '🚀 Connessione ai peer GunDB...', 'info');
+                
+                // Inizializza GunDB con più relay per resilienza
+                gun = Gun([
+                    'https://gun-manhattan.herokuapp.com/gun',
+                    'https://gun-us.herokuapp.com/gun'
+                ]);
+                
+                // Genera ID peer univoco
+                myPeerId = generateUID();
+                
+                // Registra peer online
+                gun.get('peers').get(myPeerId).put({
+                    online: true,
+                    timestamp: Date.now(),
+                    userAgent: navigator.userAgent.slice(0, 50)
+                });
+                
+                // Cleanup alla chiusura
+                window.addEventListener('beforeunload', () => {
+                    gun.get('peers').get(myPeerId).put({ online: false });
+                });
+                
+                // Carica dati iniziali
+                await loadSchemas();
+                await loadSchemaOptions();
+                await refreshStats();
+                
+                updateStatus('systemStatus', '✅ GunEAS inizializzato! Sistema decentralizzato attivo.', 'success');
+                
+            } catch (error) {
+                updateStatus('systemStatus', `❌ Errore inizializzazione: ${error.message}`, 'error');
+            }
+        }
+        
+        // Gestione Schemas
+        async function createSchema() {
+            try {
+                const name = document.getElementById('schemaName').value.trim();
+                const description = document.getElementById('schemaDescription').value.trim();
+                const fieldsText = document.getElementById('schemaFields').value.trim();
+                const category = document.getElementById('schemaCategory').value;
+                
+                if (!name || !description || !fieldsText) {
+                    throw new Error('Compila tutti i campi obbligatori');
+                }
+                
+                // Valida JSON
+                let fields;
+                try {
+                    fields = JSON.parse(fieldsText);
+                } catch (e) {
+                    throw new Error('Formato JSON non valido per i campi');
+                }
+                
+                updateStatus('schemaStatus', '📝 Creazione schema...', 'info');
+                
+                const schema = {
+                    uid: generateUID(),
+                    name: name,
+                    description: description,
+                    fields: fields,
+                    category: category,
+                    creator: myPeerId,
+                    timestamp: Date.now(),
+                    version: '1.0.0',
+                    attestationCount: 0
+                };
+                
+                // Salva schema
+                gun.get('schemas').get(schema.uid).put(schema);
+                
+                updateStatus('schemaStatus', `✅ Schema creato! UID: ${schema.uid.slice(0, 16)}...`, 'success');
+                
+                // Reset form
+                document.getElementById('schemaName').value = '';
+                document.getElementById('schemaDescription').value = '';
+                document.getElementById('schemaFields').value = '';
+                
+                // Ricarica liste
+                loadSchemas();
+                loadSchemaOptions();
+                
+            } catch (error) {
+                updateStatus('schemaStatus', `❌ ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadSchemas() {
+            try {
+                const listDiv = document.getElementById('schemasList');
+                listDiv.innerHTML = '<p style="color: #94a3b8;">📡 Caricamento schemas...</p>';
+                
+                const schemas = [];
+                
+                gun.get('schemas').map().once((data, key) => {
+                    if (data && data.uid) {
+                        schemas.push(data);
+                        updateSchemasList(schemas);
+                    }
+                });
+                
+                setTimeout(() => {
+                    if (schemas.length === 0) {
+                        listDiv.innerHTML = '<p style="color: #94a3b8;">📋 Nessuno schema trovato. Creane uno!</p>';
+                    }
+                    stats.schemas = schemas.length;
+                    document.getElementById('totalSchemas').textContent = stats.schemas;
+                }, 1500);
+                
+            } catch (error) {
+                document.getElementById('schemasList').innerHTML = `<p style="color: #f87171;">❌ ${error.message}</p>`;
+            }
+        }
+        
+        function updateSchemasList(schemas) {
+            const listDiv = document.getElementById('schemasList');
+            
+            const sortedSchemas = schemas.sort((a, b) => b.timestamp - a.timestamp);
+            
+            listDiv.innerHTML = sortedSchemas.map(schema => `
+                <div class="schema-item">
+                    <h4>📋 ${schema.name}</h4>
+                    <p><strong>Categoria:</strong> ${schema.category}</p>
+                    <p><strong>Descrizione:</strong> ${schema.description}</p>
+                    <p><strong>Campi:</strong> ${Object.keys(schema.fields).join(', ')}</p>
+                    <p><strong>Creata:</strong> ${new Date(schema.timestamp).toLocaleString()}</p>
+                    <p><strong>Attestazioni:</strong> ${schema.attestationCount || 0}</p>
+                    <p><strong>UID:</strong> <span class="hash">${schema.uid}</span></p>
+                </div>
+            `).join('');
+        }
+        
+        async function loadSchemaOptions() {
+            const select = document.getElementById('attestationSchema');
+            select.innerHTML = '<option value="">Seleziona schema...</option>';
+            
+            gun.get('schemas').map().once((data) => {
+                if (data && data.uid) {
+                    const option = document.createElement('option');
+                    option.value = data.uid;
+                    option.textContent = `${data.name} (${data.category})`;
+                    select.appendChild(option);
+                }
+            });
+        }
+        
+        // Gestione Attestazioni
+        async function createAttestation() {
+            try {
+                const schemaUID = document.getElementById('attestationSchema').value;
+                const recipient = document.getElementById('recipient').value.trim();
+                const dataText = document.getElementById('attestationData').value.trim();
+                const expiryDays = parseInt(document.getElementById('expiryDays').value);
+                const revocable = document.getElementById('revocable').value === 'true';
+                
+                if (!schemaUID || !recipient || !dataText) {
+                    throw new Error('Compila tutti i campi obbligatori');
+                }
+                
+                // Valida dati JSON
+                let data;
+                try {
+                    data = JSON.parse(dataText);
+                } catch (e) {
+                    throw new Error('Formato JSON non valido per i dati');
+                }
+                
+                updateStatus('attestationStatus', '✍️ Creazione attestazione...', 'info');
+                
+                const attestation = {
+                    uid: generateUID(),
+                    schema: schemaUID,
+                    recipient: recipient,
+                    attester: myPeerId,
+                    data: data,
+                    timestamp: Date.now(),
+                    expirationTime: Date.now() + (expiryDays * 24 * 60 * 60 * 1000),
+                    revocable: revocable,
+                    revoked: false,
+                    revokedAt: null
+                };
+                
+                // Salva attestazione
+                gun.get('attestations').get(attestation.uid).put(attestation);
+                
+                // Aggiorna contatore schema
+                gun.get('schemas').get(schemaUID).once((schema) => {
+                    if (schema) {
+                        gun.get('schemas').get(schemaUID).put({
+                            ...schema,
+                            attestationCount: (schema.attestationCount || 0) + 1
+                        });
+                    }
+                });
+                
+                // Indice per attester
+                gun.get('attesters').get(myPeerId).get('attestations').get(attestation.uid).put(true);
+                
+                // Indice per recipient
+                gun.get('recipients').get(recipient).get('attestations').get(attestation.uid).put(true);
+                
+                updateStatus('attestationStatus', `✅ Attestazione creata! UID: ${attestation.uid.slice(0, 16)}...`, 'success');
+                
+                // Reset form
+                document.getElementById('recipient').value = '';
+                document.getElementById('attestationData').value = '';
+                
+                loadMyAttestations();
+                
+            } catch (error) {
+                updateStatus('attestationStatus', `❌ ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadMyAttestations() {
+            try {
+                const listDiv = document.getElementById('myAttestationsList');
+                listDiv.innerHTML = '<p style="color: #94a3b8;">📡 Caricamento attestazioni...</p>';
+                
+                const attestations = [];
+                
+                gun.get('attesters').get(myPeerId).get('attestations').map().once((exists, uid) => {
+                    if (exists) {
+                        gun.get('attestations').get(uid).once((data) => {
+                            if (data) {
+                                attestations.push(data);
+                                updateAttestationsList(attestations, 'myAttestationsList');
+                            }
+                        });
+                    }
+                });
+                
+                setTimeout(() => {
+                    if (attestations.length === 0) {
+                        listDiv.innerHTML = '<p style="color: #94a3b8;">📜 Nessuna attestazione trovata.</p>';
+                    }
+                }, 1500);
+                
+            } catch (error) {
+                document.getElementById('myAttestationsList').innerHTML = `<p style="color: #f87171;">❌ ${error.message}</p>`;
+            }
+        }
+        
+        function updateAttestationsList(attestations, containerId) {
+            const listDiv = document.getElementById(containerId);
+            
+            const sortedAttestations = attestations.sort((a, b) => b.timestamp - a.timestamp);
+            
+            listDiv.innerHTML = sortedAttestations.map(att => {
+                const isExpired = att.expirationTime < Date.now();
+                const statusColor = att.revoked ? '#ef4444' : (isExpired ? '#f59e0b' : '#10b981');
+                const statusText = att.revoked ? 'Revocata' : (isExpired ? 'Scaduta' : 'Valida');
+                
+                return `
+                    <div class="attestation-item">
+                        <h4>✅ Attestazione #${att.uid.slice(0, 8)}</h4>
+                        <p><strong>Schema:</strong> ${att.schema.slice(0, 16)}...</p>
+                        <p><strong>Destinatario:</strong> ${att.recipient}</p>
+                        <p><strong>Dati:</strong> ${JSON.stringify(att.data).slice(0, 100)}...</p>
+                        <p><strong>Creata:</strong> ${new Date(att.timestamp).toLocaleString()}</p>
+                        <p><strong>Scadenza:</strong> ${new Date(att.expirationTime).toLocaleString()}</p>
+                        <p><strong>Stato:</strong> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>
+                        <p><strong>Revocabile:</strong> ${att.revocable ? 'Sì' : 'No'}</p>
+                        <p><strong>UID:</strong> <span class="hash">${att.uid}</span></p>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // Verifica e Revoca
+        async function verifyAttestation() {
+            try {
+                const uid = document.getElementById('verifyUID').value.trim();
+                
+                if (!uid) {
+                    throw new Error('Inserisci UID attestazione');
+                }
+                
+                updateStatus('verifyStatus', '🔍 Verifica in corso...', 'info');
+                
+                gun.get('attestations').get(uid).once((attestation) => {
+                    if (attestation) {
+                        const isExpired = attestation.expirationTime < Date.now();
+                        const isValid = !attestation.revoked && !isExpired;
+                        
+                        const status = isValid ? 'success' : 'error';
+                        const message = isValid ? '✅ Attestazione valida!' : 
+                                       (attestation.revoked ? '❌ Attestazione revocata!' : '⚠️ Attestazione scaduta!');
+                        
+                        updateStatus('verifyStatus', message, status);
+                        
+                        // Carica schema per dettagli
+                        gun.get('schemas').get(attestation.schema).once((schema) => {
+                            document.getElementById('verifyResult').innerHTML = `
+                                <div class="attestation-item">
+                                    <h4>📋 ${schema ? schema.name : 'Schema sconosciuto'}</h4>
+                                    <p><strong>UID:</strong> ${attestation.uid}</p>
+                                    <p><strong>Schema:</strong> ${attestation.schema}</p>
+                                    <p><strong>Emittente:</strong> ${attestation.attester}</p>
+                                    <p><strong>Destinatario:</strong> ${attestation.recipient}</p>
+                                    <p><strong>Dati:</strong> <pre style="background: rgba(100,116,139,0.2); padding: 10px; border-radius: 6px; margin: 10px 0; overflow-x: auto;">${JSON.stringify(attestation.data, null, 2)}</pre></p>
+                                    <p><strong>Creata:</strong> ${new Date(attestation.timestamp).toLocaleString()}</p>
+                                    <p><strong>Scadenza:</strong> ${new Date(attestation.expirationTime).toLocaleString()}</p>
+                                    <p><strong>Revocabile:</strong> ${attestation.revocable ? 'Sì' : 'No'}</p>
+                                    <p><strong>Stato:</strong> <span style="color: ${isValid ? '#10b981' : '#ef4444'}; font-weight: bold;">${isValid ? 'Valida' : (attestation.revoked ? 'Revocata' : 'Scaduta')}</span></p>
+                                    ${attestation.revoked ? `<p><strong>Revocata il:</strong> ${new Date(attestation.revokedAt).toLocaleString()}</p>` : ''}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        updateStatus('verifyStatus', '❌ Attestazione non trovata', 'error');
+                        document.getElementById('verifyResult').innerHTML = '';
+                    }
+                });
+                
+            } catch (error) {
+                updateStatus('verifyStatus', `❌ ${error.message}`, 'error');
+            }
+        }
+        
+        async function revokeAttestation() {
+            try {
+                const uid = document.getElementById('verifyUID').value.trim();
+                
+                if (!uid) {
+                    throw new Error('Inserisci UID attestazione da revocare');
+                }
+                
+                updateStatus('verifyStatus', '🔄 Revoca in corso...', 'info');
+                
+                gun.get('attestations').get(uid).once((attestation) => {
+                    if (!attestation) {
+                        throw new Error('Attestazione non trovata');
+                    }
+                    
+                    if (attestation.attester !== myPeerId) {
+                        throw new Error('Puoi revocare solo le tue attestazioni');
+                    }
+                    
+                    if (!attestation.revocable) {
+                        throw new Error('Questa attestazione non è revocabile');
+                    }
+                    
+                    if (attestation.revoked) {
+                        throw new Error('Attestazione già revocata');
+                    }
+                    
+                    // Revoca attestazione
+                    gun.get('attestations').get(uid).put({
+                        ...attestation,
+                        revoked: true,
+                        revokedAt: Date.now()
+                    });
+                    
+                    updateStatus('verifyStatus', '✅ Attestazione revocata con successo!', 'success');
+                    
+                    // Ricarica risultato verifica
+                    setTimeout(() => verifyAttestation(), 1000);
+                });
+                
+            } catch (error) {
+                updateStatus('verifyStatus', `❌ ${error.message}`, 'error');
+            }
+        }
+        
+        // Explorer
+        async function exploreAttestations() {
+            try {
+                const filter = document.getElementById('explorerFilter').value;
+                const filterValue = document.getElementById('filterValue').value.trim();
+                
+                const resultsDiv = document.getElementById('explorerResults');
+                resultsDiv.innerHTML = '<p style="color: #94a3b8;">📡 Esplorazione in corso...</p>';
+                
+                const attestations = [];
+                
+                if (filter === 'all') {
+                    // Tutte le attestazioni
+                    gun.get('attestations').map().once((data) => {
+                        if (data && data.uid) {
+                            attestations.push(data);
+                            updateAttestationsList(attestations, 'explorerResults');
+                        }
+                    });
+                } else if (filter === 'schema' && filterValue) {
+                    // Per schema
+                    gun.get('attestations').map().once((data) => {
+                        if (data && data.schema && data.schema.includes(filterValue)) {
+                            attestations.push(data);
+                            updateAttestationsList(attestations, 'explorerResults');
+                        }
+                    });
+                } else if (filter === 'recipient' && filterValue) {
+                    // Per destinatario
+                    gun.get('recipients').get(filterValue).get('attestations').map().once((exists, uid) => {
+                        if (exists) {
+                            gun.get('attestations').get(uid).once((data) => {
+                                if (data) {
+                                    attestations.push(data);
+                                    updateAttestationsList(attestations, 'explorerResults');
+                                }
+                            });
+                        }
+                    });
+                } else if (filter === 'issuer' && filterValue) {
+                    // Per emittente
+                    gun.get('attesters').get(filterValue).get('attestations').map().once((exists, uid) => {
+                        if (exists) {
+                            gun.get('attestations').get(uid).once((data) => {
+                                if (data) {
+                                    attestations.push(data);
+                                    updateAttestationsList(attestations, 'explorerResults');
+                                }
+                            });
+                        }
+                    });
+                }
+                
+                setTimeout(() => {
+                    if (attestations.length === 0) {
+                        resultsDiv.innerHTML = '<p style="color: #94a3b8;">🔍 Nessun risultato trovato.</p>';
+                    }
+                    stats.attestations = attestations.length;
+                    document.getElementById('totalAttestations').textContent = stats.attestations;
+                }, 2000);
+                
+            } catch (error) {
+                document.getElementById('explorerResults').innerHTML = `<p style="color: #f87171;">❌ ${error.message}</p>`;
+            }
+        }
+        
+        // Export/Import
+        async function exportAttestations() {
+            try {
+                const attestations = [];
+                
+                gun.get('attesters').get(myPeerId).get('attestations').map().once((exists, uid) => {
+                    if (exists) {
+                        gun.get('attestations').get(uid).once((data) => {
+                            if (data) {
+                                attestations.push(data);
+                            }
+                        });
+                    }
+                });
+                
+                setTimeout(() => {
+                    if (attestations.length === 0) {
+                        alert('Nessuna attestazione da esportare');
+                        return;
+                    }
+                    
+                    const exportData = {
+                        version: '1.0.0',
+                        timestamp: Date.now(),
+                        attestations: attestations,
+                        schemas: []
+                    };
+                    
+                    // Carica anche gli schemi utilizzati
+                    const schemaUIDs = [...new Set(attestations.map(a => a.schema))];
+                    let loadedSchemas = 0;
+                    
+                    schemaUIDs.forEach(schemaUID => {
+                        gun.get('schemas').get(schemaUID).once((schema) => {
+                            if (schema) {
+                                exportData.schemas.push(schema);
+                            }
+                            loadedSchemas++;
+                            
+                            if (loadedSchemas === schemaUIDs.length) {
+                                // Download file
+                                const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+                                    type: 'application/json'
+                                });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `guneas-export-${Date.now()}.json`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            }
+                        });
+                    });
+                }, 1000);
+                
+            } catch (error) {
+                alert(`Errore export: ${error.message}`);
+            }
+        }
+        
+        // Statistiche e utilità
+        async function refreshStats() {
+            try {
+                // Conta peers online
+                let onlinePeers = 0;
+                const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+                
+                gun.get('peers').map().once((peer) => {
+                    if (peer && peer.online && peer.timestamp > fiveMinutesAgo) {
+                        onlinePeers++;
+                    }
+                });
+                
+                setTimeout(() => {
+                    stats.peers = onlinePeers;
+                    document.getElementById('onlinePeers').textContent = stats.peers;
+                }, 1000);
+                
+                // Conta totale attestazioni
+                let totalAttestations = 0;
+                gun.get('attestations').map().once((data) => {
+                    if (data && data.uid) {
+                        totalAttestations++;
+                    }
+                });
+                
+                setTimeout(() => {
+                    stats.attestations = totalAttestations;
+                    document.getElementById('totalAttestations').textContent = stats.attestations;
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Errore refresh stats:', error);
+            }
+        }
+        
+        // Gestione UI
+        function switchTab(tabName) {
+            // Nasconde tutti i tab
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Mostra tab selezionato
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function updateStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = message;
+                element.className = `status ${type}`;
+            }
+        }
+        
+        function generateUID() {
+            return 'uid_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        
+        // Auto-refresh periodico
+        setInterval(refreshStats, 30000); // Ogni 30 secondi
+        
+        // Inizializzazione automatica
+        window.addEventListener('load', () => {
+            initSystem();
+        });
+        
+        // Cleanup alla chiusura
+        window.addEventListener('beforeunload', () => {
+            if (gun && myPeerId) {
+                gun.get('peers').get(myPeerId).put({ online: false });
+            }
+        });
+    </script>
+</body>
+</html>
