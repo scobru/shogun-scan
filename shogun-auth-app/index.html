@@ -715,7 +715,7 @@
     <!-- Include libraries -->
     <script src="https://cdn.jsdelivr.net/npm/gun/dist/gun.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/dist/lib/wire.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/shogun-core/dist/browser/shogun-core.js"></script>
+    <script src="../shogun-core/dist/index.js"></script>
     <script type="module">
       // Import NoDom functions
       import {
@@ -2560,6 +2560,265 @@
         );
       }
 
+      // ===== PROOF REQUEST HANDLING =====
+      
+      let pendingProofRequests = new Set();
+      
+      function listenForProofRequests() {
+        window.addEventListener('message', async (event) => {
+          try {
+            const { type, data } = event.data;
+            
+            if (type === 'shogun:proof-request') {
+              console.log('📨 Received proof request from:', event.origin);
+              await handleIncomingProofRequest(data, event.origin);
+            }
+          } catch (error) {
+            console.error('Error handling proof request:', error);
+          }
+        });
+      }
+      
+      async function handleIncomingProofRequest(request, origin) {
+        // Store the request
+        pendingProofRequests.add({
+          ...request,
+          origin,
+          timestamp: Date.now()
+        });
+        
+        // Show notification to user
+        showResult("📨 Proof Request", {
+          message: `New proof request from ${request.requestingApp.name}`,
+          requestId: request.id,
+          type: request.type,
+          requirements: request.requirements,
+          privacy: request.privacy,
+          origin: origin,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Auto-refresh the proof requests section
+        if (typeof updateProofRequestsDisplay === 'function') {
+          updateProofRequestsDisplay();
+        }
+      }
+      
+      function getPendingProofRequests() {
+        return Array.from(pendingProofRequests);
+      }
+      
+      async function approveProofRequest(requestId, origin) {
+        const request = Array.from(pendingProofRequests).find(r => r.id === requestId);
+        if (!request) {
+          showResult("❌ Error", { message: "Proof request not found" });
+          return;
+        }
+        
+        try {
+          // Generate proof based on request type
+          const proof = await generateProofForRequest(request);
+          
+          // Send proof back to requesting app
+          const targetWindow = window.opener || window.parent;
+          if (targetWindow) {
+            targetWindow.postMessage({
+              type: 'shogun:proof-response',
+              data: {
+                requestId: requestId,
+                success: true,
+                proof: proof,
+                metadata: {
+                  generatedAt: Date.now(),
+                  expiresAt: Date.now() + (60 * 60 * 1000) // 1 hour
+                }
+              }
+            }, origin);
+          }
+          
+          // Remove from pending requests
+          pendingProofRequests = new Set(Array.from(pendingProofRequests).filter(r => r.id !== requestId));
+          
+          showResult("✅ Proof Sent", {
+            message: `Proof successfully sent to ${request.requestingApp.name}`,
+            requestId: requestId,
+            proofType: proof.type,
+            timestamp: new Date().toISOString()
+          });
+          
+        } catch (error) {
+          console.error('Error generating proof:', error);
+          showResult("❌ Error", { 
+            message: `Failed to generate proof: ${error.message}`,
+            requestId: requestId 
+          });
+        }
+      }
+      
+      async function generateProofForRequest(request) {
+        const shogun = getShogun();
+        if (!shogun || !shogun.isLoggedIn()) {
+          throw new Error("Please login first to generate proofs");
+        }
+        
+        // Get current authentication method
+        const authMethod = shogun.getAuthMethod();
+        
+        switch (request.privacy) {
+          case 'zero_knowledge':
+            return await generateZKProof(request, authMethod);
+          case 'selective_disclosure':
+            return await generateSelectiveDisclosureProof(request, authMethod);
+          case 'full_disclosure':
+            return await generateFullDisclosureProof(request, authMethod);
+          default:
+            throw new Error(`Unsupported privacy level: ${request.privacy}`);
+        }
+      }
+      
+      async function generateZKProof(request, authMethod) {
+        // Generate zero-knowledge proof that reveals minimal information
+        const proofData = {
+          type: request.type,
+          hasRequiredAuth: request.requirements.authMethods ? 
+            request.requirements.authMethods.includes(authMethod) : true,
+          timestamp: Date.now()
+        };
+        
+        // Create hash-based proof (in production, use proper ZK libraries)
+        const proofString = JSON.stringify(proofData);
+        const proof = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(proofString));
+        const proofHex = Array.from(new Uint8Array(proof))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+        
+        return {
+          type: 'zk-proof',
+          data: proofHex,
+          publicSignals: [request.type, Date.now().toString()],
+          verificationKey: "shogun_zk_vk_" + authMethod
+        };
+      }
+      
+      async function generateSelectiveDisclosureProof(request, authMethod) {
+        const disclosedAttributes = {};
+        
+        // Only reveal what's requested
+        if (request.requirements.authMethods) {
+          disclosedAttributes.authMethodSupported = 
+            request.requirements.authMethods.includes(authMethod);
+        }
+        
+        if (request.requirements.hasAddress && authMethod === 'web3') {
+          disclosedAttributes.hasEthereumAddress = true;
+        }
+        
+        if (request.requirements.hasAddress && authMethod === 'nostr') {
+          disclosedAttributes.hasBitcoinAddress = true;
+        }
+        
+        return {
+          type: 'selective-disclosure',
+          data: JSON.stringify(disclosedAttributes),
+          attributes: Object.keys(disclosedAttributes)
+        };
+      }
+      
+      async function generateFullDisclosureProof(request, authMethod) {
+        const shogun = getShogun();
+        
+        // Only for highly trusted apps - include more information
+        const userData = {
+          authMethod: authMethod,
+          userPub: shogun.user?.is?.pub,
+          hasValidSession: shogun.isLoggedIn(),
+          timestamp: Date.now()
+        };
+        
+        return {
+          type: 'full-disclosure',
+          data: JSON.stringify(userData),
+          userData: userData
+        };
+      }
+      
+      function rejectProofRequest(requestId) {
+        const request = Array.from(pendingProofRequests).find(r => r.id === requestId);
+        if (!request) return;
+        
+        // Send rejection back to requesting app
+        const targetWindow = window.opener || window.parent;
+        if (targetWindow) {
+          targetWindow.postMessage({
+            type: 'shogun:proof-response',
+            data: {
+              requestId: requestId,
+              success: false,
+              error: "User rejected proof request"
+            }
+          }, request.origin);
+        }
+        
+        // Remove from pending requests
+        pendingProofRequests = new Set(Array.from(pendingProofRequests).filter(r => r.id !== requestId));
+        
+        showResult("❌ Proof Rejected", {
+          message: `Proof request from ${request.requestingApp.name} was rejected`,
+          requestId: requestId,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Add ProofRequestSection component
+      function ProofRequestSection() {
+        const requests = getPendingProofRequests();
+        
+        return h(
+          "div",
+          { class: "action-group proof-requests" },
+          h("h2", {}, "📨 Proof Requests"),
+          h("p", { style: "color: var(--text-secondary); margin-bottom: var(--spacing-md);" },
+            "Handle authentication proof requests from other Shogun apps"),
+          
+          requests.length === 0 
+            ? h("div", { class: "no-requests" }, 
+                "No pending proof requests. When another Shogun app needs to verify your identity, requests will appear here.")
+            : h("div", { class: "requests-list" },
+                ...requests.map(request => 
+                  h("div", { 
+                    class: "proof-request-item",
+                    style: "border: 1px solid var(--border-color); border-radius: var(--radius-small); padding: var(--spacing-md); margin-bottom: var(--spacing-md);" 
+                  },
+                    h("div", { class: "request-header" },
+                      h("h4", {}, `🔐 ${request.requestingApp.name}`),
+                      h("span", { class: "request-type" }, request.type)
+                    ),
+                    h("p", { style: "color: var(--text-secondary); margin: var(--spacing-sm) 0;" },
+                      request.requestingApp.description || "Requesting proof of identity"),
+                    h("div", { class: "request-details" },
+                      h("strong", {}, "Privacy Level: "),
+                      h("span", { 
+                        class: request.privacy === 'zero_knowledge' ? 'status-supported' : 
+                              request.privacy === 'selective_disclosure' ? 'status-warning' : 'status-not-supported',
+                        style: "padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;"
+                      }, request.privacy.replace('_', ' '))
+                    ),
+                    h("div", { class: "request-actions", style: "margin-top: var(--spacing-md);" },
+                      h("button", {
+                        class: "primary-button",
+                        onclick: () => approveProofRequest(request.id, request.origin),
+                        style: "margin-right: var(--spacing-sm);"
+                      }, "✅ Approve"),
+                      h("button", {
+                        class: "action-button",
+                        onclick: () => rejectProofRequest(request.id)
+                      }, "❌ Reject")
+                    )
+                  )
+                )
+              )
+        );
+      }
+
       function App() {
         return h(
           "div",
@@ -2573,6 +2832,7 @@
             WebAuthnSection(),
             EthereumSection(),
             BitcoinSection(),
+            ProofRequestSection(),
             RelayManagementSection(),
             ResultsSection()
           )
@@ -2583,6 +2843,9 @@
 
       // Initialize the app
       document.addEventListener("DOMContentLoaded", () => {
+        // Start listening for proof requests
+        listenForProofRequests();
+        
         const appElement = App();
         document.getElementById("app").appendChild(appElement);
 
