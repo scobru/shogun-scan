@@ -6,22 +6,30 @@ import Gun from 'gun'
 const GunContext = createContext(null)
 
 
-export const GunProvider = ({ children, peers = [] }) => {
+export const GunProvider = ({ children, peers = [], authToken = '' }) => {
   const gun = useMemo(() => {
-    const options = peers.length ? { peers } : {}
-    window.gun = Gun(options)
+    const options = peers.length ? { peers, localStorage:false, radisk:false } : {localStorage:false, radisk:false}
+    window.gun = new Gun(options)
 
-    window.gun.on("out", function (msg) {
+    // Store auth token globally for access from db.js
+    window.authToken = authToken
+
+    window.gun.on("put", function (msg) {
       var to = this.to;
-      // Adds headers for put
-      msg.headers = {
-        token: "automa25",
-      };
+      // Only add token if it exists and this is a write operation
+      if (msg.put && authToken) {  
+        msg.headers = {
+          token: authToken,
+        };
+        // Also add auth property for compatibility
+        msg.auth = { token: authToken };
+        msg.token = authToken; 
+      }
       to.next(msg); // pass to next middleware
     });
     
     return window.gun
-  }, [peers])
+  }, [peers, authToken]) // Add authToken to dependencies
   
   
   return (

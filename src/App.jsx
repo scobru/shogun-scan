@@ -7,7 +7,7 @@ import RelayDiscovery from './com/RelayDiscovery'
 import { GunProvider, useGun } from './api/gunContext'
 import { getNode } from './api/gunHelpers'
 
-function AppBody({ peers, setPeers, rootPath, setRootPath }) {
+function AppBody({ peers, setPeers, rootPath, setRootPath, authToken, setAuthToken }) {
   const gun = useGun()
 
   const [selection, setSelection] = useState(null)
@@ -173,6 +173,55 @@ function AppBody({ peers, setPeers, rootPath, setRootPath }) {
                 Starting path for data exploration
               </small>
             </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="auth-token-input">
+                Auth Token (Optional)
+              </label>
+              <input
+                id="auth-token-input"
+                type="text"
+                placeholder="Enter authentication token for write operations"
+                value={authToken}
+                onChange={(e) => setAuthToken(e.target.value)}
+              />
+              <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                Required for relays that need authentication for write operations
+              </small>
+            </div>
+            
+            {/* Reset Button */}
+            <div style={{ marginTop: 'var(--space-4)' }}>
+              <button
+                onClick={() => {
+                  setSelection(null)
+                  setSelectedData(null)
+                  setRootPath('data')
+                }}
+                style={{
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--warning)',
+                  color: 'var(--text-inverse)',
+                  border: 'none',
+                  borderRadius: 'var(--border-radius)',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#d97706'
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'var(--warning)'
+                }}
+                title="Reset search and go back to root"
+              >
+                🔄 Reset Search
+              </button>
+            </div>
           </div>
           
           {/* Connection Status */}
@@ -186,12 +235,66 @@ function AppBody({ peers, setPeers, rootPath, setRootPath }) {
                 {peers.split(',').length} peer{peers.split(',').length > 1 ? 's' : ''} configured
               </span>
             )}
+            {authToken && (
+              <span style={{ 
+                fontSize: '0.875rem', 
+                color: 'var(--success)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 'var(--space-1)' 
+              }}>
+                🔐 Auth enabled
+              </span>
+            )}
           </div>
         </div>
 
         {/* Tab Content */}
         {activeTab === 'explorer' && (
           <>
+            {/* Show helpful message when no peers are configured */}
+            {!peers && (
+              <div style={{
+                background: 'var(--primary-light)',
+                border: '1px solid var(--primary)',
+                borderRadius: 'var(--border-radius)',
+                padding: 'var(--space-5)',
+                marginBottom: 'var(--space-6)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '2rem', marginBottom: 'var(--space-3)' }}>
+                  🚀
+                </div>
+                <h3 style={{ 
+                  color: 'var(--primary)', 
+                  marginBottom: 'var(--space-2)',
+                  fontSize: '1.25rem',
+                  fontWeight: '600'
+                }}>
+                  Welcome to Shogun Scan!
+                </h3>
+                <p style={{ 
+                  color: 'var(--text-secondary)', 
+                  marginBottom: 'var(--space-4)',
+                  fontSize: '1rem',
+                  lineHeight: '1.5'
+                }}>
+                  To start exploring the decentralized database, please enter one or more Gun peer URLs in the connection settings above.
+                </p>
+                <div style={{
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--gray-200)',
+                  borderRadius: 'var(--border-radius)',
+                  padding: 'var(--space-3)',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  Example: http://localhost:8765/gun, https://gun-manhattan.herokuapp.com/gun
+                </div>
+              </div>
+            )}
+
             {/* Sticky Navigation Bar */}
             {selection && (
               <div style={{
@@ -495,17 +598,23 @@ function AppBody({ peers, setPeers, rootPath, setRootPath }) {
 }
 
 export default function App() {
-  const [peers, setPeers] = useState('https://gun-manhattan.herokuapp.com/gun')
+  const [peers, setPeers] = useState('')
   const [rootPath, setRootPath] = useState('data')
+  const [authToken, setAuthToken] = useState('')
 
   return (
     <>
-      <GunProvider peers={peers ? peers.split(',').map(p => p.trim()).filter(Boolean) : []}>
+      <GunProvider 
+        peers={peers ? peers.split(',').map(p => p.trim()).filter(Boolean) : []}
+        authToken={authToken}
+      >
         <AppBody
           peers={peers}
           setPeers={setPeers}
           rootPath={rootPath}
           setRootPath={setRootPath}
+          authToken={authToken}
+          setAuthToken={setAuthToken}
         />
       </GunProvider>
       
