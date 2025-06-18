@@ -8,7 +8,7 @@ const GunContext = createContext(null)
 
 export const GunProvider = ({ children, peers = [], authToken = '' }) => {
   const gun = useMemo(() => {
-    const options = peers.length ? { peers, localStorage:false, radisk:false } : {localStorage:false, radisk:false}
+    const options = peers.length ? { peers } : {}
     window.gun = new Gun(options)
 
     // Store auth token globally for access from db.js

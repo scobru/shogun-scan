@@ -4,6 +4,6 @@ import Gun from 'gun'
 // This file is kept for compatibility but the main Gun instance
 // should be accessed through the useGun hook from gunContext
 
-window.gun = Gun({localStorage:false, radisk:false})
+window.gun = Gun()
 
 export default window.gun

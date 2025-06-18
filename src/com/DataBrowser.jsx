@@ -13,9 +13,11 @@ export default function DataBrowser({ setSelection, path = 'data', onNavigate, b
   useEffect(() => {
     if (!gun) return
     
+    console.log('DataBrowser: Loading path:', path)
     setLoading(true)
     const nodeRef = getNode(gun, path)
     nodeRef.on((nodeData) => {
+      console.log('DataBrowser: Received data for path:', path, nodeData)
       setData(nodeData || {})
       setLoading(false)
     })
@@ -212,7 +214,9 @@ export default function DataBrowser({ setSelection, path = 'data', onNavigate, b
   }
 
   const renderData = () => {
+    console.log('DataBrowser: renderData called with data:', data)
     const items = Object.entries(data).filter(([key]) => key !== '_' && key !== '#')
+    console.log('DataBrowser: filtered items:', items)
     
     if (items.length === 0) {
       return (
